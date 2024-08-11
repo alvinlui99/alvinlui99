@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 import ta
 from dotenv import load_dotenv
 from binance.client import Client
@@ -36,79 +37,161 @@ def getBinanceData(client,
     
     return data
 
-def create_previous_data_df(df, num_points):
+def create_previous_data_data(data, num_points):
     data_lists = []
 
-    for i in range(len(df)):
+    for i in range(len(data)):
         if i < num_points:
             continue
         
-        prev_data = [df.iloc[i-n, 0] if i >= n else None for n in range(1, num_points+1)]
+        prev_data = [data.iloc[i-n, 0] if i >= n else None for n in range(1, num_points+1)]
         data_lists.append(prev_data)
 
     columns = [f"X_{n}" for n in range(1, num_points+1)]
-    prev_df = pd.DataFrame(data_lists, columns=columns)
+    prev_data = pd.DataFrame(data_lists, columns=columns)
 
-    return prev_df
+    return prev_data
 
-
-def sma(df, window):
-    sma = ta.trend.SMAIndicator(pd.Series(df), window=window).sma_indicator()
+def sma(data, window=14):
+    sma = ta.trend.SMAIndicator(pd.Series(data.Close), window=window).sma_indicator()
     return sma
 
-def rsi(df, window=14):
-    rsi = ta.momentum.RSIIndicator(pd.Series(df), window=window).rsi()
-    return rsi
-
-def ema(df, period=200):
-    ema = ta.trend.EMAIndicator(pd.Series(df), window=window).ema_indicator()
+def ema(data, window=14):
+    ema = ta.trend.EMAIndicator(pd.Series(data.Close), window=window).ema_indicator()
     return ema
 
-def macd(df):
-    macd = ta.trend.MACD(pd.Series(df)).macd()
+def rsi(data, window=14):
+    rsi = ta.momentum.RSIIndicator(pd.Series(data.Close), window=window).rsi()
+    return rsi
+
+def macd(data):
+    macd = ta.trend.MACD(pd.Series(data.Close)).macd()
     return macd
 
-def signal_h(df):
-    return ta.volatility.BollingerBands(pd.Series(df)).bollinger_hband()
-def signal_l(df):
-    return ta.volatility.BollingerBands(pd.Series(df)).bollinger_lband()
+def atr(data):
+    return ta.volatility.AverageTrueRange(data.High, data.Low, data.Close).average_true_range()
 
-def transformData(df):
+def signal_h(data):
+    return ta.volatility.BollingerBands(pd.Series(data)).bollinger_hband()
+def signal_l(data):
+    return ta.volatility.BollingerBands(pd.Series(data)).bollinger_lband()
+    
+def transformData(data):
     scaler = MinMaxScaler(feature_range=(0,1))
-    scaled_df = scaler.fit_transform(df)
-    scaled_df = pd.DataFrame(scaled_df)
+    scaled_data = scaler.fit_transform(data)
+    scaled_data = pd.DataFrame(scaled_data)
     columns = ['Close']
-    scaled_df.columns = columns
+    scaled_data.columns = columns
 
-    return scaler, scaled_df
+    return scaler, scaled_data
 
-def featureGeneration(data):
+def addSMA(data, sma_start: int, sma_end: int, sma_step: int):
+    sma_range = range(sma_start, sma_end, sma_step)
+
+    for window in sma_range:
+        # SMA/Close
+        # relative value of SMA to closing price
+        data[f'SMA_{window}'] = sma(data, window) / data['Close']
+
+    for i in range(len(sma_range)):
+        for j in range(i+1, len(sma_range)):
+            # (SMA_1 - SMA_2) / Close
+            data[f'SMA_DELTA_{sma_range[i]}_{sma_range[j]}'] = data[f'SMA_{sma_range[i]}'] - data[f'SMA_{sma_range[j]}']
+
+    return data
+
+def addEMA(data, ema_start: int, ema_end: int, ema_step: int):
+    ema_range = range(ema_start, ema_end, ema_step)
+
+    for window in ema_range:
+        # EMA/Close
+        # relative value of EMA to closing price
+        data[f'EMA_{window}'] = ema(data, window) / data['Close']
+
+    for i in range(len(ema_range)):
+        for j in range(i+1, len(ema_range)):
+            # (EMA_1 - EMA_2) / Close
+            data[f'EMA_DELTA_{ema_range[i]}_{ema_range[j]}'] = data[f'EMA_{ema_range[i]}'] - data[f'EMA_{ema_range[j]}']
+
+    return data
+
+def featureGeneration(data, sma_start: int = 20,
+                            sma_end  : int = 100,
+                            sma_step : int = 20,
+                            ema_start: int = 20,
+                            ema_end  : int = 100,
+                            ema_step : int = 20):
+    """
+    Input
+    --------
+    X: pd.DataFrame
+
+
+    Output
+    --------
+    X: pd.DataFrame
+    """
     close = data.Close
 
-    sma10 = sma(data.Close, 10)
-    sma20 = sma(data.Close, 20)
-    sma50 = sma(data.Close, 50)
-    sma100 = sma(data.Close, 100)
+    # SMA
+    data = addSMA(data=data, sma_start=sma_start, sma_end=sma_end, sma_step=sma_step)
+
+    # EMA
+    data = addEMA(data=data, ema_start=ema_start, ema_end=ema_end, ema_step=ema_step)
+
+    # RSI
+    data['RSI'] = rsi(data=data)
+
+    # MACD
+    data['MACD'] = macd(data=data)
+
+    # ATR
+    data['ATR'] = atr(data=data)
+
+    # BollingerBands
     upper = signal_h(data.Close)
     lower = signal_l(data.Close)
 
-    # Design matrix / independent features:
+    data['BB_upper'] = (upper - close) / close
+    data['BB_lower'] = (lower - close) / close
+    data['BB_width'] = (upper - lower) / close
 
-    # Price-derived features
-    data['X_SMA10'] = (close - sma10) / close
-    data['X_SMA20'] = (close - sma20) / close
-    data['X_SMA50'] = (close - sma50) / close
-    data['X_SMA100'] = (close - sma100) / close
+    # Garman Klass Volatility
+    data['garman_klass_vol'] = ((np.log(data['High'])-np.log(data['Low']))**2)/2-(2*np.log(2)-1)*((np.log(data['Close'])-np.log(data['Open']))**2)
 
-    data['X_DELTA_SMA10'] = (sma10 - sma20) / close
-    data['X_DELTA_SMA20'] = (sma20 - sma50) / close
-    data['X_DELTA_SMA50'] = (sma50 - sma100) / close
-
-    # Indicator features
-    data['X_MOM'] = data.Close.pct_change(periods=2)
-    data['X_BB_upper'] = (upper - close) / close
-    data['X_BB_lower'] = (lower - close) / close
-    data['X_BB_width'] = (upper - lower) / close
-
+    # Output    
     data = data.dropna().astype(float)
     return data
+
+def getReturn(data, y_column: str = 'Close', dropna: bool = True):
+    """Reads OHLCV and compute the period return based on closing price
+
+    Args:
+        data (pd.DataFrame): Raw OHLCV
+        y_column (str)     : which column the return is calculated based on
+
+    Returns:
+        data (pd.DataFrame): with one more column, and dropped na
+    """
+
+    data['Return'] = data[y_column].shift(-1) / data[y_column] - 1
+    if dropna:
+        data = data.dropna(inplace=False)
+    return data
+
+def getXy(data, y_column: str = 'Return'):
+    """split data into feature and target
+
+    Args:
+        data (pd.DataFrame): dataframe
+        y_column (str, optional): target column name. Defaults to 'Return'.
+
+    Returns:
+        X: feature
+        y: target
+    """
+    data.dropna(inplace=True)
+    y = data[[y_column]]
+    X = data.drop(y_column, axis=1)
+    return X, y
+
