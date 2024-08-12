@@ -5,6 +5,7 @@ import ta
 from dotenv import load_dotenv
 from binance.client import Client
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 
 def connectBinanceAPI():
     load_dotenv()
@@ -53,50 +54,41 @@ def create_previous_data_data(data, num_points):
     return prev_data
 
 def sma(data, window=14):
-    sma = ta.trend.SMAIndicator(pd.Series(data.Close), window=window).sma_indicator()
+    sma = ta.trend.SMAIndicator(pd.Series(data.loc[:, 'Close']), window=window).sma_indicator()
     return sma
 
 def ema(data, window=14):
-    ema = ta.trend.EMAIndicator(pd.Series(data.Close), window=window).ema_indicator()
+    ema = ta.trend.EMAIndicator(pd.Series(data.loc[:, 'Close']), window=window).ema_indicator()
     return ema
 
 def rsi(data, window=14):
-    rsi = ta.momentum.RSIIndicator(pd.Series(data.Close), window=window).rsi()
+    rsi = ta.momentum.RSIIndicator(pd.Series(data.loc[:, 'Close']), window=window).rsi()
     return rsi
 
 def macd(data):
-    macd = ta.trend.MACD(pd.Series(data.Close)).macd()
+    macd = ta.trend.MACD(pd.Series(data.loc[:, 'Close'])).macd()
     return macd
 
 def atr(data):
-    return ta.volatility.AverageTrueRange(data.High, data.Low, data.Close).average_true_range()
+    return ta.volatility.AverageTrueRange(data.loc[:, 'High'], data.loc[:, 'Low'], data.loc[:, 'Close']).average_true_range()
 
 def signal_h(data):
     return ta.volatility.BollingerBands(pd.Series(data)).bollinger_hband()
 def signal_l(data):
     return ta.volatility.BollingerBands(pd.Series(data)).bollinger_lband()
     
-def transformData(data):
-    scaler = MinMaxScaler(feature_range=(0,1))
-    scaled_data = scaler.fit_transform(data)
-    scaled_data = pd.DataFrame(scaled_data)
-    columns = ['Close']
-    scaled_data.columns = columns
-
-    return scaler, scaled_data
-
 def addSMA(data, sma_start: int, sma_end: int, sma_step: int):
     sma_range = range(sma_start, sma_end, sma_step)
 
     for window in sma_range:
         # SMA/Close
         # relative value of SMA to closing price
-        data[f'SMA_{window}'] = sma(data, window) / data['Close']
+        data.loc[:,f'SMA_{window}'] = sma(data, window) / data.loc[:,'Close']
 
     for i in range(len(sma_range)):
         for j in range(i+1, len(sma_range)):
             # (SMA_1 - SMA_2) / Close
-            data[f'SMA_DELTA_{sma_range[i]}_{sma_range[j]}'] = data[f'SMA_{sma_range[i]}'] - data[f'SMA_{sma_range[j]}']
+            data.loc[:,f'SMA_DELTA_{sma_range[i]}_{sma_range[j]}'] = data.loc[:,f'SMA_{sma_range[i]}'] - data.loc[:,f'SMA_{sma_range[j]}']
 
     return data
 
@@ -106,21 +98,24 @@ def addEMA(data, ema_start: int, ema_end: int, ema_step: int):
     for window in ema_range:
         # EMA/Close
         # relative value of EMA to closing price
-        data[f'EMA_{window}'] = ema(data, window) / data['Close']
+        data.loc[:,f'EMA_{window}'] = ema(data, window) / data.loc[:,'Close']
 
     for i in range(len(ema_range)):
         for j in range(i+1, len(ema_range)):
             # (EMA_1 - EMA_2) / Close
-            data[f'EMA_DELTA_{ema_range[i]}_{ema_range[j]}'] = data[f'EMA_{ema_range[i]}'] - data[f'EMA_{ema_range[j]}']
+            data.loc[:,f'EMA_DELTA_{ema_range[i]}_{ema_range[j]}'] = data.loc[:,f'EMA_{ema_range[i]}'] - data.loc[:,f'EMA_{ema_range[j]}']
 
     return data
 
-def featureGeneration(data, sma_start: int = 20,
-                            sma_end  : int = 100,
-                            sma_step : int = 20,
-                            ema_start: int = 20,
-                            ema_end  : int = 100,
-                            ema_step : int = 20):
+def featureGeneration_bu(
+    data,
+    sma_start: int = 20,
+    sma_end  : int = 100,
+    sma_step : int = 20,
+    ema_start: int = 20,
+    ema_end  : int = 100,
+    ema_step : int = 20
+    ):
     """
     Input
     --------
@@ -159,8 +154,10 @@ def featureGeneration(data, sma_start: int = 20,
     # Garman Klass Volatility
     data['garman_klass_vol'] = ((np.log(data['High'])-np.log(data['Low']))**2)/2-(2*np.log(2)-1)*((np.log(data['Close'])-np.log(data['Open']))**2)
 
-    # Output    
-    data = data.dropna().astype(float)
+    # Output
+    OHLC_cols = ['Open', 'High', 'Low', 'Close']
+    data = data.drop(OHLC_cols, axis=1).dropna().astype(float)
+
     return data
 
 def getReturn(data, y_column: str = 'Close', dropna: bool = True):
@@ -195,3 +192,110 @@ def getXy(data, y_column: str = 'Return'):
     X = data.drop(y_column, axis=1)
     return X, y
 
+def preprocess(
+    data_df: pd.DataFrame,
+    train_size: float,
+    val_size: float,
+    test_size: float,
+    scale: bool = True):
+    """Splits data into train/val/test sets and scales the data.
+
+    Args:
+        data_df: DataFrame of shape `(num_time_steps, num_features)`
+        train_size: A float value between 0.0 and 1.0 that represent the proportion of the dataset
+            to include in the train split.
+        val_size: A float value between 0.0 and 1.0 that represent the proportion of the dataset
+            to include in the validation split.
+        test_size: A float value between 0.0 and 1.0 that represent the proportion of the dataset
+            to include in the test split.
+
+    Returns:
+        `train_df`, `val_df`, `test_df`
+    """
+
+    if train_size + val_size + test_size != 1:
+        raise Exception("train_size + val_size + test_size != 1")
+
+    train_df, val_test_df = train_test_split(
+        data_df,
+        train_size=train_size,
+        shuffle=False)
+
+    val_df, test_df = train_test_split(
+        val_test_df,
+        train_size=(val_size/(val_size+test_size)),
+        shuffle=False)
+
+    scaler = MinMaxScaler()
+    scaler = scaler.fit(train_df)
+    
+    if scale:
+        train_df = pd.DataFrame(
+            scaler.transform(train_df),
+            index=train_df.index,
+            columns=train_df.columns)
+
+        val_df = pd.DataFrame(
+            scaler.transform(val_df),
+            index=val_df.index,
+            columns=val_df.columns)
+
+        test_df = pd.DataFrame(
+            scaler.transform(test_df),
+            index=test_df.index,
+            columns=test_df.columns)
+
+    return train_df, val_df, test_df, scaler
+
+def featureGeneration(
+    data,
+    sma_start: int = 20,
+    sma_end  : int = 100,
+    sma_step : int = 20,
+    ema_start: int = 20,
+    ema_end  : int = 100,
+    ema_step : int = 20
+    ):
+    """
+    Input
+    --------
+    X: pd.DataFrame
+
+
+    Output
+    --------
+    X: pd.DataFrame
+    """
+    close = data.loc[:, 'Close']
+
+    # SMA
+    data = addSMA(data=data, sma_start=sma_start, sma_end=sma_end, sma_step=sma_step)
+
+    # # EMA
+    # data = addEMA(data=data, ema_start=ema_start, ema_end=ema_end, ema_step=ema_step)
+
+    # # RSI
+    # data.loc[:,'RSI'] = rsi(data=data)
+
+    # # MACD
+    # data.loc[:,'MACD'] = macd(data=data)
+
+    # # ATR
+    # data.loc[:,'ATR'] = atr(data=data)
+
+    # # BollingerBands
+    # upper = signal_h(data.Close)
+    # lower = signal_l(data.Close)
+
+    # data.loc[:,'BB_upper'] = (upper - close) / close
+    # data.loc[:,'BB_width'] = (upper - lower) / close
+    # data.loc[:,'BB_lower'] = (lower - close) / close
+
+    # # Garman Klass Volatility
+    # data.loc[:,'garman_klass_vol'] = ((np.log(data['High'])-np.log(data['Low']))**2)/2-(2*np.log(2)-1)*((np.log(data['Close'])-np.log(data['Open']))**2)
+
+    # Output
+    OHLC_cols = ['Open', 'High', 'Low', 'Close']
+    data = data.drop(OHLC_cols, axis=1).dropna().astype(float)
+
+    return data
