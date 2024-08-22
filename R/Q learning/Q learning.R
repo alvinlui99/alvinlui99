@@ -1,49 +1,134 @@
+library(keras)
+library(tensorflow)
+library(dplyr)
 library(quantmod)
-library(rlang)
 
-interval <- "1h/"
+setwd("/Users/taryn.tsui/Documents/Alvin/GitHub/alvinlui99/R/Q Learning")
 
-csv_folder <- "Binance Data/"
-files_list <- list.files(paste0(csv_folder, interval), full.names = TRUE)
-files_list
-symbols <- sub(".csv", "", files_list)
+source("util_functions_v2.R")
 
-symbol <- "BTCUSDT"
-
-# Load stock data
-csv_path <- paste0(csv_folder, interval, symbol, ".csv")
+csv_path <- "../Binance Data/1h/BTCUSDT.csv"
 data <- read.csv(csv_path,
                  colClasses = c("index" = "POSIXct"))
+timestep <- 20
 
-# Define a simple Q-learning agent
-Q_learning_agent <- function(data,
-                             epsilon = 0.1,
-                             alpha = 0.1,
-                             gamma = 0.9,
-                             n_episodes = 100) {
-  Q <- matrix(0, nrow = 2, ncol = 2)  # Q-table with 2 actions and 2 states
-  state <- 1  # Initial state
-  profit <- 0  # Initial profit
+model_input <- get_input_for_model(data = data,
+                                   train_split = 0.8,
+                                   timestep = timestep)
 
-  for (episode in 1:n_episodes) {
-    action <- sample(1:2, 1)  # Random action selection
-    new_state <- sample(1:2, 1)  # Random state transition
 
-    # Simulate profit based on action and state
-    reward <- data[new_state] - data[state]
-    profit <- profit + reward
+# Create training and test sets
+# train_size <- floor(0.8 * nrow(data))
+# train_data <- data[1:train_size, ]
+# test_data <- data[(train_size + 1):nrow(data), ]
 
-    # Update Q-table
-    Q[state, action] <- Q[state, action] +
-      alpha *
-        (reward + gamma * max(Q[new_state, ]) - Q[state, action])
 
-    state <- new_state
+# Define LSTM model
+model <- keras_model_sequential() %>%
+  layer_lstm(units = 50,
+             input_shape = c(timestep, 8),
+             return_sequences = TRUE) %>%
+  layer_dropout(rate = 0.2) %>%
+  layer_lstm(units = 50,
+             return_sequences = FALSE) %>%
+  layer_dropout(rate = 0.2) %>%
+  layer_dense(units = 1)
+
+# Compile the model
+model %>% compile(
+  loss = "mean_squared_error",
+  optimizer = "adam"
+)
+
+# Reshape data for LSTM
+# reshape_input <- function(data) {
+#   array(data, dim = c(nrow(data),
+#                       ncol(data),
+#                       1))
+# }
+
+# x_train <- reshape_input(train_data)
+# y_train <- train_data[, "Close"]
+
+x_train <- model_input$x_train
+y_train <- model_input$y_train
+
+# Train the model
+model %>% fit(x_train,
+              y_train,
+              epochs = 30,
+              batch_size = 32,
+              verbose = 1)
+
+# Define Q-value approximator model
+q_model <- keras_model_sequential() %>%
+  layer_lstm(units = 50,
+             input_shape = c(timestep, 8),
+             return_sequences = TRUE) %>%
+  layer_dropout(rate = 0.2) %>%
+  layer_lstm(units = 50,
+             return_sequences = FALSE) %>%
+  layer_dropout(rate = 0.2) %>%
+  layer_dense(units = 3)  # 3 actions: buy, sell, hold
+
+# Compile the Q-value model
+q_model %>% compile(
+  optimizer = "adam",
+  loss = "mse"
+)
+
+# Define parameters
+actions <- c("buy", "sell", "hold")
+learning_rate <- 0.01
+discount_factor <- 0.95
+epsilon <- 1  # Exploration factor
+epsilon_min <- 0.01
+epsilon_decay <- 0.995
+
+test_data <- model_input$x_test
+target_data <- model_input$y_test
+q_values <- array_zeros <- array(0, dim = c(1, 3))
+
+# Training the Q-approximator
+for (t in 1:(nrow(test_data) - 1)) {
+  current_state <- test_data[t, , , drop = FALSE]
+
+  # Epsilon-greedy action selection
+  if (runif(1) < epsilon) {
+    action <- sample(actions, 1)
+  } else {
+    q_values <- predict(q_model, current_state, verbose = 0)
+    action <- actions[which.max(q_values)]
   }
 
-  return(profit)
+  # Calculate reward
+  predicted_price <- predict(model, current_state, verbose = 0)
+  actual_price <- target_data[t, ]
+  reward <- ifelse(action == "buy" &&
+                     actual_price > predicted_price, 1,
+                   ifelse(action == "sell" &&
+                            actual_price < predicted_price, 1, -1))
+
+  # Get next state and max Q-value for next state
+  next_state <- test_data[t + 1, , , drop = FALSE]
+  future_q_values <- predict(q_model, next_state, verbose = 0)
+  best_future_q <- max(future_q_values)
+
+  # Update Q-value
+  target_q_values <- q_values
+  target_q_values[1, which(actions == action)] <-
+    reward + discount_factor * best_future_q
+
+  # Train Q-model
+  q_model %>%
+    fit(current_state,
+        target_q_values,
+        epochs = 1,
+        verbose = 0)
+
+  # Update exploration rate
+  epsilon <- max(epsilon_min, epsilon * epsilon_decay)
 }
 
-# Train the Q-learning agent
-profit <- Q_learning_agent(data, n_episodes = 1000)
-print(paste("Total profit after training:", profit))
+# Summarize results
+cat("Q-Learning with Q-value Approximator complete.\n")
