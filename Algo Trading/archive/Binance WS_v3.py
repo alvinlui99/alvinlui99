@@ -58,7 +58,6 @@ class Asset:
 
     def get_latest_price(self):
         return self.price[-1] if self.price else None
-    
 class Portfolio:
     def __init__(self):
         self.assets = {}
@@ -94,8 +93,6 @@ class Portfolio:
             if latest_price is not None:
                 total_value += latest_price * self.quantities[symbol]
         return total_value
-        
-    
 
 def break_response(message):
     trade_data = json.loads(message)["data"]
@@ -274,6 +271,7 @@ def get_listen_key(url,
         f"{url}/fapi/{v}/{endpoint}",
         headers=headers
         ).json()["listenKey"]
+
 async def connect_to_websocket(base_url):
     stream_names = [
         "ethusdt@markPrice",
@@ -299,7 +297,10 @@ async def main(base_url_ws, listen_key):
         connect_to_websocket(base_url_ws),
         connect_user_data(base_url_ws, listen_key)
     )
+
 if __name__ == "__main__":
     listen_key = get_listen_key(base_url_REST_testnet, headers)
-    um_futures_client = UMFutures(key=API_KEY, secret=API_SECRET, base_url=base_url_REST_testnet)
+    um_futures_client = UMFutures(key=API_KEY,
+                                  secret=API_SECRET,
+                                  base_url=base_url_REST_testnet)
     asyncio.run(main(base_url_WS_testnet, listen_key))

@@ -1,0 +1,1 @@
+this backup folder contains a functioning strategy, using LSTM and future return to set weights, long only
