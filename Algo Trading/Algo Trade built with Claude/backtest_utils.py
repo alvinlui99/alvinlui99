@@ -9,8 +9,7 @@ def run_backtest(
     strategy_name: str, 
     symbols: List[str],
     initial_capital: float, 
-    start_date: str, 
-    end_date: str
+    preloaded_data: pd.DataFrame
 ) -> BacktestResults:
     """
     Run backtest with given strategy and return results.
@@ -20,8 +19,7 @@ def run_backtest(
         strategy_name: Name identifier for the strategy
         symbols: List of trading pair symbols (e.g. ["BTCUSDT", "ETHUSDT"])
         initial_capital: Starting portfolio value
-        start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
+        preloaded_data: DataFrame containing historical data
         
     Returns:
         BacktestResults containing:
@@ -41,16 +39,20 @@ def run_backtest(
             trade_history: List of TradeRecord dictionaries
     
     Raises:
-        ValueError: If dates are invalid or symbols are not found
+        ValueError: If symbols are not found or preloaded_data is None
         TypeError: If strategy doesn't implement required interface
     """
+    if preloaded_data is None:
+        raise ValueError("preloaded_data is required")
+        
     backtester = Backtester(
         symbols=symbols,
         strategy=strategy,
-        initial_capital=initial_capital
+        initial_capital=initial_capital,
+        preloaded_data=preloaded_data
     )
     
-    stats = backtester.run(start_date=start_date, end_date=end_date)
+    stats = backtester.run()
     return BacktestResults(
         stats=stats,
         equity_curve=backtester.equity_curve,
@@ -85,7 +87,6 @@ def plot_regime_transitions(
         )
     
     if regime_stats.empty:
-        print("Warning: No regime statistics available")
         return None
         
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))

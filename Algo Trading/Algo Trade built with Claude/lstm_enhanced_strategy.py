@@ -18,8 +18,6 @@ class LSTMEnhancedStrategy(Strategy):
         
     def train_model(self, historical_data: pd.DataFrame) -> Dict[str, float]:
         """Train LSTM model on historical data"""
-        print("\nTraining LSTM Enhanced Strategy...")
-        
         try:
             # Prepare data for training
             train_data = self.prepare_training_data(historical_data)
@@ -39,7 +37,6 @@ class LSTMEnhancedStrategy(Strategy):
             return metrics
             
         except Exception as e:
-            print(f"Error during training: {str(e)}")
             raise
     
     def _calculate_features(self, prices: pd.Series, symbol: str) -> pd.DataFrame:
@@ -109,7 +106,6 @@ class LSTMEnhancedStrategy(Strategy):
             return features
             
         except Exception as e:
-            print(f"Error calculating features for {symbol}: {str(e)}")
             return None
 
     def prepare_training_data(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -129,22 +125,26 @@ class LSTMEnhancedStrategy(Strategy):
         for symbol in symbols:
             price_col = f'{symbol}_price'
             if price_col not in data.columns:
-                print(f"Warning: Price column {price_col} not found for {symbol}")
                 continue
             
             if len(data[price_col]) < FeatureConfig.LOOKBACK_PERIOD:
-                print(f"Warning: Insufficient price history for {symbol}")
                 continue
                 
             features = self._calculate_features(data[price_col], symbol)
-            if features is not None:
-                all_features.append(features)
+            if features is None or features.empty:
+                raise ValueError(f"No valid features calculated for symbol")
+            all_features.append(features)
         
         if not all_features:
             raise ValueError("No valid features could be calculated for any symbol")
         
+        # Filter out empty DataFrames before concatenation
+        valid_features = [df for df in all_features if not df.empty]
+        if not valid_features:
+            raise ValueError("No valid features available after filtering")
+        
         # Combine features from all symbols
-        combined_features = pd.concat(all_features, axis=1)
+        combined_features = pd.concat(valid_features, axis=1)
         combined_features = combined_features.ffill().bfill()
         
         # Drop non-numerical columns and any columns with NaN values
@@ -164,20 +164,22 @@ class LSTMEnhancedStrategy(Strategy):
             try:
                 prices = pd.Series(row['asset'].get_price_history())
                 if len(prices) < FeatureConfig.LOOKBACK_PERIOD:
-                    print(f"Warning: Insufficient price history for {symbol}")
                     continue
                 
                 features = self._calculate_features(prices, symbol)
-                if features is not None:
-                    all_features.append(features)
+                if features is None or features.empty:
+                    raise ValueError(f"No valid features calculated for {symbol}")
+                all_features.append(features)
                     
             except Exception as e:
-                print(f"Error preparing features for {symbol}: {str(e)}")
                 continue
         
+        # Filter out empty DataFrames before concatenation
+        valid_features = [df for df in all_features if not df.empty]
+        
         # Combine all features
-        if all_features:
-            combined_features = pd.concat(all_features, axis=1)
+        if valid_features:
+            combined_features = pd.concat(valid_features, axis=1)
             combined_features = combined_features.ffill().bfill()
             
             # Drop non-numerical columns and any columns with NaN values
@@ -185,19 +187,15 @@ class LSTMEnhancedStrategy(Strategy):
             numerical_features = numerical_features.dropna(axis=1, how='any')
             
             if numerical_features.empty:
-                print("Warning: No valid numerical features available after preprocessing")
                 return pd.DataFrame()
                 
             return numerical_features
         else:
-            print("Warning: No features could be calculated")
             return pd.DataFrame()
     
     def __call__(self, portfolio: Portfolio, current_prices: Dict[str, dict], 
                  timestep: int = 0) -> Dict[str, float]:
         """Execute LSTM enhanced strategy"""
-        print("\n=== LSTM Enhanced Strategy Execution ===")
-        
         try:
             # Calculate current portfolio value and weights
             current_equity, current_weights = self.calculate_current_weights(portfolio, current_prices)
@@ -217,11 +215,9 @@ class LSTMEnhancedStrategy(Strategy):
             # Track portfolio state
             self.track_portfolio_state(portfolio, current_equity, timestep)
             
-            print("=== End Strategy Execution ===\n")
             return signals
             
         except Exception as e:
-            print(f"Error executing strategy: {str(e)}")
             # Return current positions as fallback
             return {symbol: float(portfolio.portfolio_df.loc[symbol, 'position'])
                     for symbol in portfolio.portfolio_df.index}

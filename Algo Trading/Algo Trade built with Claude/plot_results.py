@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 from typing import List, Dict
+import os
 
 def plot_backtest_results(equity_curve: list, trade_history: list, initial_capital: float, 
                          benchmark_equity: list = None):
@@ -62,71 +63,37 @@ def plot_backtest_results(equity_curve: list, trade_history: list, initial_capit
     return fig
 
 def plot_portfolio_weights(equity_df: pd.DataFrame, trades_list: list, symbols: List[str]) -> plt.Figure:
-    """Plot portfolio weight allocations over time"""
+    """Plot portfolio weights over time"""
     # Create figure
-    fig = plt.figure(figsize=(12, 6))
+    fig = plt.figure(figsize=(15, 10))
     
-    # Convert trades list to DataFrame
-    trades_df = pd.DataFrame(trades_list)
-    
-    # Handle missing timestamp column
-    if 'timestamp' not in trades_df.columns:
-        print("Warning: No timestamp column found in trades data")
-        return fig
+    # Calculate weights over time
+    weights_df = pd.DataFrame(index=equity_df.index)
+    for symbol in symbols:
+        weights_df[symbol] = 0.0  # Initialize with zeros
         
-    trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'])
-    trades_df.sort_values('timestamp', inplace=True)
-    
-    # Calculate portfolio values and weights at each timestamp
-    weights_df = pd.DataFrame(index=trades_df['timestamp'].unique())
-    
-    # Initialize position tracking
-    positions = {symbol: 0.0 for symbol in symbols}
-    
-    # Calculate cumulative positions and weights
-    for timestamp in weights_df.index:
-        # Update positions based on trades
-        trades_at_time = trades_df[trades_df['timestamp'] == timestamp]
-        for _, trade in trades_at_time.iterrows():
-            symbol = trade['symbol']
-            positions[symbol] += trade['size']  # Using unified 'size' field
+    # Fill in weights from trade history
+    for trade in trades_list:
+        timestamp = trade['timestamp']
+        symbol = trade['symbol']
+        position = trade['position']
+        weights_df.loc[timestamp, symbol] = position
         
-        # Calculate total portfolio value
-        total_value = 0
-        position_values = {}
-        
-        for symbol in symbols:
-            # Get the latest price for this symbol
-            symbol_trades = trades_df[trades_df['symbol'] == symbol]
-            latest_trade = symbol_trades[symbol_trades['timestamp'] <= timestamp]
-            if not latest_trade.empty:
-                price = latest_trade.iloc[-1]['price']
-                value = positions[symbol] * price
-                position_values[symbol] = value
-                total_value += value
-        
-        # Calculate weights
-        if total_value > 0:
-            for symbol in symbols:
-                weights_df.loc[timestamp, symbol] = position_values.get(symbol, 0) / total_value
-        else:
-            for symbol in symbols:
-                weights_df.loc[timestamp, symbol] = 0.0
+    # Forward fill weights
+    weights_df = weights_df.ffill()
     
-    # Fill NaN values with 0
-    weights_df = weights_df.fillna(0)
+    # Normalize weights
+    row_sums = weights_df.abs().sum(axis=1)
+    row_sums = row_sums.where(row_sums != 0, 1)  # Avoid division by zero
+    weights_df = weights_df.div(row_sums, axis=0)
     
     # Plot weights
-    ax = fig.add_subplot(111)
-    
-    # Create stacked area plot
+    ax = plt.gca()
     weights_df.plot(kind='area', stacked=True, ax=ax)
     
-    # Customize plot
-    ax.set_title('Portfolio Weight Allocation Over Time')
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Weight')
-    ax.legend(title='Assets', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.title('Portfolio Weights Over Time')
+    plt.ylabel('Weight')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     ax.grid(True)
     
     # Save data
@@ -138,8 +105,20 @@ def plot_portfolio_weights(equity_df: pd.DataFrame, trades_list: list, symbols: 
 def save_backtest_results(mv_stats: pd.DataFrame, bench_stats: Dict, 
                         lstm_metrics: Dict, mv_equity: pd.DataFrame,
                         bench_equity: pd.DataFrame, mv_trades: List[Dict],
-                        symbols: List[str]) -> None:
-    """Save backtest results to CSV files"""
+                        symbols: List[str], output_dir: str = '.') -> None:
+    """
+    Save backtest results to CSV files
+    
+    Args:
+        mv_stats: Market neutral strategy statistics
+        bench_stats: Benchmark strategy statistics
+        lstm_metrics: LSTM model metrics
+        mv_equity: Market neutral strategy equity curve
+        bench_equity: Benchmark strategy equity curve
+        mv_trades: Market neutral strategy trade history
+        symbols: List of trading symbols
+        output_dir: Directory to save results (default: current directory)
+    """
     try:
         # Ensure mv_stats is a DataFrame with required columns
         if isinstance(mv_stats, pd.DataFrame):
@@ -193,16 +172,16 @@ def save_backtest_results(mv_stats: pd.DataFrame, bench_stats: Dict,
         })
         
         # Save metrics
-        metrics_df.to_csv('backtest_metrics.csv', index=False)
+        metrics_df.to_csv(os.path.join(output_dir, 'backtest_metrics.csv'), index=False)
         
         # Save equity curves
-        mv_equity.to_csv('regime_equity_curve.csv', index=True)
-        bench_equity.to_csv('benchmark_equity_curve.csv', index=True)
+        mv_equity.to_csv(os.path.join(output_dir, 'regime_equity_curve.csv'), index=True)
+        bench_equity.to_csv(os.path.join(output_dir, 'benchmark_equity_curve.csv'), index=True)
         
         # Save trade history
         trades_df = pd.DataFrame(mv_trades)
         if not trades_df.empty:
-            trades_df.to_csv('regime_trades.csv', index=False)
+            trades_df.to_csv(os.path.join(output_dir, 'regime_trades.csv'), index=False)
         
         # Calculate and save portfolio weights over time
         if not mv_equity.empty:
@@ -225,14 +204,13 @@ def save_backtest_results(mv_stats: pd.DataFrame, bench_stats: Dict,
             row_sums = row_sums.where(row_sums != 0, 1)  # Avoid division by zero
             weights_df = weights_df.div(row_sums, axis=0)
             
-            weights_df.to_csv('portfolio_weights.csv', index=True)
+            weights_df.to_csv(os.path.join(output_dir, 'portfolio_weights.csv'), index=True)
             
-    except Exception as e:
-        print(f"Error saving backtest results: {str(e)}")
+    except Exception:
         # Create minimal results files
-        pd.DataFrame({'Error': ['Error saving results']}).to_csv('backtest_metrics.csv', index=False)
-        pd.DataFrame({'Error': ['Error saving results']}).to_csv('regime_equity_curve.csv', index=False)
-        pd.DataFrame({'Error': ['Error saving results']}).to_csv('benchmark_equity_curve.csv', index=False)
+        pd.DataFrame({'Error': ['Error saving results']}).to_csv(os.path.join(output_dir, 'backtest_metrics.csv'), index=False)
+        pd.DataFrame({'Error': ['Error saving results']}).to_csv(os.path.join(output_dir, 'regime_equity_curve.csv'), index=False)
+        pd.DataFrame({'Error': ['Error saving results']}).to_csv(os.path.join(output_dir, 'benchmark_equity_curve.csv'), index=False)
 
 def plot_btc_regimes(equity_curve: pd.DataFrame, regime_stats: pd.DataFrame) -> plt.Figure:
     """Plot BTC price and detected market regimes"""

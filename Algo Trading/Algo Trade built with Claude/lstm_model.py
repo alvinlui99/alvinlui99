@@ -21,20 +21,19 @@ class LSTMModel:
         
     def build_model(self, input_shape: Tuple[int, int]) -> None:
         """Build LSTM model architecture"""
-        self.model = Sequential([
-            LSTM(units=ModelConfig.LSTM_UNITS, 
-                 return_sequences=True,
-                 input_shape=input_shape),
-            Dropout(ModelConfig.DROPOUT_RATE),
-            LSTM(units=ModelConfig.LSTM_UNITS // 2),
-            Dropout(ModelConfig.DROPOUT_RATE),
-            Dense(units=ModelConfig.DENSE_UNITS, activation='relu'),
-            Dense(units=1)
-        ])
+        inputs = tf.keras.Input(shape=input_shape)
+        x = LSTM(units=ModelConfig.LSTM_UNITS, 
+                 return_sequences=True)(inputs)
+        x = Dropout(ModelConfig.DROPOUT_RATE)(x)
+        x = LSTM(units=ModelConfig.LSTM_UNITS // 2)(x)
+        x = Dropout(ModelConfig.DROPOUT_RATE)(x)
+        x = Dense(units=ModelConfig.DENSE_UNITS, activation='relu')(x)
+        outputs = Dense(units=1)(x)
+        
+        self.model = tf.keras.Model(inputs=inputs, outputs=outputs)
         
         optimizer = Adam(learning_rate=ModelConfig.LEARNING_RATE)
         self.model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
-        print(self.model.summary())
     
     def prepare_sequences(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         """Prepare input sequences and target values"""
@@ -50,7 +49,6 @@ class LSTMModel:
     
     def train(self, train_data: pd.DataFrame, val_data: pd.DataFrame = None) -> Dict[str, float]:
         """Train the LSTM model"""
-        print("\nPreparing training data...")
         X_train, y_train = self.prepare_sequences(train_data)
         
         if val_data is not None:
@@ -60,9 +58,6 @@ class LSTMModel:
             split_idx = int(len(X_train) * 0.8)
             X_val, y_val = X_train[split_idx:], y_train[split_idx:]
             X_train, y_train = X_train[:split_idx], y_train[:split_idx]
-        
-        print(f"Training data shape: {X_train.shape}")
-        print(f"Validation data shape: {X_val.shape}")
         
         # Build model if not already built
         if self.model is None:
@@ -84,14 +79,13 @@ class LSTMModel:
         ]
         
         # Train model
-        print("\nTraining LSTM model...")
         history = self.model.fit(
             X_train, y_train,
             validation_data=(X_val, y_val),
             epochs=ModelConfig.EPOCHS,
             batch_size=ModelConfig.BATCH_SIZE,
             callbacks=callbacks,
-            verbose=1
+            verbose=0
         )
         
         # Get final metrics
@@ -127,13 +121,10 @@ class LSTMModel:
         if self.model is None:
             raise ValueError("No model to save. Train the model first.")
         self.model.save(path)
-        print(f"Model saved to {path}")
     
     def load_model(self, path: str = MODEL_PATH) -> None:
         """Load model from disk"""
         try:
             self.model = load_model(path)
-            print(f"Model loaded from {path}")
         except Exception as e:
-            print(f"Error loading model: {str(e)}")
             raise

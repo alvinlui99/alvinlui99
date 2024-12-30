@@ -147,9 +147,8 @@ class RegimeConfig:
     
     # Performance Metrics for Validation
     VALIDATION_METRICS = {
-        'sharpe_ratio': 0.4,   # Weight for Sharpe Ratio
-        'sortino_ratio': 0.3,  # Weight for Sortino Ratio
-        'max_drawdown': 0.3    # Weight for Max Drawdown
+        'sharpe_ratio': 0.5,   # Weight for Sharpe Ratio
+        'sortino_ratio': 0.5,  # Weight for Sortino Ratio
     }
     
     # Risk Management Parameters (to be tuned)

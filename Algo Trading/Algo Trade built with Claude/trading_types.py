@@ -4,6 +4,7 @@ import numpy as np
 from dataclasses import dataclass
 from pandas import DataFrame, Series
 from decimal import Decimal
+from datetime import datetime
 
 class TradeRecord(TypedDict):
     """Expected format for individual trade records"""
@@ -121,3 +122,61 @@ class PortfolioDataFrame:
     def weight(self) -> Series:
         """Portfolio weights for all assets."""
         return self.df['weight'] 
+
+class MarketDataFeed(TypedDict):
+    """Represents a single market data update for a trading instrument"""
+    symbol: str
+    markPrice: str           # Current market price with 8 decimal precision
+    indexPrice: str          # Index price with 8 decimal precision
+    estimatedSettlePrice: str  # Estimated settlement price with 8 decimal precision
+    lastFundingRate: str     # Last funding rate, e.g., '0.00010000'
+    interestRate: str        # Interest rate, e.g., '0.00010000'
+    nextFundingTime: int     # Unix timestamp in milliseconds for next funding
+    time: int               # Current unix timestamp in milliseconds
+
+# Type hints for nested dictionary structure
+TimeSeriesMarketData = Dict[datetime, Dict[str, MarketDataFeed]]
+
+class MarketDataStructure:
+    """Documents the structure of market data feed used in backtesting
+    
+    The market data is organized in two main formats:
+    1. DataFrame format (price_history):
+       - Columns are named as '{symbol}_price' (e.g., 'BTC_price', 'ETH_price')
+       - Index is timestamp
+       - Values are float prices
+    
+    2. Dictionary format (market_data):
+       - First level key: timestamp (datetime)
+       - Second level key: symbol (str)
+       - Value: MarketDataFeed containing price and funding information
+    
+    Example:
+    ```
+    # DataFrame format (self.price_history):
+    timestamp            | BTC_price | ETH_price | ...
+    2023-01-01 00:00:00 | 50000.00  | 3000.00   | ...
+    2023-01-01 00:01:00 | 50050.00  | 3010.00   | ...
+    
+    # Dictionary format (market_data):
+    {
+        datetime(2023, 1, 1, 0, 0): {
+            'BTC': {
+                'symbol': 'BTC',
+                'markPrice': '50000.00000000',
+                'indexPrice': '50000.00000000',
+                'estimatedSettlePrice': '50000.00000000',
+                'lastFundingRate': '0.00010000',
+                'interestRate': '0.00010000',
+                'nextFundingTime': 1672531200000,
+                'time': 1672527600000
+            },
+            'ETH': {
+                # Similar structure for ETH
+            }
+        },
+        # More timestamps...
+    }
+    ```
+    """
+    pass 

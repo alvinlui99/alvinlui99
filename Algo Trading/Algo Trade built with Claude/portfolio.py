@@ -85,10 +85,6 @@ class Portfolio:
     
     def __init__(self, symbols: List[str], initial_capital: float = 10000):
         """Initialize portfolio with given symbols and capital"""
-        print("\n=== Initializing Portfolio ===")
-        print(f"Initial Capital: ${initial_capital:.2f}")
-        print(f"Symbols: {symbols}")
-        
         if not symbols:
             raise ValueError("Must provide at least one trading symbol")
             
@@ -109,10 +105,6 @@ class Portfolio:
         self.portfolio_df = self.portfolio_df.astype({
             'size': 'float64'
         })
-        
-        print("\nInitial Portfolio DataFrame:")
-        print(self.portfolio_df)
-        print("=== Portfolio Initialization Complete ===\n")
         
         # Separate DataFrame for returns
         self.returns_df = None
@@ -220,7 +212,10 @@ class Portfolio:
         
         weighted_prices = (weights * prices).sum()
         if weighted_prices > 0:
-            return weights * budget / weighted_prices
+            positions = weights * budget / weighted_prices
+            # Update size column with new positions
+            self.portfolio_df['size'] = positions
+            return positions
         return pd.Series(0, index=self.portfolio_df.index)
 
     def compute_volatility(self, weights: np.ndarray = None, 
@@ -272,9 +267,6 @@ class Portfolio:
             
             # Ensure alignment between weights and returns
             if len(weights) != len(mean_returns):
-                print(f"Mismatched dimensions: weights {len(weights)}, returns {len(mean_returns)}")
-                print(f"Symbols in portfolio: {self.symbols}")
-                print(f"Columns in returns: {returns_df.columns.tolist()}")
                 return 0.0
                 
             # Calculate expected portfolio return with safeguards
@@ -286,10 +278,7 @@ class Portfolio:
                 
             return -portfolio_return  # Negative because we minimize in scipy
             
-        except Exception as e:
-            print(f"Error in compute_expected_return: {str(e)}")
-            print(f"Weights shape: {weights.shape}")
-            print(f"Returns shape: {mean_returns.shape if mean_returns is not None else 'None'}")
+        except Exception:
             return 0.0  # Return neutral value on error
 
     def get_optim_weights(self):
@@ -307,9 +296,6 @@ class Portfolio:
             
         # Ensure symbols match between portfolio and returns
         if set(returns_df.columns) != set(self.symbols):
-            print("Warning: Mismatch between portfolio symbols and returns data")
-            print(f"Portfolio symbols: {self.symbols}")
-            print(f"Returns columns: {returns_df.columns.tolist()}")
             return None
             
         initial_weights = np.array([1.0/n_assets] * n_assets)
@@ -338,33 +324,22 @@ class Portfolio:
             
             return None
                 
-        except Exception as e:
-            print(f"Error in get_optim_weights: {str(e)}")
+        except Exception:
             return None
 
     def get_total_value(self, current_prices: Dict[str, dict] = None) -> float:
         """Calculate total portfolio value including cash"""
-        print("\n=== Portfolio Value Calculation ===")
-        print(f"Cash: ${self.cash:.2f}")
-        
-        # Debug: Print portfolio_df structure
-        print("\nPortfolio DataFrame Structure:")
-        print(self.portfolio_df)
-        
         # Track processed assets
         processed_assets = set()
         total_value = self.cash
         
-        print("\nProcessing each position:")
         for symbol, row in self.portfolio_df.iterrows():
             if symbol in processed_assets:
-                print(f"WARNING: {symbol} is being processed multiple times!")
                 continue
                 
             processed_assets.add(symbol)
             size = row['size']
             if isinstance(size, pd.Series):
-                print(f"Warning: Size for {symbol} is a Series, taking first value")
                 size = size.iloc[0]
             size = float(size)
             
@@ -377,18 +352,9 @@ class Portfolio:
                 if len(asset.prices) > 0:
                     current_price = float(asset.prices[-1])
                 else:
-                    print(f"Warning: No price available for {symbol}")
                     continue
             
             position_value = size * current_price
             total_value += position_value
-            print(f"{symbol}:")
-            print(f"  Size: {size:.6f}")
-            print(f"  Price: ${current_price:.2f}")
-            print(f"  Value: ${position_value:.2f}")
         
-        print("\nProcessed Assets:", sorted(list(processed_assets)))
-        print(f"Total number of assets processed: {len(processed_assets)}")
-        print(f"Total Portfolio Value: ${total_value:.2f}")
-        print("================================")
         return total_value

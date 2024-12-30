@@ -35,8 +35,6 @@ class RegimeSwitchingStrategy(Strategy):
     
     def train(self, historical_data: pd.DataFrame, validation_data: Optional[pd.DataFrame] = None):
         """Train both the regime detector and LSTM model"""
-        print("\nTraining Regime Switching Strategy...")
-        
         try:
             # Extract BTC data for regime detection
             # Data is indexed by datetime with multiple columns per symbol
@@ -58,21 +56,16 @@ class RegimeSwitchingStrategy(Strategy):
                 raise ValueError("No BTC price data found in historical data")
             
             # Train regime detector using BTC price data
-            print("Training Regime Detector on BTC data...")
             self.regime_detector.fit(btc_data, btc_val_data)
             
             # Train LSTM model on all assets
-            print("Training LSTM Model...")
             self.lstm_strategy.train_model(historical_data)
-            
-            print("Training complete!")
             
             # Print regime detection performance if validation data was used
             if btc_val_data is not None and not btc_val_data.empty:
                 self._evaluate_regime_detection(btc_val_data)
             
-        except Exception as e:
-            print(f"Error during training: {str(e)}")
+        except Exception:
             raise
     
     def detect_regime(self, portfolio: Portfolio, current_prices: Dict[str, dict]) -> int:
@@ -81,12 +74,10 @@ class RegimeSwitchingStrategy(Strategy):
             # Get BTC price history
             btc_asset = portfolio.portfolio_df.loc['BTCUSDT', 'asset']
             if btc_asset is None:
-                print("Warning: BTC price history not available")
                 return 1  # Default to neutral regime
             
             btc_prices = pd.Series(btc_asset.get_price_history())
             if btc_prices.empty:
-                print("Warning: Empty BTC price history")
                 return 1
             
             # Extract features and get regime predictions for all time steps
@@ -105,13 +96,9 @@ class RegimeSwitchingStrategy(Strategy):
             # Store timestamps
             self.timestamps = btc_prices.index
             
-            print(f"\nCurrent Market Regime: {self.regime_detector.regime_labels[self.current_regime]}")
-            print(f"Regime Probabilities: Bull: {probs[-1][0]:.2%}, Neutral: {probs[-1][1]:.2%}, Bear: {probs[-1][2]:.2%}")
-            
             return self.current_regime
             
-        except Exception as e:
-            print(f"Error detecting regime: {str(e)}")
+        except Exception:
             return 1  # Default to neutral regime
     
     def _evaluate_regime_detection(self, validation_data: pd.Series):
@@ -125,54 +112,37 @@ class RegimeSwitchingStrategy(Strategy):
             regimes = np.array([self.regime_detector.regime_map[r] for r in regimes])
             
             # Calculate regime distribution
-            regime_counts = np.bincount(regimes, minlength=self.regime_detector.n_regimes)
-            regime_props = regime_counts / len(regimes)
-            
-            print("\nRegime Detection Performance on BTC Validation Data:")
-            for i, (count, prop) in enumerate(zip(regime_counts, regime_props)):
-                print(f"{self.regime_detector.regime_labels[i]}:")
-                print(f"  Count: {count}")
-                print(f"  Proportion: {prop:.2%}")
+            regime_counts = np.bincount(regimes, minlength=self.n_regimes)
+            regime_props = np.where(len(regimes) > 0,
+                                  regime_counts / len(regimes),
+                                  np.zeros_like(regime_counts))
             
             # Calculate transition matrix
             transitions = np.zeros((self.regime_detector.n_regimes, self.regime_detector.n_regimes))
             for i in range(len(regimes)-1):
                 transitions[regimes[i], regimes[i+1]] += 1
             
-            # Normalize transition matrix
+            # Normalize transition matrix with safety check
             row_sums = transitions.sum(axis=1, keepdims=True)
-            transition_matrix = transitions / row_sums
-            
-            print("\nRegime Transition Probabilities:")
-            for i in range(self.regime_detector.n_regimes):
-                for j in range(self.regime_detector.n_regimes):
-                    if transition_matrix[i, j] > 0:
-                        print(f"{self.regime_detector.regime_labels[i]} -> "
-                              f"{self.regime_detector.regime_labels[j]}: "
-                              f"{transition_matrix[i, j]:.2%}")
+            transition_matrix = np.where(row_sums > 0,
+                                       transitions / row_sums,
+                                       np.zeros_like(transitions))
             
             # Calculate performance metrics by regime
             returns = validation_data.pct_change()
-            print("\nRegime Performance Metrics:")
-            for i in range(self.regime_detector.n_regimes):
-                regime_mask = (regimes == i)
-                regime_rets = returns[regime_mask]
-                if len(regime_rets) > 0:
-                    print(f"\n{self.regime_detector.regime_labels[i]}:")
-                    print(f"  Mean Return: {np.mean(regime_rets):.2%}")
-                    print(f"  Volatility: {np.std(regime_rets):.2%}")
-                    print(f"  Sharpe Ratio: {np.mean(regime_rets)/np.std(regime_rets) if np.std(regime_rets) > 0 else 0:.2f}")
-                    print(f"  Max Drawdown: {self._calculate_max_drawdown(regime_rets):.2%}")
             
-        except Exception as e:
-            print(f"Error evaluating regime detection: {str(e)}")
+        except Exception:
+            pass
     
     def _calculate_max_drawdown(self, returns: pd.Series) -> float:
         """Calculate maximum drawdown from returns"""
         cumulative = (1 + returns).cumprod()
         running_max = cumulative.expanding().max()
-        drawdown = (cumulative - running_max) / running_max
-        return abs(float(drawdown.min()))
+        # Add safety check for drawdown calculation
+        drawdown = np.where(running_max > 0,
+                           (cumulative - running_max) / running_max,
+                           0)
+        return abs(float(np.nanmin(drawdown)))
     
     def get_regime_weights(self, regime: int, lstm_weights: Dict[str, float], 
                           equal_weights: Dict[str, float]) -> Dict[str, float]:
@@ -204,18 +174,21 @@ class RegimeSwitchingStrategy(Strategy):
                 combined_weights[symbol] = (RegimeConfig.STRATEGY_WEIGHT_RATIO * strategy_weight + 
                                          RegimeConfig.BASE_WEIGHT_RATIO * base_weight)
             
-            # Normalize weights
+            # Normalize weights with safety check
             total_weight = sum(combined_weights.values())
             if total_weight > 0:
                 combined_weights = {
                     symbol: weight / total_weight 
                     for symbol, weight in combined_weights.items()
                 }
+            else:
+                # Fallback to equal weights if total weight is zero
+                weight = 1.0 / len(self.symbols)
+                combined_weights = {symbol: weight for symbol in self.symbols}
             
             return combined_weights
             
-        except Exception as e:
-            print(f"Error calculating regime weights: {str(e)}")
+        except Exception:
             # Return equal weights as fallback
             weight = 1.0 / len(self.symbols)
             return {symbol: weight for symbol in self.symbols}
@@ -223,15 +196,12 @@ class RegimeSwitchingStrategy(Strategy):
     def __call__(self, portfolio: Portfolio, current_prices: Dict[str, dict], 
                  timestep: int = 0) -> Dict[str, float]:
         """Execute regime switching strategy"""
-        print("\n=== Regime Switching Strategy Execution ===")
-        
         try:
             # Calculate current portfolio value and weights
             current_equity, current_weights = self.calculate_current_weights(portfolio, current_prices)
             
             # Detect current regime
             regime = self.detect_regime(portfolio, current_prices)
-            print(f"Current Regime: {self.regime_detector.regime_labels[regime]}")
             
             # Get weights from sub-strategies
             lstm_weights = self.lstm_strategy(portfolio, current_prices, timestep)
@@ -252,15 +222,13 @@ class RegimeSwitchingStrategy(Strategy):
                 timestamp = pd.to_datetime(current_prices[first_symbol]['time'], unit='ms')
                 self.timestamps.append(timestamp)
             
-            print("=== End Strategy Execution ===\n")
             return signals
             
-        except Exception as e:
-            print(f"Error executing strategy: {str(e)}")
+        except Exception:
             # Return current positions as fallback
             signals = {}
             for symbol in self.symbols:
-                position = portfolio.portfolio_df.loc[symbol, 'position']
+                position = portfolio.portfolio_df.loc[symbol, 'size']
                 if isinstance(position, pd.Series):
                     position = position.iloc[0]
                 signals[symbol] = float(position)
@@ -270,7 +238,6 @@ class RegimeSwitchingStrategy(Strategy):
         """Get statistics about regime transitions and probabilities"""
         try:
             if not self.regime_history or not self.regime_probs_history or not self.timestamps:
-                print("Warning: No regime history available")
                 return pd.DataFrame()
                 
             # Convert history to DataFrame
@@ -283,6 +250,5 @@ class RegimeSwitchingStrategy(Strategy):
             
             return df
             
-        except Exception as e:
-            print(f"Error calculating regime stats: {str(e)}")
+        except Exception:
             return pd.DataFrame() 

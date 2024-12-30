@@ -20,7 +20,7 @@ class Strategy(ABC):
         
         # Calculate all position values first
         for symbol, row in portfolio.portfolio_df.iterrows():
-            position = row['position']
+            position = row['size']
             if isinstance(position, pd.Series):
                 position = position.iloc[0]
             
@@ -54,7 +54,7 @@ class Strategy(ABC):
                 price = float(current_prices[symbol]['markPrice'])
                 
                 # Handle position access properly
-                position_value = portfolio.portfolio_df.loc[symbol, 'position']
+                position_value = portfolio.portfolio_df.loc[symbol, 'size']
                 if isinstance(position_value, pd.Series):
                     current_pos = float(position_value.iloc[0])
                 else:

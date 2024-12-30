@@ -40,14 +40,14 @@ class RegimeDetectorBullBear:
             sma_50 = prices.rolling(50).mean()  # Medium-term trend
             sma_200 = prices.rolling(200).mean()  # Long-term trend
             
-            # Price relative to key MAs
-            price_to_sma_21 = prices / sma_21 - 1
-            price_to_sma_50 = prices / sma_50 - 1
-            price_to_sma_200 = prices / sma_200 - 1
+            # Price relative to key MAs with safety checks
+            price_to_sma_21 = np.where(sma_21 > 0, prices / sma_21 - 1, 0)
+            price_to_sma_50 = np.where(sma_50 > 0, prices / sma_50 - 1, 0)
+            price_to_sma_200 = np.where(sma_200 > 0, prices / sma_200 - 1, 0)
             
-            # Moving average crossovers
-            golden_cross = sma_50 / sma_200 - 1  # Long-term trend change
-            bull_cross = sma_21 / sma_50 - 1     # Medium-term trend change
+            # Moving average crossovers with safety checks
+            golden_cross = np.where(sma_200 > 0, sma_50 / sma_200 - 1, 0)
+            bull_cross = np.where(sma_50 > 0, sma_21 / sma_50 - 1, 0)
             
             # 2. Bitcoin Momentum Features
             # ROC with Bitcoin-specific periods
@@ -64,29 +64,37 @@ class RegimeDetectorBullBear:
             vol_mid = returns.rolling(30).std()     # Monthly vol
             vol_long = returns.rolling(90).std()    # Quarterly vol
             
-            # Volatility ratios
-            vol_ratio_short = vol_short / vol_mid   # Vol regime change
-            vol_ratio_long = vol_mid / vol_long     # Long-term vol trend
+            # Volatility ratios with safety checks
+            vol_ratio_short = np.where(vol_mid > 0, vol_short / vol_mid, 1)   # Vol regime change
+            vol_ratio_long = np.where(vol_long > 0, vol_mid / vol_long, 1)    # Long-term vol trend
             
             # 4. Market Structure Features
             # Higher highs and lower lows (key for BTC trends)
             rolling_max_30 = prices.rolling(30).max()
             rolling_min_30 = prices.rolling(30).min()
             
-            # Price position within range
-            price_position = (prices - rolling_min_30) / (rolling_max_30 - rolling_min_30)
+            # Price position within range with safety check
+            price_range = rolling_max_30 - rolling_min_30
+            price_position = np.where(price_range > 0, 
+                                    (prices - rolling_min_30) / price_range,
+                                    0.5)  # Default to middle when no range
             
             # New highs/lows frequency
             new_highs = (prices == rolling_max_30).rolling(30).sum() / 30
             new_lows = (prices == rolling_min_30).rolling(30).sum() / 30
             
             # 5. Bitcoin-specific Risk Metrics
-            # Drawdown from ATH (key BTC metric)
+            # Drawdown from ATH with safety check
             rolling_max_all = prices.expanding().max()
-            drawdown = (prices - rolling_max_all) / rolling_max_all
+            drawdown = np.where(rolling_max_all > 0,
+                               (prices - rolling_max_all) / rolling_max_all,
+                               0)
             
-            # NVTS-like feature (Price to volatility ratio)
-            nvts = prices / (vol_mid * prices)
+            # NVTS-like feature with safety check
+            vol_price_product = vol_mid * prices
+            nvts = np.where(vol_price_product > 0,
+                           prices / vol_price_product,
+                           1)  # Default to 1 when undefined
             
             # Combine features
             features = pd.DataFrame({
@@ -124,8 +132,7 @@ class RegimeDetectorBullBear:
             
             return features_scaled
             
-        except Exception as e:
-            print(f"Error extracting features: {str(e)}")
+        except Exception:
             return np.zeros((len(prices), 16))  # Return zero features as fallback
     
     def fit(self, train_prices: pd.Series, val_prices: pd.Series = None) -> None:
@@ -172,46 +179,9 @@ class RegimeDetectorBullBear:
             # If validation data is provided, tune parameters
             if val_prices is not None:
                 self._tune_parameters(val_prices)
-                
-                # Print validation set statistics
-                val_features = self.extract_features(val_prices)
-                val_regimes = self.hmm.predict(val_features)
-                val_regimes = np.array([self.regime_map[r] for r in val_regimes])
-                
-                # Regime distribution
-                regime_counts = np.bincount(val_regimes, minlength=self.n_regimes)
-                print("\nValidation Set Regime Distribution:")
-                for i, count in enumerate(regime_counts):
-                    pct = count / len(val_regimes) * 100
-                    print(f"{self.regime_labels[i]}: {pct:.1f}%")
-                
-                # Transition probabilities
-                transitions = np.zeros((self.n_regimes, self.n_regimes))
-                for i in range(len(val_regimes)-1):
-                    transitions[val_regimes[i], val_regimes[i+1]] += 1
-                
-                row_sums = transitions.sum(axis=1, keepdims=True)
-                transition_matrix = transitions / row_sums
-                
-                print("\nRegime Transition Probabilities:")
-                for i in range(self.n_regimes):
-                    for j in range(self.n_regimes):
-                        if transition_matrix[i, j] > 0:
-                            print(f"{self.regime_labels[i]} -> {self.regime_labels[j]}: {transition_matrix[i, j]:.2%}")
-                
-                # Performance metrics by regime
-                print("\nRegime Performance Metrics:")
-                val_returns = val_prices.pct_change()
-                for i in range(self.n_regimes):
-                    regime_mask = (val_regimes == i)
-                    regime_rets = val_returns[regime_mask]
-                    print(f"\n{self.regime_labels[i]}:")
-                    print(f"  Mean Return: {np.mean(regime_rets):.2%}")
-                    print(f"  Volatility: {np.std(regime_rets):.2%}")
-                    print(f"  Sharpe Ratio: {np.mean(regime_rets)/np.std(regime_rets):.2f}")
             
-        except Exception as e:
-            print(f"Error fitting regime detector: {str(e)}")
+        except Exception:
+            raise
     
     def _tune_parameters(self, val_prices: pd.Series) -> None:
         """Tune strategy parameters using validation data"""
@@ -220,7 +190,7 @@ class RegimeDetectorBullBear:
             val_features = self.extract_features(val_prices)
             val_regimes = self.hmm.predict(val_features)
             val_regimes = np.array([self.regime_map[r] for r in val_regimes])
-            val_returns = val_prices.pct_change()
+            val_returns = val_prices.pct_change().fillna(0)  # Fill NaN with 0 for first return
             
             best_params = {}
             best_score = float('-inf')
@@ -242,27 +212,38 @@ class RegimeDetectorBullBear:
                         regime_returns = []
                         for i in range(self.n_regimes):
                             regime_mask = (val_regimes == i)
-                            regime_rets = val_returns[regime_mask] * params['leverage'][i]
-                            regime_returns.extend(regime_rets)
+                            if np.any(regime_mask):  # Only process if regime exists
+                                regime_rets = val_returns[regime_mask] * params['leverage'][i]
+                                regime_returns.extend(regime_rets)
                         
-                        # Calculate performance metrics
-                        sharpe = np.mean(regime_returns) / np.std(regime_returns) if np.std(regime_returns) > 0 else 0
-                        sortino = np.mean(regime_returns) / np.std(np.minimum(regime_returns, 0)) if np.std(np.minimum(regime_returns, 0)) > 0 else 0
+                        # Convert to numpy array for calculations
+                        regime_returns = np.array(regime_returns)
                         
-                        # Calculate score (weighted combination of metrics)
-                        score = RegimeConfig.VALIDATION_WEIGHTS['sharpe'] * sharpe + \
-                               RegimeConfig.VALIDATION_WEIGHTS['sortino'] * sortino
-                        
-                        # Update best parameters if score is better
-                        if score > best_score:
-                            best_score = score
-                            best_params = params.copy()
+                        # Calculate performance metrics with safety checks
+                        if len(regime_returns) > 0:
+                            returns_std = np.std(regime_returns)
+                            downside_returns = np.minimum(regime_returns, 0)
+                            downside_std = np.std(downside_returns)
+                            
+                            sharpe = np.mean(regime_returns) / returns_std if returns_std > 0 else 0
+                            sortino = np.mean(regime_returns) / downside_std if downside_std > 0 else 0
+                            
+                            # Calculate score (weighted combination of metrics)
+                            score = RegimeConfig.VALIDATION_METRICS['sharpe_ratio'] * sharpe + \
+                                   RegimeConfig.VALIDATION_METRICS['sortino_ratio'] * sortino
+                            
+                            # Update best parameters if score is better
+                            if score > best_score and not np.isnan(score):
+                                best_score = score
+                                best_params = params.copy()
             
             # Store best parameters
+            if not best_params:
+                raise ValueError("Failed to find valid parameters during validation")
             self.best_params = best_params
             
-        except Exception as e:
-            print(f"Error tuning parameters: {str(e)}")
+        except Exception:
+            raise
     
     def get_regime_characteristics(self) -> Dict[str, Dict[str, float]]:
         """Get statistical characteristics of each regime"""
@@ -281,8 +262,7 @@ class RegimeDetectorBullBear:
             
             return characteristics
             
-        except Exception as e:
-            print(f"Error getting regime characteristics: {str(e)}")
+        except Exception:
             return {label: {
                 'mean_return': 0.0,
                 'trend_strength': 0.0,
@@ -314,7 +294,6 @@ class RegimeDetectorBullBear:
             
             return {symbol: float(weight) for symbol, weight in zip(symbols, weights)}
             
-        except Exception as e:
-            print(f"Error calculating optimal weights: {str(e)}")
+        except Exception:
             weight = 1.0 / len(symbols)
             return {symbol: weight for symbol in symbols} 

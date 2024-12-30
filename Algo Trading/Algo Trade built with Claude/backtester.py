@@ -5,6 +5,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from portfolio import Portfolio
 from config import (TradingConfig, DATA_PATH, DATA_TIMEFRAME)
+from trading_types import TimeSeriesMarketData
 
 @dataclass
 class TradeStats:
@@ -21,7 +22,8 @@ class Backtester:
         symbols: List[str],
         strategy: Callable,
         initial_capital: float = 10000,
-        commission: float = TradingConfig.COMMISSION_RATE
+        commission: float = TradingConfig.COMMISSION_RATE,
+        preloaded_data: pd.DataFrame = None
     ):
         self.symbols = symbols
         self.strategy = strategy
@@ -31,6 +33,7 @@ class Backtester:
         self.trade_history = []
         self.equity_curve = []
         self.price_history = pd.DataFrame()  # Store full price history
+        self.preloaded_data = preloaded_data
         
     def load_data(self, timeframe: str = DATA_TIMEFRAME) -> Dict[str, pd.DataFrame]:
         """Load historical data for all symbols"""
@@ -59,11 +62,6 @@ class Backtester:
         
         # Run backtest
         for timestamp, prices in historical_data.items():
-            print(f"\n=== Timestep {timestep} ===")
-            print(f"Timestamp: {timestamp}")
-            print(f"Current Portfolio Value: ${self.portfolio.get_total_value():.2f}")
-            print(f"Current Cash: ${self.portfolio.cash:.2f}")
-            
             # Update portfolio prices
             for symbol in self.symbols:
                 if symbol in prices:
@@ -71,14 +69,6 @@ class Backtester:
             
             # Get strategy signals
             signals = self.strategy(self.portfolio, prices, timestep)
-            
-            if signals:
-                print("\nStrategy Signals:")
-                for symbol, target_pos in signals.items():
-                    current_pos = self.portfolio.portfolio_df.loc[symbol, 'position']
-                    if isinstance(current_pos, pd.Series):
-                        current_pos = current_pos.iloc[0]
-                    print(f"{symbol}: {float(current_pos):.6f} -> {target_pos:.6f}")
             
             # Execute trades
             if signals:
@@ -117,14 +107,8 @@ class Backtester:
     
     def _execute_trades(self, signals: Dict[str, float], current_prices: Dict[str, dict], timestamp: pd.Timestamp) -> None:
         """Execute trades based on strategy signals"""
-        print("\n=== Trade Execution ===")
-        print("\nPortfolio DataFrame Before Trades:")
-        print(self.portfolio.portfolio_df)
-        print(f"Portfolio Value Before Trades: ${self.portfolio.get_total_value(current_prices):.2f}")
-        print(f"Cash Before Trades: ${self.portfolio.cash:.2f}")
-        
         for symbol, target_position in signals.items():
-            current_position = self.portfolio.portfolio_df.loc[symbol, 'position']
+            current_position = self.portfolio.portfolio_df.loc[symbol, 'size']
             if isinstance(current_position, pd.Series):
                 current_position = current_position.iloc[0]
             
@@ -133,38 +117,26 @@ class Backtester:
             current_position = float(current_position)
             
             if not np.isclose(target_position, current_position, rtol=1e-5):
-                print(f"\nProcessing {symbol}:")
-                print(f"  Current Position: {current_position:.6f}")
-                print(f"  Target Position: {target_position:.6f}")
-                
                 # Calculate trade size
                 trade_size = target_position - current_position
                 
                 # Get current price
                 if symbol not in current_prices:
-                    print(f"  Skipping: No price data")
                     continue
                 price = float(current_prices[symbol]['markPrice'])
-                print(f"  Price: ${price:.2f}")
                 
                 # Calculate trade value and commission
                 trade_value = abs(trade_size * price)
                 commission = trade_value * self.commission
-                print(f"  Trade Size: {trade_size:.6f}")
-                print(f"  Trade Value: ${trade_value:.2f}")
-                print(f"  Commission: ${commission:.2f}")
                 
                 # Check if we have enough cash for the trade
                 if trade_size > 0:  # Buying
                     if self.portfolio.cash < (trade_value + commission):
-                        print(f"  Skipping: Insufficient cash")
                         continue
                 
                 # Update position and cash
-                self.portfolio.portfolio_df.at[symbol, 'position'] = target_position
+                self.portfolio.portfolio_df.at[symbol, 'size'] = target_position
                 self.portfolio.cash -= (trade_value * np.sign(trade_size) + commission)
-                print(f"  New Position: {target_position:.6f}")
-                print(f"  Remaining Cash: ${self.portfolio.cash:.2f}")
                 
                 # Record trade with unified format
                 self.trade_history.append({
@@ -176,11 +148,6 @@ class Backtester:
                     'trade_cost': trade_value,
                     'type': 'execution'
                 })
-        
-        print("\nPortfolio DataFrame After Trades:")
-        print(self.portfolio.portfolio_df)
-        print("\nPortfolio Value After Trades: ${:.2f}".format(self.portfolio.get_total_value(current_prices)))
-        print("=== End Trade Execution ===\n")
     
     def _place_trade(self, symbol: str, size: float, price: float, timestamp: pd.Timestamp = None) -> None:
         """Record a trade with commission"""
@@ -203,14 +170,14 @@ class Backtester:
             'type': 'placement'
         })
         
-        self.portfolio.portfolio_df.loc[symbol, 'position'] += size
+        self.portfolio.portfolio_df.loc[symbol, 'size'] += size
     
     def calculate_total_equity(self, current_prices: Dict[str, dict]) -> float:
         """Calculate total portfolio value including cash and positions"""
         equity = self.portfolio.cash
         
         for symbol, row in self.portfolio.portfolio_df.iterrows():
-            position = row['position']
+            position = row['size']
             price = current_prices[symbol]['markPrice']
             position_value = position * price
             equity += position_value
@@ -299,26 +266,25 @@ class Backtester:
         gross_loss = abs(trades_df[trades_df['size'] * trades_df['price'] < 0]['size'].sum())
         return gross_profit / gross_loss if gross_loss != 0 else float('inf')
     
-    def _load_historical_data(self) -> Dict[str, Dict]:
+    def _load_historical_data(self) -> TimeSeriesMarketData:
         """Load and prepare historical data for backtesting"""
-        data = {}
+        data: TimeSeriesMarketData = {}
         all_prices = []
         
+        # Use preloaded data
+        df = self.preloaded_data
+        
+        # Process each symbol
         for symbol in self.symbols:
-            df = pd.read_csv(f"{DATA_PATH}/{symbol}.csv")
-            df['datetime'] = pd.to_datetime(df['index'])
-            df.set_index('datetime', inplace=True)
-            
-            # Filter by date range if specified
-            if hasattr(self, 'start_date'):
-                df = df[df.index >= self.start_date]
-            if hasattr(self, 'end_date'):
-                df = df[df.index <= self.end_date]
+            price_col = f'{symbol}_price'
+            if price_col not in df.columns:
+                raise ValueError(f"Price column {price_col} not found in preloaded data")
             
             # Store full price history
-            price_df = pd.DataFrame(df['Close'])
-            price_df.columns = [f'{symbol}_price']
-            all_prices.append(price_df)
+            price_df = pd.DataFrame(df[price_col])
+            if not price_df.empty:  # Only append non-empty DataFrames
+                price_df.columns = [f'{symbol}_price']
+                all_prices.append(price_df)
             
             # Store data in dictionary format for backtesting
             for timestamp in df.index:
@@ -326,22 +292,27 @@ class Backtester:
                     data[timestamp] = {}
                 data[timestamp][symbol] = {
                     'symbol': symbol,
-                    'markPrice': f"{df.loc[timestamp, 'Close']:.8f}",
-                    'indexPrice': f"{df.loc[timestamp, 'Close']:.8f}",  # Using Close as a proxy
-                    'estimatedSettlePrice': f"{df.loc[timestamp, 'Close']:.8f}",  # Using Close as a proxy
+                    'markPrice': f"{df.loc[timestamp, price_col]:.8f}",
+                    'indexPrice': f"{df.loc[timestamp, price_col]:.8f}",  # Using price as a proxy
+                    'estimatedSettlePrice': f"{df.loc[timestamp, price_col]:.8f}",  # Using price as a proxy
                     'lastFundingRate': '0.00010000',  # Default value
                     'interestRate': '0.00010000',  # Default value
                     'nextFundingTime': int((timestamp + pd.Timedelta(hours=8)).timestamp() * 1000),  # 8 hours from current time
                     'time': int(timestamp.timestamp() * 1000)
                 }
         
-        # Combine all price histories
-        self.price_history = pd.concat(all_prices, axis=1)
+        # Filter out empty DataFrames and combine all price histories
+        valid_prices = [df for df in all_prices if not df.empty]
+        if valid_prices:
+            self.price_history = pd.concat(valid_prices, axis=1)
+        else:
+            self.price_history = pd.DataFrame()
         
         # Update portfolio with price history
         for symbol in self.symbols:
-            price_history = self.price_history[f'{symbol}_price'].to_dict()
-            self.portfolio.portfolio_df.loc[symbol, 'asset'].set_price_history(price_history)
+            if f'{symbol}_price' in self.price_history.columns:
+                price_history = self.price_history[f'{symbol}_price'].to_dict()
+                self.portfolio.portfolio_df.loc[symbol, 'asset'].set_price_history(price_history)
         
         # Sort by timestamp
         return dict(sorted(data.items()))
