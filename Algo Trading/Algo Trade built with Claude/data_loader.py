@@ -52,19 +52,10 @@ def load_historical_data(symbols: List[str], start_date: str, end_date: str) -> 
         # Fill NaN values
         symbol_data = symbol_data.ffill().bfill()
         
-        if not symbol_data.empty:  # Only append non-empty DataFrames
-            all_data.append(symbol_data)
-    
-    if not all_data:
-        return pd.DataFrame()  # Return empty DataFrame if no valid data
-    
-    # Filter out empty DataFrames before concatenation
-    valid_data = [df for df in all_data if not df.empty]
-    if not valid_data:
-        return pd.DataFrame()
+        all_data.append(symbol_data)
     
     # Combine all data
-    combined_data = pd.concat(valid_data, axis=1)
+    combined_data = pd.concat(all_data, axis=1)
     
     # Ensure all data is numeric
     numeric_cols = combined_data.select_dtypes(include=[np.number]).columns

@@ -34,16 +34,6 @@ class Backtester:
         self.equity_curve = []
         self.price_history = pd.DataFrame()  # Store full price history
         self.preloaded_data = preloaded_data
-        
-    def load_data(self, timeframe: str = DATA_TIMEFRAME) -> Dict[str, pd.DataFrame]:
-        """Load historical data for all symbols"""
-        data = {}
-        for symbol in self.symbols:
-            df = pd.read_csv(f"{DATA_PATH}/{symbol}.csv")
-            df['datetime'] = pd.to_datetime(df['index'])
-            df.set_index('datetime', inplace=True)
-            data[symbol] = df
-        return data
     
     def run(self, start_date: str = None, end_date: str = None) -> Dict:
         """Run backtest and return performance metrics"""
@@ -53,7 +43,7 @@ class Backtester:
             self.end_date = pd.Timestamp(end_date)
         
         # Initialize tracking variables
-        self.equity_curve = pd.DataFrame(columns=['timestamp', 'equity'])
+        self.equity_curve = pd.DataFrame(columns=['equity'], index=pd.DatetimeIndex([]))  # Initialize with empty DatetimeIndex
         self.trade_history = []
         timestep = 0
         
@@ -74,17 +64,11 @@ class Backtester:
             if signals:
                 self._execute_trades(signals, prices, timestamp)
             
-            # Track equity
-            self.equity_curve = pd.concat([
-                self.equity_curve,
-                pd.DataFrame({
-                    'timestamp': [timestamp],
-                    'equity': [self.portfolio.get_total_value()]
-                })
-            ], ignore_index=True)
+            # Track equity with timestamp as index
+            self.equity_curve.loc[timestamp, 'equity'] = self.portfolio.get_total_value()
             
             timestep += 1
-        
+            
         # Convert trade history to DataFrame for analysis
         trades_df = pd.DataFrame(self.trade_history)
         
@@ -282,9 +266,8 @@ class Backtester:
             
             # Store full price history
             price_df = pd.DataFrame(df[price_col])
-            if not price_df.empty:  # Only append non-empty DataFrames
-                price_df.columns = [f'{symbol}_price']
-                all_prices.append(price_df)
+            price_df.columns = [f'{symbol}_price']
+            all_prices.append(price_df)
             
             # Store data in dictionary format for backtesting
             for timestamp in df.index:
@@ -301,18 +284,13 @@ class Backtester:
                     'time': int(timestamp.timestamp() * 1000)
                 }
         
-        # Filter out empty DataFrames and combine all price histories
-        valid_prices = [df for df in all_prices if not df.empty]
-        if valid_prices:
-            self.price_history = pd.concat(valid_prices, axis=1)
-        else:
-            self.price_history = pd.DataFrame()
+        # Combine all price histories
+        self.price_history = pd.concat(all_prices, axis=1)
         
         # Update portfolio with price history
         for symbol in self.symbols:
-            if f'{symbol}_price' in self.price_history.columns:
-                price_history = self.price_history[f'{symbol}_price'].to_dict()
-                self.portfolio.portfolio_df.loc[symbol, 'asset'].set_price_history(price_history)
+            price_history = self.price_history[f'{symbol}_price'].to_dict()
+            self.portfolio.portfolio_df.loc[symbol, 'asset'].set_price_history(price_history)
         
         # Sort by timestamp
         return dict(sorted(data.items()))

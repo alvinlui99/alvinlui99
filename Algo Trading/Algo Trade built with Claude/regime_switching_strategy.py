@@ -57,7 +57,7 @@ class RegimeSwitchingStrategy(Strategy):
             
             # Train regime detector using BTC price data
             self.regime_detector.fit(btc_data, btc_val_data)
-            
+
             # Train LSTM model on all assets
             self.lstm_strategy.train_model(historical_data)
             
@@ -74,11 +74,21 @@ class RegimeSwitchingStrategy(Strategy):
             # Get BTC price history
             btc_asset = portfolio.portfolio_df.loc['BTCUSDT', 'asset']
             if btc_asset is None:
-                return 1  # Default to neutral regime
+                raise ValueError("BTC asset not found in portfolio")
             
-            btc_prices = pd.Series(btc_asset.get_price_history())
+            # Get price history and ensure proper index
+            price_history = btc_asset.get_price_history()
+            if not price_history:
+                raise ValueError("No price history available for BTC")
+            
+            # Convert price history dictionary to Series
+            # Sort by timestamp to ensure correct order
+            timestamps = sorted(price_history.keys())
+            prices = [float(price_history[t]) for t in timestamps]
+            btc_prices = pd.Series(prices, index=timestamps)
+            
             if btc_prices.empty:
-                return 1
+                raise ValueError("Empty BTC price series")
             
             # Extract features and get regime predictions for all time steps
             features = self.regime_detector.extract_features(btc_prices)
@@ -88,18 +98,29 @@ class RegimeSwitchingStrategy(Strategy):
             # Map regimes using return-based mapping
             regimes = [self.regime_detector.regime_map[r] for r in regimes]
             
-            # Store regime information
+            # Store regime information - ensure exact alignment
             self.current_regime = regimes[-1]
             self.regime_history = regimes
             self.regime_probs_history = list(probs)
             
-            # Store timestamps
-            self.timestamps = btc_prices.index
+            # Calculate the correct number of timestamps needed
+            n_regimes = len(regimes)
+            # Take exactly the same number of timestamps as regimes
+            self.timestamps = list(btc_prices.index)[-n_regimes:]
+            
+            # Verify alignment
+            if len(self.timestamps) != len(self.regime_history):
+                print(f"Warning: Timestamp alignment issue detected - timestamps: {len(self.timestamps)}, regimes: {len(self.regime_history)}")
+                # Ensure exact alignment by trimming if necessary
+                min_len = min(len(self.timestamps), len(self.regime_history))
+                self.timestamps = self.timestamps[-min_len:]
+                self.regime_history = self.regime_history[-min_len:]
+                self.regime_probs_history = self.regime_probs_history[-min_len:]
             
             return self.current_regime
             
-        except Exception:
-            return 1  # Default to neutral regime
+        except Exception as e:
+            raise RuntimeError(f"Error in detect_regime: {e}")
     
     def _evaluate_regime_detection(self, validation_data: pd.Series):
         """Evaluate regime detection performance on validation data"""
@@ -199,32 +220,27 @@ class RegimeSwitchingStrategy(Strategy):
         try:
             # Calculate current portfolio value and weights
             current_equity, current_weights = self.calculate_current_weights(portfolio, current_prices)
-            
+
             # Detect current regime
             regime = self.detect_regime(portfolio, current_prices)
-            
+
             # Get weights from sub-strategies
             lstm_weights = self.lstm_strategy(portfolio, current_prices, timestep)
             equal_weights = self.equal_weight_strategy(portfolio, current_prices, timestep)
             
             # Combine weights based on regime
             target_weights = self.get_regime_weights(regime, lstm_weights, equal_weights)
-            
+
             # Calculate target positions
             signals = self.calculate_positions(portfolio, current_prices, target_weights, current_equity)
-            
+
             # Track portfolio state and timestamp
             self.track_portfolio_state(portfolio, current_equity, timestep)
-            
-            # Store timestamp
-            if current_prices:
-                first_symbol = list(current_prices.keys())[0]
-                timestamp = pd.to_datetime(current_prices[first_symbol]['time'], unit='ms')
-                self.timestamps.append(timestamp)
-            
+
             return signals
             
-        except Exception:
+        except Exception as e:
+            print(f"Error in __call__: {e}")
             # Return current positions as fallback
             signals = {}
             for symbol in self.symbols:
@@ -250,5 +266,13 @@ class RegimeSwitchingStrategy(Strategy):
             
             return df
             
-        except Exception:
+        except Exception as e:
+            n_regimes = len(self.regime_history)
+            n_probs = len(self.regime_probs_history)
+            n_timestamps = len(self.timestamps)
+            print(f"Error in get_regime_stats: {e}")
+            print(f"Regime history length: {n_regimes}")
+            print(f"Regime probs history length: {n_probs}")
+            print(f"Timestamps length: {n_timestamps}")
+            quit()
             return pd.DataFrame() 

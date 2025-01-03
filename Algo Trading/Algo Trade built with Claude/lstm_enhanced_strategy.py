@@ -204,7 +204,7 @@ class LSTMEnhancedStrategy(Strategy):
             features = self.prepare_features(portfolio, current_prices)
             
             # Generate predictions
-            predictions = self.model.predict(features)
+            predictions = self.model.predict(features, verbose=0)
             
             # Convert predictions to target weights
             target_weights = self.predictions_to_weights(predictions)
@@ -219,7 +219,7 @@ class LSTMEnhancedStrategy(Strategy):
             
         except Exception as e:
             # Return current positions as fallback
-            return {symbol: float(portfolio.portfolio_df.loc[symbol, 'position'])
+            return {symbol: float(portfolio.portfolio_df.loc[symbol, 'size'])
                     for symbol in portfolio.portfolio_df.index}
     
     def predictions_to_weights(self, predictions: np.ndarray) -> Dict[str, float]:

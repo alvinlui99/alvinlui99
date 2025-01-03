@@ -17,14 +17,37 @@ class TradeRecord(TypedDict):
     type: str          # 'execution' or 'placement'
 
 class EquityPoint(TypedDict):
-    """Expected format for equity curve data points"""
+    """Represents a single point in the equity curve tracking portfolio value over time.
+    
+    This type is used to structure the data points that make up the equity curve
+    in the backtesting system. The equity curve is typically stored as a pandas DataFrame
+    with a DatetimeIndex and a single 'equity' column.
+    
+    Attributes:
+        timestamp (pd.Timestamp): The point in time for this equity measurement
+        equity (float): The total portfolio value at this timestamp
+        
+    Example DataFrame Structure:
+                            equity
+    2024-01-01 00:00:00    10000.0
+    2024-01-01 00:01:00    10002.5
+    2024-01-01 00:02:00    10001.8
+    """
     timestamp: pd.Timestamp
-    equity: float     # Total portfolio value
+    equity: float
 
 class BacktestResults(NamedTuple):
-    """Container for backtest results"""
-    stats: Dict[str, float]        # Performance metrics
-    equity_curve: pd.DataFrame     # Portfolio value over time
+    """Container for backtest results including the equity curve.
+    
+    Attributes:
+        stats (Dict[str, float]): Performance metrics like returns, Sharpe ratio, etc.
+        equity_curve (pd.DataFrame): Portfolio value over time, structured as:
+            - Index: pd.DatetimeIndex (timestamps)
+            - Column: 'equity' (float) representing total portfolio value
+        trade_history (List[TradeRecord]): List of all executed trades
+    """
+    stats: Dict[str, float]
+    equity_curve: pd.DataFrame
     trade_history: List['TradeRecord']
 
 class RegimeStats(TypedDict):

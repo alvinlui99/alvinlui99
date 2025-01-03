@@ -3,17 +3,17 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from typing import List, Dict
 import os
-
-def plot_backtest_results(equity_curve: list, trade_history: list, initial_capital: float, 
-                         benchmark_equity: list = None):
+from trading_types import TradeRecord
+def plot_backtest_results(equity_curve: pd.DataFrame, trade_history: List[TradeRecord], 
+                         initial_capital: float, benchmark_equity: pd.DataFrame = None):
     """
     Plot backtest results including equity curve and benchmark comparison
     
     Args:
-        equity_curve: List of dictionaries containing timestamp and equity values
-        trade_history: List of trade dictionaries
+        equity_curve: DataFrame with DatetimeIndex and 'equity' column
+        trade_history: List of TradeRecord dictionaries
         initial_capital: Initial portfolio value
-        benchmark_equity: List of dictionaries containing benchmark equity values
+        benchmark_equity: DataFrame with DatetimeIndex and 'equity' column
     """
     # Set style
     plt.style.use('default')
@@ -22,21 +22,13 @@ def plot_backtest_results(equity_curve: list, trade_history: list, initial_capit
     # Create figure
     fig = plt.figure(figsize=(15, 10))
     
-    # Convert equity curve to dataframe
-    equity_df = pd.DataFrame(equity_curve)
-    equity_df['timestamp'] = pd.to_datetime(equity_df['timestamp'])
-    equity_df.set_index('timestamp', inplace=True)
-    
     # Plot equity curve
-    plt.plot(equity_df.index, equity_df['equity'], 
+    plt.plot(equity_curve.index, equity_curve['equity'], 
             label='LSTM Strategy', linewidth=2)
     
     # Plot benchmark if provided
     if benchmark_equity is not None:
-        bench_df = pd.DataFrame(benchmark_equity)
-        bench_df['timestamp'] = pd.to_datetime(bench_df['timestamp'])
-        bench_df.set_index('timestamp', inplace=True)
-        plt.plot(bench_df.index, bench_df['equity'], 
+        plt.plot(benchmark_equity.index, benchmark_equity['equity'], 
                 label='Equal Weight Benchmark', linewidth=2)
     
     plt.axhline(y=initial_capital, color='r', linestyle='--', label='Initial Capital')
@@ -47,10 +39,10 @@ def plot_backtest_results(equity_curve: list, trade_history: list, initial_capit
     plt.grid(True)
     
     # Add summary statistics as text
-    total_return = (equity_df['equity'].iloc[-1] / initial_capital - 1) * 100
+    total_return = float((equity_curve['equity'].iloc[-1] / initial_capital - 1) * 100)
     
     if benchmark_equity is not None:
-        bench_return = (bench_df['equity'].iloc[-1] / initial_capital - 1) * 100
+        bench_return = float((benchmark_equity['equity'].iloc[-1] / initial_capital - 1) * 100)
         stats_text = (f'LSTM Return: {total_return:.2f}%\n'
                      f'Benchmark Return: {bench_return:.2f}%')
     else:
@@ -76,7 +68,7 @@ def plot_portfolio_weights(equity_df: pd.DataFrame, trades_list: list, symbols: 
     for trade in trades_list:
         timestamp = trade['timestamp']
         symbol = trade['symbol']
-        position = trade['position']
+        position = trade['size']
         weights_df.loc[timestamp, symbol] = position
         
     # Forward fill weights
@@ -87,9 +79,24 @@ def plot_portfolio_weights(equity_df: pd.DataFrame, trades_list: list, symbols: 
     row_sums = row_sums.where(row_sums != 0, 1)  # Avoid division by zero
     weights_df = weights_df.div(row_sums, axis=0)
     
+    # Split into long and short positions
+    long_weights = weights_df.copy()
+    short_weights = weights_df.copy()
+    
+    long_weights[long_weights < 0] = 0
+    short_weights[short_weights > 0] = 0
+    short_weights = short_weights.abs()  # Make short weights positive for plotting
+    
     # Plot weights
     ax = plt.gca()
-    weights_df.plot(kind='area', stacked=True, ax=ax)
+    
+    # Plot long positions
+    if not long_weights.empty and (long_weights > 0).any().any():
+        long_weights.plot(kind='area', stacked=True, ax=ax, colormap='Greens')
+    
+    # Plot short positions
+    if not short_weights.empty and (short_weights > 0).any().any():
+        short_weights.plot(kind='area', stacked=True, ax=ax, colormap='Reds')
     
     plt.title('Portfolio Weights Over Time')
     plt.ylabel('Weight')
@@ -193,7 +200,7 @@ def save_backtest_results(mv_stats: pd.DataFrame, bench_stats: Dict,
             for trade in mv_trades:
                 timestamp = trade['timestamp']
                 symbol = trade['symbol']
-                position = trade['position']
+                position = trade['size']
                 weights_df.loc[timestamp, symbol] = position
                 
             # Forward fill weights
