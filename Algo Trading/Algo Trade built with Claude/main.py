@@ -59,7 +59,7 @@ def main():
         ml_equity,
         bench_equity,
         ml_stats['leverage_curve'],
-        ml_stats['leverage_components'],
+        # ml_stats['leverage_components'],
         title="ML Strategy vs Equal Weight Benchmark"
     )
     plt.savefig('results/equity_curves.png', bbox_inches='tight', dpi=300)
