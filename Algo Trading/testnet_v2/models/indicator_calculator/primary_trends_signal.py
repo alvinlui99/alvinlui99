@@ -1,10 +1,10 @@
 from typing import Dict
 import pandas as pd
-from .indicator_calculator import IndicatorCalculator
+from .indicator_calculator import SignalCalculator
 from config import RegimeConfig
 
-class PrimaryTrendsCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
+class PrimaryTrendsSignalCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
         indicator_calculators = {
             'ma_signal': MovingAverageIndicatorCalculator(),
             'ichimoku_signal': IchimokuIndicatorCalculator(),
@@ -19,8 +19,8 @@ class PrimaryTrendsCalculator(IndicatorCalculator):
         weighted_signal = sum(signals[name] * RegimeConfig.PrimaryTrendConfig.WEIGHTS[name] for name in signals)
         return max(min(weighted_signal, 1.0), -1.0)
 
-class MovingAverageIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
+class MovingAverageIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
         """
         Calculate Moving Average signals with continuous strength values.
         Returns a score between -1 (strong bearish) and 1 (strong bullish).
@@ -75,8 +75,8 @@ class MovingAverageIndicatorCalculator(IndicatorCalculator):
         
         return max(min(composite_signal, 1.0), -1.0)
 
-class IchimokuIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
+class IchimokuIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
         """
         Calculate Ichimoku Cloud signals with continuous strength values.
         Returns a score between -1 (strong bearish) and 1 (strong bullish).
@@ -141,8 +141,8 @@ class IchimokuIndicatorCalculator(IndicatorCalculator):
         
         return max(min(composite_signal, 1.0), -1.0)
     
-class DmiIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
+class DmiIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
         """
         Calculate DMI/ADX trend signals with continuous strength values.
         Returns a score between -1 (strong bearish) and 1 (strong bullish).
@@ -198,8 +198,8 @@ class DmiIndicatorCalculator(IndicatorCalculator):
         
         return max(min(composite_signal, 1.0), -1.0)
     
-class ParabolicSARIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
+class ParabolicSARIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
         """
         Calculate Parabolic SAR signals with continuous strength values.
         Returns a score between -1 (strong bearish) and 1 (strong bullish).
@@ -255,8 +255,8 @@ class ParabolicSARIndicatorCalculator(IndicatorCalculator):
         
         return max(min(composite_signal, 1.0), -1.0)
     
-class BollingerBandsIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
+class BollingerBandsIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
         """
         Calculate Bollinger Bands trend signals with continuous strength values.
         Returns a score between -1 (strong bearish) and 1 (strong bullish).

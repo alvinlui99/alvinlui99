@@ -1,11 +1,11 @@
 from typing import Dict
 import pandas as pd
 import numpy as np
-from .indicator_calculator import IndicatorCalculator
+from .indicator_calculator import SignalCalculator
 from config import RegimeConfig
 
-class VolatilitySignalCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
+class VolatilitySignalCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
         indicator_calculators = {
             'historical': HistoricalVolatilityCalculator(),
             'garch': GarchVolatilityCalculator(),
@@ -19,8 +19,8 @@ class VolatilitySignalCalculator(IndicatorCalculator):
         weighted_signal = sum(signals[name] * RegimeConfig.VolatilitySignalConfig.WEIGHTS[name] for name in signals)
         return max(min(weighted_signal, 1.0), -1.0)
 
-class HistoricalVolatilityCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class HistoricalVolatilityCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate Historical Volatility signal using multiple timeframes and methods.
         Returns a value between -1 (decreasing volatility) and 1 (increasing volatility).
@@ -93,8 +93,8 @@ class HistoricalVolatilityCalculator(IndicatorCalculator):
         slope = np.polyfit(range(len(vols)), vols, 1)[0]
         return np.tanh(slope * RegimeConfig.HistoricalVolConfig.TERM_STRUCTURE_FACTOR)
 
-class GarchVolatilityCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class GarchVolatilityCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate GARCH-based volatility signal.
         Returns a value between -1 (decreasing volatility) and 1 (increasing volatility).
@@ -170,8 +170,8 @@ class GarchVolatilityCalculator(IndicatorCalculator):
         slope = np.polyfit(range(len(forecast_window)), forecast_window, 1)[0]
         return np.tanh(slope * RegimeConfig.GarchConfig.FORECAST_FACTOR)
 
-class ParkinsonVolatilityCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class ParkinsonVolatilityCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate Parkinson volatility signal using high-low price ranges.
         Returns a value between -1 (decreasing volatility) and 1 (increasing volatility).
@@ -236,8 +236,8 @@ class ParkinsonVolatilityCalculator(IndicatorCalculator):
         
         return np.average(signals, weights=RegimeConfig.ParkinsonConfig.MTF_WEIGHTS)
 
-class YangZhangVolatilityCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class YangZhangVolatilityCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate Yang-Zhang volatility signal using open-high-low-close prices.
         Returns a value between -1 (decreasing volatility) and 1 (increasing volatility).

@@ -12,7 +12,7 @@ class BinanceService:
         self.client.ping()
         self.logger = logging.getLogger(__name__)
 
-    def get_historical_data(
+    def get_historical_klines(
         self,
         symbol: str,
         start_time: datetime,
@@ -62,7 +62,7 @@ class BinanceService:
             self.logger.error(f"Error fetching data from Binance for {symbol}: {str(e)}")
             raise
 
-    def get_historical_data_multi(
+    def get_historical_klines_multi(
         self,
         symbols: list[str],
         start_time: datetime,
@@ -72,28 +72,28 @@ class BinanceService:
         results = {}
         for symbol in symbols:
             try:
-                results[symbol] = self.get_historical_data(symbol, start_time, end_time, interval)
+                results[symbol] = self.get_historical_klines(symbol, start_time, end_time, interval)
             except Exception as e:
                 self.logger.error(f"Error fetching data for {symbol}: {str(e)}")
                 continue
         return results
     
-    def get_current_price(self, symbol: str) -> float:
-        """Get current price for a single symbol"""
+    def get_current_klines(self, symbol: str, interval: str) -> float:
+        """Get current klines for a single symbol"""
         try:
-            return float(self.client.mark_price(symbol=symbol)['markPrice'])
+            return float(self.client.klines(symbol=symbol, interval=interval))
         except BinanceAPIException as e:
-            self.logger.error(f"Error fetching current price for {symbol}: {str(e)}")
+            self.logger.error(f"Error fetching current klines for {symbol}: {str(e)}")
             raise
 
-    def get_current_price_multi(self, symbols: list[str]) -> dict[str, float]:
-        """Get current price for multiple symbols"""
+    def get_current_klines_multi(self, symbols: list[str], interval: str) -> dict[str, float]:
+        """Get current klines for multiple symbols"""
         results = {}
         for symbol in symbols:
             try:
-                results[symbol] = self.get_current_price(symbol)
+                results[symbol] = self.get_current_klines(symbol, interval)
             except Exception as e:
-                self.logger.error(f"Error fetching current price for {symbol}: {str(e)}")
+                self.logger.error(f"Error fetching current klines for {symbol}: {str(e)}")
                 continue
         return results
     

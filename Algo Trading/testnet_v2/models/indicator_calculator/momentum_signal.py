@@ -1,11 +1,11 @@
 from typing import Dict
 import pandas as pd
 import numpy as np
-from .indicator_calculator import IndicatorCalculator
+from .indicator_calculator import SignalCalculator
 from config import RegimeConfig
 
-class MomentumSignalCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
+class MomentumSignalCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
         indicator_calculators = {
             'rsi_signal': RsiIndicatorCalculator(),
             'macd_signal': MacdIndicatorCalculator(),
@@ -21,8 +21,8 @@ class MomentumSignalCalculator(IndicatorCalculator):
         weighted_signal = sum(signals[name] * RegimeConfig.MomentumConfig.WEIGHTS[name] for name in signals)
         return max(min(weighted_signal, 1.0), -1.0)
 
-class RsiIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class RsiIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate RSI-based momentum signal.
         Returns a value between -1 (strong bearish) and 1 (strong bullish).
@@ -64,8 +64,8 @@ class RsiIndicatorCalculator(IndicatorCalculator):
         # Ensure output is between -1 and 1
         return max(min(composite_signal, 1.0), -1.0)
 
-class MacdIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class MacdIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate MACD-based momentum signal.
         Returns a value between -1 (strong bearish) and 1 (strong bullish).
@@ -124,8 +124,8 @@ class MacdIndicatorCalculator(IndicatorCalculator):
         
         return max(min(composite_signal, 1.0), -1.0)
 
-class PriceMomentumIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class PriceMomentumIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate price momentum signal using multiple timeframes and methods.
         Returns a value between -1 (strong bearish) and 1 (strong bullish).
@@ -196,8 +196,8 @@ class PriceMomentumIndicatorCalculator(IndicatorCalculator):
         """
         return np.tanh(value / factor)
 
-class SmiIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class SmiIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate Stochastic Momentum Index (SMI) based signal.
         Returns a value between -1 (strong bearish) and 1 (strong bullish).
@@ -290,8 +290,8 @@ class SmiIndicatorCalculator(IndicatorCalculator):
             'signal': signal_line
         }
 
-class MfiIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class MfiIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate Money Flow Index based signal.
         Returns a value between -1 (strong bearish) and 1 (strong bullish).
@@ -382,8 +382,8 @@ class MfiIndicatorCalculator(IndicatorCalculator):
         # Normalize to [-1, 1] range
         return max(min(divergence * RegimeConfig.MFIConfig.DIVERGENCE_FACTOR, 1.0), -1.0)
 
-class WillrIndicatorCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class WillrIndicatorCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate Williams %R based signal.
         Returns a value between -1 (strong bearish) and 1 (strong bullish).

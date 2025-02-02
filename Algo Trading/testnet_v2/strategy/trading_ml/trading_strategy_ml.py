@@ -2,7 +2,7 @@ from typing import List, Dict
 import pandas as pd
 import numpy as np
 from models import Model, FeaturePreprocessor
-from .. import TradingStrategy, LeverageStrategy, FeatureP
+from .. import TradingStrategy, LeverageStrategy
 from config import TradingConfig, FeatureConfig
 
 class MLStrategy(TradingStrategy):
@@ -10,13 +10,13 @@ class MLStrategy(TradingStrategy):
         super().__init__()
 
     def configure(
-        self,
-        features: List[str] = FeatureConfig.FEATURE_NAMES,
-        symbols: List[str] = TradingConfig.SYMBOLS,
-        model: Model = None,
-        leverage_strategy: LeverageStrategy = None,
-        preprocessor: FeaturePreprocessor = None
-    ) -> None:
+            self,
+            features: List[str] = FeatureConfig.FEATURE_NAMES,
+            symbols: List[str] = TradingConfig.SYMBOLS,
+            model: Model = None,
+            leverage_strategy: LeverageStrategy = None,
+            preprocessor: FeaturePreprocessor = None
+            ) -> None:
         self.features = features
         self.symbols = symbols
         self.model = model
@@ -24,32 +24,13 @@ class MLStrategy(TradingStrategy):
         self.preprocessor = preprocessor
         self.is_configured = True
         
-    def get_signals(
-        self,
-        data: dict{str, pd.DataFrame},
-        current_weights: Dict[str, float],
-        current_prices: Dict[str, float],
-        budget: float,
-        leverages: Dict[str, int],
-        stop_loss_active: bool = False
-    ) -> Dict[str, float]:
+    def get_signals(self, data: dict[str, pd.DataFrame]) -> Dict[str, float]:
         if not self.is_configured:
             raise ValueError("Strategy must be configured before use")
         
-        target_weights = self.model.predict_weights(data)
-        
-        if not self.should_rebalance(current_weights, target_weights, stop_loss_active):
-            return {}
-        
-        filtered_weights = self.filter_trades(current_weights, target_weights)
-        if filtered_weights == current_weights:
-            return {}
+        preprocessed_data = self.preprocessor.preprocess(data)
+        signals = self.model.predict(preprocessed_data)
 
-        signals = {}
-        for symbol, weight in filtered_weights.items():
-            price = current_prices[symbol]
-            signals[symbol] = (weight * budget * leverages[symbol]) / price
-        return signals
 
     def should_rebalance(
         self,

@@ -1,11 +1,11 @@
 from typing import Dict, Tuple, List
 import pandas as pd
 import numpy as np
-from .indicator_calculator import IndicatorCalculator
+from .indicator_calculator import SignalCalculator
 from config import RegimeConfig
 
-class PatternSignalCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
+class PatternSignalCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> Dict[str, pd.Series]:
         indicator_calculators = {
             'candlestick': CandlestickPatternCalculator(),
             'harmonic': HarmonicPatternCalculator(),
@@ -19,8 +19,8 @@ class PatternSignalCalculator(IndicatorCalculator):
         weighted_signal = sum(signals[name] * RegimeConfig.PatternSignalConfig.WEIGHTS[name] for name in signals)
         return max(min(weighted_signal, 1.0), -1.0)
 
-class CandlestickPatternCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class CandlestickPatternCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate candlestick pattern signals.
         Returns a value between -1 (bearish) and 1 (bullish).
@@ -432,8 +432,8 @@ class CandlestickPatternCalculator(IndicatorCalculator):
         
         return 0.0
 
-class HarmonicPatternCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class HarmonicPatternCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate harmonic pattern signals.
         Returns a value between -1 (bearish) and 1 (bullish).
@@ -689,8 +689,8 @@ class HarmonicPatternCalculator(IndicatorCalculator):
         
         return np.mean(signals) if signals else 0.0
 
-class ChartPatternCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class ChartPatternCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate chart pattern signals.
         Returns a value between -1 (bearish) and 1 (bullish).
@@ -1050,8 +1050,8 @@ class ChartPatternCalculator(IndicatorCalculator):
         
         return np.tanh(relative_pos * RegimeConfig.ChartPatternConfig.CHANNEL_FACTOR)
 
-class VolumePatternCalculator(IndicatorCalculator):
-    def calculate_indicators(self, indicators: Dict[str, pd.Series]) -> float:
+class VolumePatternCalculator(SignalCalculator):
+    def calculate_signal(self, indicators: Dict[str, pd.Series]) -> float:
         """
         Calculate volume pattern signals.
         Returns a value between -1 (bearish) and 1 (bullish).
