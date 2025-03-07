@@ -14,17 +14,3 @@ class TradingConfig:
     TRADING_DAYS = 252
     PERIODS_PER_DAY = 24        # For hourly data
     ANNUALIZATION_FACTOR = TRADING_DAYS * PERIODS_PER_DAY
-
-    TIMEFRAME = '1h'
-
-    SYMBOLS = [
-        'ADAUSDT',
-        'BNBUSDT',
-        'BTCUSDT',
-        'EOSUSDT',
-        'ETHUSDT',
-        'LTCUSDT',
-        'NEOUSDT',
-        'QTUMUSDT',
-        'XRPUSDT'
-    ]

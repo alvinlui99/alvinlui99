@@ -1,6 +1,6 @@
 import logging
 import pandas as pd
-from indicator_calculator import PrimaryTrendsSignalCalculator, MomentumSignalCalculator, VolatilitySignalCalculator, PatternSignalCalculator, TACalculator
+from models.indicator_calculator import PrimaryTrendsSignalCalculator, MomentumSignalCalculator, VolatilitySignalCalculator, PatternSignalCalculator, TACalculator
 
 logger = logging.getLogger(__name__)
 

@@ -2276,3 +2276,151 @@ Fields with bad pandas dtypes: quote_asset_volume: object, taker_buy_base_asset_
 2025-01-23 22:39:05,550 - services.binance_service - INFO - Successfully fetched NEOUSDT data
 2025-01-23 22:39:06,647 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
 2025-01-23 22:39:07,763 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 12:56:00,624 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-03 12:56:01,183 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-03 12:56:01,733 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-03 12:56:02,288 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-03 12:56:02,838 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-03 12:56:03,396 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-03 12:56:03,957 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-03 12:56:04,136 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-03 12:56:04,306 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 13:02:39,346 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-03 13:02:39,901 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-03 13:02:40,443 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-03 13:02:40,998 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-03 13:02:41,183 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-03 13:02:41,729 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-03 13:02:42,269 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-03 13:02:42,436 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-03 13:02:42,607 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 13:03:24,987 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-03 13:03:25,541 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-03 13:03:26,089 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-03 13:03:26,254 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-03 13:03:26,797 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-03 13:03:26,969 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-03 13:03:27,521 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-03 13:03:28,075 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-03 13:03:28,629 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 13:04:16,220 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-03 13:04:17,438 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-03 13:04:17,987 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-03 13:04:18,159 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-03 13:04:18,702 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-03 13:04:20,595 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-03 13:04:20,786 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-03 13:04:21,333 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-03 13:04:21,509 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 13:04:32,116 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-03 13:04:34,491 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-03 13:04:34,662 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-03 13:04:35,205 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-03 13:04:35,372 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-03 13:04:35,915 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-03 13:04:36,082 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-03 13:04:36,624 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-03 13:04:36,797 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 14:02:45,941 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-03 14:02:46,114 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-03 14:02:46,660 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-03 14:02:47,204 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-03 14:02:47,389 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-03 14:02:47,934 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-03 14:02:48,477 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-03 14:02:49,027 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-03 14:02:49,198 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 23:36:47,546 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-03 23:36:48,156 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-03 23:36:48,349 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-03 23:36:50,158 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-03 23:36:50,753 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-03 23:36:53,062 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-03 23:36:53,270 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-03 23:36:53,458 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-03 23:36:53,644 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 23:37:56,837 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-03 23:37:57,457 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-03 23:37:58,070 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-03 23:37:58,668 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-03 23:37:58,856 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-03 23:37:59,443 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-03 23:38:00,029 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-03 23:38:00,229 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-03 23:38:02,377 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 23:39:07,189 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-03 23:39:07,789 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-03 23:39:07,982 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-03 23:39:08,174 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-03 23:39:08,371 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-03 23:39:08,961 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-03 23:39:09,556 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-03 23:39:09,743 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-03 23:39:10,332 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-03 23:42:37,694 - services.binance_service - ERROR - Error fetching data for ADAUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:42:37,695 - services.binance_service - ERROR - Error fetching data for BNBUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:42:37,696 - services.binance_service - ERROR - Error fetching data for BTCUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:42:37,698 - services.binance_service - ERROR - Error fetching data for EOSUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:42:37,700 - services.binance_service - ERROR - Error fetching data for ETHUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:42:37,701 - services.binance_service - ERROR - Error fetching data for LTCUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:42:37,703 - services.binance_service - ERROR - Error fetching data for NEOUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:42:37,705 - services.binance_service - ERROR - Error fetching data for QTUMUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:42:37,706 - services.binance_service - ERROR - Error fetching data for XRPUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:43:57,237 - services.binance_service - ERROR - Error fetching data for ADAUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:43:57,237 - services.binance_service - ERROR - Error fetching data for BNBUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:43:57,238 - services.binance_service - ERROR - Error fetching data for BTCUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:43:57,238 - services.binance_service - ERROR - Error fetching data for EOSUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:43:57,239 - services.binance_service - ERROR - Error fetching data for ETHUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:43:57,239 - services.binance_service - ERROR - Error fetching data for LTCUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:43:57,239 - services.binance_service - ERROR - Error fetching data for NEOUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:43:57,240 - services.binance_service - ERROR - Error fetching data for QTUMUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:43:57,240 - services.binance_service - ERROR - Error fetching data for XRPUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:05,277 - services.binance_service - ERROR - Error fetching data for ADAUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:05,278 - services.binance_service - ERROR - Error fetching data for BNBUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:05,279 - services.binance_service - ERROR - Error fetching data for BTCUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:05,279 - services.binance_service - ERROR - Error fetching data for EOSUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:05,280 - services.binance_service - ERROR - Error fetching data for ETHUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:05,280 - services.binance_service - ERROR - Error fetching data for LTCUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:05,281 - services.binance_service - ERROR - Error fetching data for NEOUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:05,281 - services.binance_service - ERROR - Error fetching data for QTUMUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:05,281 - services.binance_service - ERROR - Error fetching data for XRPUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:31,398 - services.binance_service - ERROR - Error fetching data for ADAUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:31,401 - services.binance_service - ERROR - Error fetching data for BNBUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:31,402 - services.binance_service - ERROR - Error fetching data for BTCUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:31,404 - services.binance_service - ERROR - Error fetching data for EOSUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:31,406 - services.binance_service - ERROR - Error fetching data for ETHUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:31,408 - services.binance_service - ERROR - Error fetching data for LTCUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:31,409 - services.binance_service - ERROR - Error fetching data for NEOUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:31,411 - services.binance_service - ERROR - Error fetching data for QTUMUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-03 23:46:31,412 - services.binance_service - ERROR - Error fetching data for XRPUSDT: int() argument must be a string, a bytes-like object or a real number, not 'datetime.timedelta'
+2025-02-14 20:16:00,406 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-14 20:17:07,341 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-14 20:18:49,988 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-14 20:19:35,045 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-14 20:20:17,460 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-14 20:20:59,048 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-14 20:21:51,480 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-14 20:22:28,914 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-14 20:23:08,866 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-14 20:23:50,971 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-14 20:24:36,331 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-15 19:01:12,193 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-15 19:01:13,040 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-15 19:01:13,912 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-15 19:01:15,036 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-15 19:01:15,792 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-15 19:01:18,345 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-15 19:01:19,192 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-15 19:01:19,772 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-15 19:01:20,367 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-15 19:04:48,647 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-15 19:04:49,254 - services.binance_service - INFO - Successfully fetched BNBUSDT data
+2025-02-15 19:04:49,868 - services.binance_service - INFO - Successfully fetched BTCUSDT data
+2025-02-15 19:04:50,625 - services.binance_service - INFO - Successfully fetched EOSUSDT data
+2025-02-15 19:04:52,561 - services.binance_service - INFO - Successfully fetched ETHUSDT data
+2025-02-15 19:04:55,168 - services.binance_service - INFO - Successfully fetched LTCUSDT data
+2025-02-15 19:04:55,781 - services.binance_service - INFO - Successfully fetched NEOUSDT data
+2025-02-15 19:04:56,374 - services.binance_service - INFO - Successfully fetched QTUMUSDT data
+2025-02-15 19:04:57,481 - services.binance_service - INFO - Successfully fetched XRPUSDT data
+2025-02-15 19:05:17,040 - services.binance_service - INFO - Successfully fetched ADAUSDT data
+2025-02-15 19:06:44,817 - services.binance_service - INFO - Successfully fetched ADAUSDT data

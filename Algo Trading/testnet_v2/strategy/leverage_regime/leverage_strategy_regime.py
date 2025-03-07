@@ -4,19 +4,12 @@ import talib
 import logging
 from ..base import LeverageStrategy
 from config.regime import RegimeConfig
-from .indicator_calculator import PrimaryTrendsCalculator, MomentumSignalCalculator, VolatilitySignalCalculator, PatternSignalCalculator
 
 class RegimeLeverageStrategy(LeverageStrategy):
     def __init__(self):
         super().__init__()
 
     def configure(self) -> None:
-        self.signal_calculators = {
-            'primary_trends': PrimaryTrendsCalculator(),
-            'momentum_signals': MomentumSignalCalculator(),
-            'volatility_signals': VolatilitySignalCalculator(),
-            'pattern_signals': PatternSignalCalculator()
-        }
         self.is_configured = True
 
     def get_leverages(self, data: pd.DataFrame) -> Dict[str, int]:

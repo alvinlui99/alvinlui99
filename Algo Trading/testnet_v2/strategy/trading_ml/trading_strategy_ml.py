@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from models import Model, FeaturePreprocessor
 from .. import TradingStrategy, LeverageStrategy
-from config import TradingConfig, FeatureConfig
+from config import ModelConfig, TradingConfig
 
 class MLStrategy(TradingStrategy):
     def __init__(self):
@@ -11,8 +11,8 @@ class MLStrategy(TradingStrategy):
 
     def configure(
             self,
-            features: List[str] = FeatureConfig.FEATURE_NAMES,
-            symbols: List[str] = TradingConfig.SYMBOLS,
+            features: List[str] = ModelConfig.GeneralConfig.FEATURES,
+            symbols: List[str] = ModelConfig.GeneralConfig.SYMBOLS,
             model: Model = None,
             leverage_strategy: LeverageStrategy = None,
             preprocessor: FeaturePreprocessor = None

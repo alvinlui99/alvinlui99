@@ -4,7 +4,8 @@ class ModelConfig:
     BACKTEST_SWITCH = BaseConfig.BACKTEST_SWITCH
     if BACKTEST_SWITCH:
         TRAIN_START_DATE = "2020-01-01"
-        TRAIN_END_DATE = "2022-12-31"
+        TRAIN_END_DATE = "2020-02-01"
+        # TRAIN_END_DATE = "2022-12-31"
         VAL_START_DATE = "2023-01-01"
         VAL_END_DATE = "2023-12-31"
         TEST_START_DATE = "2024-01-01"
@@ -26,8 +27,6 @@ class ModelConfig:
         MODEL_NAME = "lgb_model"
         MODEL_EXTENSION = ".txt"
 
-    PRICE_COLUMN = "close"
-
     MODEL_PARAMS = {
         'n_estimators': 1000,
         'learning_rate': 0.1,
@@ -40,6 +39,11 @@ class ModelConfig:
         'reg_lambda': 0.01,
         'verbose': 0
     }
+
+    class GeneralConfig:
+        SYMBOLS = ['ADAUSDT', 'BNBUSDT', 'BTCUSDT', 'EOSUSDT',
+                   'ETHUSDT', 'LTCUSDT', 'NEOUSDT', 'QTUMUSDT', 'XRPUSDT']
+        FEATURES = ['open', 'high', 'low', 'close', 'volume']
 
     class IndicatorConfig:
         MA_SHORT = 50

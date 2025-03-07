@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from services import BinanceService, PortfolioService, TradingService
 from models import Model, LGBMRegressorModel, FeaturePreprocessor
 from strategy import MLStrategy, RegimeLeverageStrategy, TradingStrategy, LeverageStrategy
-from config import BaseConfig, TradingConfig, RiskConfig, FeatureConfig, ModelConfig
+from config import BaseConfig, TradingConfig, ModelConfig
 from utils import utils
 
 class TradingCycle:
@@ -20,7 +20,7 @@ class TradingCycle:
     def run(self):
         """Main trading cycle that runs every hour"""
         try:
-            self._setup_trading_cycle()
+            self.setup_trading_cycle()
 
             logging.info(f"Starting trading cycle at {datetime.now()}")
             
@@ -39,7 +39,7 @@ class TradingCycle:
             logging.error(f"Error in trading cycle: {str(e)}")
             logging.error("Full error:", exc_info=True)
     
-    def _setup_trading_cycle(self):
+    def setup_trading_cycle(self):
         if self.trading_strategy is None:
             preprocessor = self._prepare_preprocessor()
             model = self._prepare_model()

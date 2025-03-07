@@ -5,6 +5,7 @@ import pandas as pd
 from config import BinanceConfig
 import logging
 from datetime import datetime
+from utils import utils
 
 class BinanceService:
     def __init__(self):
@@ -32,31 +33,33 @@ class BinanceService:
             DataFrame with historical klines/candlestick data
         """
         try:
-            # Convert datetime to milliseconds timestamp if provided
-            start_ts = int(start_time.timestamp() * 1000) if start_time else None
-            end_ts = int(end_time.timestamp() * 1000) if end_time else None
-            klines = self.client.klines(
-                symbol=symbol,
-                interval=interval,
-                startTime=start_ts,
-                endTime=end_ts
-            )
+            row_count = self._row_estimator(start_time, end_time, interval)
+            if row_count > 500:
+                start_end_time_pairs = self._split_start_end_time(start_time, end_time, interval)
+                df = pd.DataFrame()
+                for start, end in start_end_time_pairs:
+                    klines_df = self._convert_klines_to_df(self.client.klines(
+                        symbol=symbol,
+                        interval=interval,
+                        startTime=start,
+                        endTime=end,
+                        limit=1000
+                    ))
+                    df = pd.concat([df, klines_df])
 
-            df = pd.DataFrame(klines, columns=[
-                'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                'close_time', 'quote_asset_volume', 'number_of_trades',
-                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-            ])
+            else:
+                df = self._convert_klines_to_df(self.client.klines(
+                    symbol=symbol,
+                    interval=interval,
+                    startTime=start_time,
+                    endTime=end_time
+                ))
             
             # Convert timestamp to datetime
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
-            df[numeric_columns] = df[numeric_columns].astype(float)
-            df.set_index('timestamp', inplace=True)
-
+            df = utils.read_klines_to_df(df)
             self.logger.info(f"Successfully fetched {symbol} data")
             
-            return df[numeric_columns]
+            return df
 
         except BinanceAPIException as e:
             self.logger.error(f"Error fetching data from Binance for {symbol}: {str(e)}")
@@ -69,14 +72,7 @@ class BinanceService:
         end_time: datetime,
         interval: str = '1h'
     ) -> dict[str, pd.DataFrame]:
-        results = {}
-        for symbol in symbols:
-            try:
-                results[symbol] = self.get_historical_klines(symbol, start_time, end_time, interval)
-            except Exception as e:
-                self.logger.error(f"Error fetching data for {symbol}: {str(e)}")
-                continue
-        return results
+        return {symbol: self.get_historical_klines(symbol, start_time, end_time, interval) for symbol in symbols}
     
     def get_current_klines(self, symbol: str, interval: str) -> float:
         """Get current klines for a single symbol"""
@@ -118,40 +114,28 @@ class BinanceService:
 
         interval_td = interval_map[interval]
         
-        # Calculate max number of intervals per request (limit=1500)
-        max_intervals = 1450
+        max_intervals = 500
         max_time_span = interval_td * max_intervals
         
-        # Initialize result list and current start time
         time_spans = []
         current_start = start_time
         
         while current_start < end_time:
-            # Calculate potential end time
             potential_end = current_start + max_time_span
-            
-            # If potential end exceeds the actual end time, use actual end time
             current_end = min(potential_end, end_time)
-            
-            # Add the time span tuple
             time_spans.append((current_start, current_end))
-            
-            # Move start time to next period
             current_start = current_end
 
         return time_spans
 
     def _row_estimator(
         self,
-        symbol: str,
         start_time: datetime,
         end_time: datetime,
         interval: str = '1h'
     ) -> int:
         # Calculate expected number of intervals
-        time_diff = end_time - start_time
-        hours_diff = time_diff.total_seconds() / 3600
-        
+        time_diff_seconds = (end_time - start_time).total_seconds()
         diff_factor = {
             '1m': 60,
             '15m': 60 * 15,
@@ -162,6 +146,14 @@ class BinanceService:
         }
 
         if interval in diff_factor:
-            return int(hours_diff / diff_factor[interval]) + 1
+            return int(time_diff_seconds / diff_factor[interval]) + 1
         else:
             raise ValueError(f"Interval {interval} not supported for row estimation")
+        
+    def _convert_klines_to_df(self, klines: list[list[str]]) -> pd.DataFrame:
+        df = pd.DataFrame(klines, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_asset_volume', 'number_of_trades',
+            'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+        ])
+        return df
