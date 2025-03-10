@@ -2,25 +2,40 @@
 
 A comprehensive algorithmic trading system using LightGBM for prediction and Binance Futures for execution.
 
+## System Architecture
+
+This trading system consists of several modular components:
+
+1. **Data Fetcher**: Retrieves market data from Binance Futures API
+2. **Model**: Uses LightGBM to predict price movements
+3. **Strategy**: Generates trading signals based on model predictions
+4. **Portfolio Manager**: Constructs diversified portfolios from signals
+5. **Order Executor**: Handles the execution of trades on the exchange
+6. **Trading Cycle**: Orchestrates the entire trading process
+
 ## Project Structure
 
 ```
-├── config/               # Configuration files and settings
-├── core/                 # Core trading system components 
-├── data/                 # Historical market data
-├── logs/                 # Trading logs
-├── model/                # ML model definitions
-│   └── LGBMmodel.py      # LightGBM model implementation
-├── strategy/             # Trading strategies
-│   ├── strategy.py       # Base strategy class
-│   └── LGBMstrategy.py   # LightGBM-based strategy 
-├── utils/                # Utility functions
-├── .env                  # Environment variables (API keys, etc.)
-├── download_data.py      # Script to download historical data
-├── main_trading.py       # Main trading execution script
-├── requirements.txt      # Project dependencies
-├── train_model.py        # Script to train and save models
-└── README.md             # Project documentation
+├── config/                # Configuration files and settings
+├── core/                  # Core trading system components
+│   ├── data_fetcher.py    # Fetches market data
+│   ├── executor.py        # Executes trades
+│   ├── portfolio_manager.py # Manages portfolio construction
+│   └── trading_cycle.py   # Orchestrates the trading process
+├── data/                  # Historical market data
+├── logs/                  # Trading logs
+├── model/                 # ML model definitions
+│   └── LGBMmodel.py       # LightGBM model implementation
+├── strategy/              # Trading strategies
+│   ├── strategy.py        # Base strategy class
+│   └── LGBMstrategy.py    # LightGBM-based strategy
+├── utils/                 # Utility functions
+│   └── feature_engineering.py # Technical indicator calculations
+├── .env                   # Environment variables (API keys, etc.)
+├── download_data.py       # Script to download historical data
+├── main.py                # Main entry point for the trading system
+├── train_model.py         # Script to train and save models
+└── README.md              # Project documentation
 ```
 
 ## Getting Started
@@ -61,44 +76,50 @@ python train_model.py --symbols BTCUSDT ETHUSDT --days 60 --interval 1h --output
 ### 3. Run the Trading System
 
 ```bash
-python main_trading.py
+# Run in test mode (no real orders)
+python main.py --test --interval 60 --timeframe 1h
+
+# Run in production mode
+python main.py --interval 60 --timeframe 1h
 ```
 
-## Strategy Overview
+Command line arguments:
+- `--test`: Run in test mode (no real orders placed)
+- `--interval`: Trading cycle interval in minutes
+- `--timeframe`: Candlestick timeframe (1m, 5m, 15m, 1h, 4h, 1d)
+- `--lookback`: Number of lookback periods for analysis
+- `--cycles`: Number of cycles to run (None for infinite)
 
-The trading strategy uses a LightGBM model to predict future price movements. The model is trained on historical price data and technical indicators. Based on these predictions, the strategy generates buy/sell signals.
+## System Components
 
-### Strategy Components
+### 1. Data Fetcher
+Retrieves market data from Binance Futures API using their official client. It handles data formatting and error recovery.
 
-1. **Model Training (`train_model.py`):**
-   - Loads historical price data
-   - Calculates technical indicators
-   - Trains a LightGBM model for each symbol
-   - Saves the models for later use
+### 2. Model (LGBMmodel)
+Uses LightGBM to predict future price movements based on technical indicators. Features are calculated using the FeatureEngineer class.
 
-2. **Signal Generation (`LGBMstrategy.py`):**
-   - Loads the trained models
-   - Processes live market data
-   - Generates trading signals based on price predictions
+### 3. Strategy (LGBMstrategy)
+Processes model predictions and converts them into actionable trading signals with confidence scores.
 
-3. **Trading Execution (`main_trading.py`):**
-   - Sets up the trading environment
-   - Connects to Binance API
-   - Processes signals from the strategy
-   - Executes trades accordingly
+### 4. Portfolio Manager
+Constructs a diversified portfolio based on strategy signals, considering position sizing, risk management, and capital allocation.
+
+### 5. Order Executor
+Handles the execution of trades, managing order status, and cleanup operations.
+
+### 6. Trading Cycle
+Orchestrates the entire process, from data retrieval to execution, in scheduled intervals.
 
 ## Customization
 
 ### Adding New Features
-
-To add new technical indicators or features, modify the `_add_features` method in `model/LGBMmodel.py`.
+To add new technical indicators, modify the `FeatureEngineer` class in `utils/feature_engineering.py`.
 
 ### Creating New Strategies
-
 1. Create a new strategy file in the `strategy/` directory
 2. Inherit from the base `Strategy` class
 3. Implement the `get_signals` method
-4. Update `main_trading.py` to use your new strategy
+4. Update `main.py` to use your new strategy
 
 ## License
 
