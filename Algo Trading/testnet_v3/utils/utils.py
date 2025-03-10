@@ -74,29 +74,76 @@ def split_dfs(dfs: dict[str, pd.DataFrame],
                                                  dict[str, pd.DataFrame],
                                                  dict[str, pd.DataFrame]]:
     """
-    Split the dfs into training and validation sets.
+    Split the dataframes into training, validation, and test sets.
+    Uses forward fill to handle missing dates and ensures all dataframes have the same date range.
+    
+    Args:
+        dfs: Dictionary of DataFrames with OHLCV data
+        val_ratio: Ratio of data to use for validation
+        test_ratio: Ratio of data to use for testing
+        
+    Returns:
+        Tuple of dictionaries containing train, validation, and test DataFrames
     """
     train_dfs = {}
     val_dfs = {}
     test_dfs = {}
 
-    common_index = None
-    for df in dfs.values():
-        df = df.set_index('Open time')[['Open', 'High', 'Low', 'Close', 'Volume']]
-        if common_index is None:
-            common_index = df.index
-        else:
-            common_index = common_index.intersection(df.index)
+    # Create a union of all dates across all dataframes
+    all_dates = set()
+    processed_dfs = {}
     
-    train_size = int(len(common_index) * (1 - val_ratio - test_ratio))
-    val_size = int(len(common_index) * val_ratio)
-    test_size = int(len(common_index) * test_ratio)
-
     for symbol, df in dfs.items():
-        df = df.set_index('Open time')[['Open', 'High', 'Low', 'Close', 'Volume']]
-        df = df.reindex(common_index)
-        train_dfs[symbol] = df.iloc[:train_size]
-        val_dfs[symbol] = df.iloc[train_size:train_size + val_size]
-        test_dfs[symbol] = df.iloc[train_size + val_size:]
-
+        # Convert to DataFrame if Series
+        if isinstance(df, pd.Series):
+            df = df.to_frame()
+            
+        # Ensure we have the right column name for the timestamp
+        time_col = 'Open time' if 'Open time' in df.columns else 'Open_time'
+        
+        if time_col in df.columns:
+            # Set the datetime index
+            df_indexed = df.set_index(time_col)[['Open', 'High', 'Low', 'Close', 'Volume']]
+            processed_dfs[symbol] = df_indexed
+            
+            # Add all dates from this dataframe to the set of all dates
+            all_dates.update(df_indexed.index)
+        else:
+            raise ValueError(f"DataFrame for {symbol} does not have a valid timestamp column")
+    
+    # Sort all dates to ensure chronological order
+    all_dates = sorted(all_dates)
+    
+    # Reindex all dataframes to include all dates, using forward fill
+    aligned_dfs = {}
+    for symbol, df in processed_dfs.items():
+        # Reindex to include all dates
+        aligned_df = df.reindex(all_dates)
+        
+        # Forward fill missing values (use the last known price)
+        aligned_df = aligned_df.ffill()
+        
+        # In case there are still NaNs at the beginning (no previous value to fill with),
+        # backward fill those
+        aligned_df = aligned_df.bfill()
+        
+        aligned_dfs[symbol] = aligned_df
+    
+    # Calculate sizes for train/val/test splits
+    total_size = len(all_dates)
+    train_size = int(total_size * (1 - val_ratio - test_ratio))
+    val_size = int(total_size * val_ratio)
+    # test_size is the remainder
+    
+    # Split each aligned dataframe
+    for symbol, df in aligned_dfs.items():
+        train_dfs[symbol] = df.iloc[:train_size].copy()
+        val_dfs[symbol] = df.iloc[train_size:train_size + val_size].copy()
+        test_dfs[symbol] = df.iloc[train_size + val_size:].copy()
+        
+        # Reset index to put the datetime back as a column if needed
+        # train_dfs[symbol].reset_index(inplace=True)
+        # val_dfs[symbol].reset_index(inplace=True)
+        # test_dfs[symbol].reset_index(inplace=True)
+    
     return train_dfs, val_dfs, test_dfs
