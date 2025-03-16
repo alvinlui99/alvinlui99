@@ -1,0 +1,91 @@
+2025-03-16 15:41:11,808 - __main__ - INFO - Starting model retraining
+2025-03-16 15:41:11,808 - __main__ - INFO - Starting model retraining with symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:41:11,809 - __main__ - INFO - Loading data for symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:41:11,809 - __main__ - INFO - Using live format data for BTCUSDT
+2025-03-16 15:41:11,812 - __main__ - INFO - Using all 100 available rows for BTCUSDT
+2025-03-16 15:41:11,814 - __main__ - INFO - Removing Return column from BTCUSDT data
+2025-03-16 15:41:11,815 - __main__ - INFO - Removing Log_Return column from BTCUSDT data
+2025-03-16 15:41:11,849 - __main__ - INFO - Loaded 100 rows for BTCUSDT
+2025-03-16 15:41:11,849 - __main__ - INFO - Using live format data for ETHUSDT
+2025-03-16 15:41:11,851 - __main__ - INFO - Using all 100 available rows for ETHUSDT
+2025-03-16 15:41:11,852 - __main__ - INFO - Removing Return column from ETHUSDT data
+2025-03-16 15:41:11,853 - __main__ - INFO - Removing Log_Return column from ETHUSDT data
+2025-03-16 15:41:11,853 - __main__ - INFO - Loaded 100 rows for ETHUSDT
+2025-03-16 15:41:11,854 - __main__ - INFO - Split for BTCUSDT: 70 train, 15 validation, 15 test
+2025-03-16 15:41:11,855 - __main__ - INFO - Split for ETHUSDT: 70 train, 15 validation, 15 test
+2025-03-16 15:41:11,855 - __main__ - INFO - After splitting: 2 symbols in train, 2 in validation, 2 in test
+2025-03-16 15:41:11,855 - __main__ - INFO - Preparing data for LightGBM training
+2025-03-16 15:41:11,866 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:41:11,868 - __main__ - WARNING - Found 418 NaN values in training data for BTCUSDT
+2025-03-16 15:41:11,874 - __main__ - WARNING - Dropping 1 non-numeric columns for BTCUSDT
+2025-03-16 15:41:11,875 - __main__ - INFO - Processed training data for BTCUSDT: 70 rows, 38 features
+2025-03-16 15:41:11,885 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:41:11,886 - __main__ - WARNING - Found 418 NaN values in training data for ETHUSDT
+2025-03-16 15:41:11,892 - __main__ - WARNING - Dropping 1 non-numeric columns for ETHUSDT
+2025-03-16 15:41:11,893 - __main__ - INFO - Processed training data for ETHUSDT: 70 rows, 38 features
+2025-03-16 15:41:11,903 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:41:11,904 - __main__ - WARNING - Found 268 NaN values in validation data for BTCUSDT
+2025-03-16 15:41:11,907 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:41:11,910 - __main__ - WARNING - Dropping 1 non-numeric columns for BTCUSDT
+2025-03-16 15:41:11,911 - __main__ - INFO - Processed validation data for BTCUSDT: 15 rows, 38 features
+2025-03-16 15:41:11,921 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:41:11,922 - __main__ - WARNING - Found 268 NaN values in validation data for ETHUSDT
+2025-03-16 15:41:11,925 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:41:11,929 - __main__ - WARNING - Dropping 1 non-numeric columns for ETHUSDT
+2025-03-16 15:41:11,930 - __main__ - INFO - Processed validation data for ETHUSDT: 15 rows, 38 features
+2025-03-16 15:41:11,930 - __main__ - INFO - Common symbols for training and validation: {'BTCUSDT', 'ETHUSDT'}
+2025-03-16 15:41:11,930 - __main__ - INFO - Training with 2 symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:41:11,931 - __main__ - INFO - Saved trained symbols list to: E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\trained_symbols.txt
+2025-03-16 15:41:11,932 - __main__ - INFO - Initializing model...
+2025-03-16 15:41:11,933 - __main__ - INFO - Testing feature engineering on samples for 2 symbols
+2025-03-16 15:41:11,940 - utils.feature_engineering - WARNING - Found 321 null values in feature-engineered data
+2025-03-16 15:41:11,941 - __main__ - INFO - Feature engineering test for BTCUSDT: 38 features generated
+2025-03-16 15:41:11,942 - __main__ - WARNING - Test sample for BTCUSDT has 321 NaN values
+2025-03-16 15:41:11,948 - utils.feature_engineering - WARNING - Found 321 null values in feature-engineered data
+2025-03-16 15:41:11,949 - __main__ - INFO - Feature engineering test for ETHUSDT: 38 features generated
+2025-03-16 15:41:11,950 - __main__ - WARNING - Test sample for ETHUSDT has 321 NaN values
+2025-03-16 15:41:11,951 - __main__ - INFO - Training model...
+2025-03-16 15:41:11,961 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:41:11,968 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:41:11,969 - __main__ - WARNING - Found 418 NaN values in feature-engineered data for BTCUSDT
+2025-03-16 15:41:11,972 - __main__ - INFO - Successfully fixed NaN values for BTCUSDT: 70 rows preserved
+2025-03-16 15:41:11,974 - __main__ - WARNING - Found 418 NaN values in feature-engineered data for ETHUSDT
+2025-03-16 15:41:11,977 - __main__ - INFO - Successfully fixed NaN values for ETHUSDT: 70 rows preserved
+2025-03-16 15:41:12,001 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:41:12,007 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:41:12,008 - __main__ - WARNING - Found 268 NaN values in feature-engineered data for BTCUSDT
+2025-03-16 15:41:12,012 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:41:12,013 - __main__ - INFO - Successfully fixed NaN values for BTCUSDT: 15 rows preserved
+2025-03-16 15:41:12,014 - __main__ - WARNING - Found 268 NaN values in feature-engineered data for ETHUSDT
+2025-03-16 15:41:12,017 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:41:12,018 - __main__ - INFO - Successfully fixed NaN values for ETHUSDT: 15 rows preserved
+2025-03-16 15:41:12,027 - __main__ - WARNING - Error filtering close prices using index: positional indexers are out-of-bounds
+2025-03-16 15:41:12,035 - __main__ - WARNING - Error filtering close prices using index: positional indexers are out-of-bounds
+2025-03-16 15:41:12,036 - __main__ - INFO - Training data shape: (69, 74), Validation data shape: (14, 74)
+2025-03-16 15:41:12,037 - __main__ - INFO - Training with 74 features
+2025-03-16 15:41:12,053 - __main__ - INFO - Model for BTCUSDT trained successfully
+2025-03-16 15:41:12,064 - __main__ - INFO - Model for ETHUSDT trained successfully
+2025-03-16 15:41:12,065 - __main__ - INFO - Model trained successfully with 74 features
+2025-03-16 15:41:12,068 - __main__ - INFO - Model saved to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\lgbm_model.pkl
+2025-03-16 15:41:12,081 - __main__ - INFO - Feature info saved to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\feature_info.json
+2025-03-16 15:41:12,081 - __main__ - INFO - Validating model with live-format data...
+2025-03-16 15:41:12,083 - __main__ - INFO - Loaded 100 rows of live-format data for BTCUSDT
+2025-03-16 15:41:12,085 - __main__ - INFO - Loaded 100 rows of live-format data for ETHUSDT
+2025-03-16 15:41:12,095 - __main__ - WARNING - Found 419 null values in feature-engineered data
+2025-03-16 15:41:12,104 - __main__ - WARNING - Found 419 null values in feature-engineered data
+2025-03-16 15:41:12,105 - __main__ - WARNING - Found 419 NaN values in feature-engineered data for BTCUSDT
+2025-03-16 15:41:12,109 - __main__ - INFO - Successfully fixed NaN values for BTCUSDT: 100 rows preserved
+2025-03-16 15:41:12,110 - __main__ - WARNING - Found 419 NaN values in feature-engineered data for ETHUSDT
+2025-03-16 15:41:12,114 - __main__ - INFO - Successfully fixed NaN values for ETHUSDT: 100 rows preserved
+2025-03-16 15:41:12,131 - __main__ - WARNING - Feature count mismatch: expected 74, got 76
+2025-03-16 15:41:12,132 - __main__ - ERROR - Feature count mismatch between training and prediction data
+2025-03-16 15:41:12,132 - __main__ - ERROR - This usually happens when:
+2025-03-16 15:41:12,132 - __main__ - ERROR - 1. You're using different symbols in training vs prediction
+2025-03-16 15:41:12,133 - __main__ - ERROR - 2. The feature engineering configuration has changed
+2025-03-16 15:41:12,133 - __main__ - ERROR - 3. The input data format has changed
+2025-03-16 15:41:12,133 - __main__ - ERROR - 
+To fix this, you can:
+2025-03-16 15:41:12,133 - __main__ - ERROR - 1. Retrain the model with the same symbols and configuration
+2025-03-16 15:41:12,133 - __main__ - ERROR - 2. Ensure you're using the same symbols in prediction as training
+2025-03-16 15:41:12,133 - __main__ - ERROR - 3. Set ENABLE_MODEL_COMPATIBILITY=true in environment to force prediction
+2025-03-16 15:41:12,134 - __main__ - ERROR - Model validation with live data failed: Feature count mismatch: expected 74, got 76. Set ENABLE_MODEL_COMPATIBILITY=true to ignore.

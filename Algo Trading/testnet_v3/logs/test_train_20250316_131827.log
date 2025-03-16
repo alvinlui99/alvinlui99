@@ -1,0 +1,15 @@
+2025-03-16 13:18:27,494 - __main__ - INFO - ================================================================================
+2025-03-16 13:18:27,495 - __main__ - INFO - TESTING MODEL TRAINING WITH SMALL DATASET
+2025-03-16 13:18:27,495 - __main__ - INFO - ================================================================================
+2025-03-16 13:18:27,495 - __main__ - INFO - Creating test datasets...
+2025-03-16 13:18:27,495 - __main__ - INFO - Using live format data for BTCUSDT
+2025-03-16 13:18:27,499 - __main__ - INFO - Loaded 100 rows for BTCUSDT
+2025-03-16 13:18:27,500 - __main__ - INFO - Dropping 2 NaN values from BTCUSDT data
+2025-03-16 13:18:27,502 - __main__ - INFO - Removed Return columns from BTCUSDT for model compatibility
+2025-03-16 13:18:27,503 - __main__ - WARNING - Not enough data for BTCUSDT after cleaning: 99 rows
+2025-03-16 13:18:27,503 - __main__ - INFO - Using live format data for ETHUSDT
+2025-03-16 13:18:27,505 - __main__ - INFO - Loaded 100 rows for ETHUSDT
+2025-03-16 13:18:27,506 - __main__ - INFO - Dropping 2 NaN values from ETHUSDT data
+2025-03-16 13:18:27,509 - __main__ - INFO - Removed Return columns from ETHUSDT for model compatibility
+2025-03-16 13:18:27,510 - __main__ - WARNING - Not enough data for ETHUSDT after cleaning: 99 rows
+2025-03-16 13:18:27,510 - __main__ - ERROR - Failed to create any test datasets!

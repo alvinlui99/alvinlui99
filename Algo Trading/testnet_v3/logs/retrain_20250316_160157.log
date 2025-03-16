@@ -1,0 +1,263 @@
+2025-03-16 16:01:57,722 - __main__ - INFO - Starting model retraining
+2025-03-16 16:01:57,723 - __main__ - INFO - Starting model retraining with symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOGEUSDT', 'LINKUSDT', 'MATICUSDT', 'SOLUSDT']
+2025-03-16 16:01:57,723 - __main__ - INFO - Loading data for symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOGEUSDT', 'LINKUSDT', 'MATICUSDT', 'SOLUSDT']
+2025-03-16 16:01:57,724 - __main__ - INFO - Using live format data for BTCUSDT
+2025-03-16 16:01:57,729 - __main__ - INFO - Using all 100 available rows for BTCUSDT
+2025-03-16 16:01:57,730 - __main__ - INFO - Removing Return column from BTCUSDT data
+2025-03-16 16:01:57,731 - __main__ - INFO - Removing Log_Return column from BTCUSDT data
+2025-03-16 16:01:57,731 - __main__ - INFO - Loaded 100 rows for BTCUSDT
+2025-03-16 16:01:57,732 - __main__ - INFO - Using live format data for ETHUSDT
+2025-03-16 16:01:57,733 - __main__ - INFO - Using all 100 available rows for ETHUSDT
+2025-03-16 16:01:57,734 - __main__ - INFO - Removing Return column from ETHUSDT data
+2025-03-16 16:01:57,735 - __main__ - INFO - Removing Log_Return column from ETHUSDT data
+2025-03-16 16:01:57,736 - __main__ - INFO - Loaded 100 rows for ETHUSDT
+2025-03-16 16:01:57,736 - __main__ - INFO - Using live format data for BNBUSDT
+2025-03-16 16:01:57,738 - __main__ - INFO - Using all 100 available rows for BNBUSDT
+2025-03-16 16:01:57,739 - __main__ - INFO - Removing Return column from BNBUSDT data
+2025-03-16 16:01:57,740 - __main__ - INFO - Removing Log_Return column from BNBUSDT data
+2025-03-16 16:01:57,740 - __main__ - INFO - Loaded 100 rows for BNBUSDT
+2025-03-16 16:01:57,741 - __main__ - INFO - Using live format data for ADAUSDT
+2025-03-16 16:01:57,742 - __main__ - INFO - Using all 100 available rows for ADAUSDT
+2025-03-16 16:01:57,744 - __main__ - INFO - Removing Return column from ADAUSDT data
+2025-03-16 16:01:57,744 - __main__ - INFO - Removing Log_Return column from ADAUSDT data
+2025-03-16 16:01:57,745 - __main__ - INFO - Loaded 100 rows for ADAUSDT
+2025-03-16 16:01:57,745 - __main__ - INFO - Using live format data for AVAXUSDT
+2025-03-16 16:01:57,747 - __main__ - INFO - Using all 100 available rows for AVAXUSDT
+2025-03-16 16:01:57,748 - __main__ - INFO - Removing Return column from AVAXUSDT data
+2025-03-16 16:01:57,749 - __main__ - INFO - Removing Log_Return column from AVAXUSDT data
+2025-03-16 16:01:57,749 - __main__ - INFO - Loaded 100 rows for AVAXUSDT
+2025-03-16 16:01:57,750 - __main__ - INFO - Using live format data for DOGEUSDT
+2025-03-16 16:01:57,751 - __main__ - INFO - Using all 100 available rows for DOGEUSDT
+2025-03-16 16:01:57,752 - __main__ - INFO - Removing Return column from DOGEUSDT data
+2025-03-16 16:01:57,753 - __main__ - INFO - Removing Log_Return column from DOGEUSDT data
+2025-03-16 16:01:57,754 - __main__ - INFO - Loaded 100 rows for DOGEUSDT
+2025-03-16 16:01:57,754 - __main__ - INFO - Using live format data for LINKUSDT
+2025-03-16 16:01:57,756 - __main__ - INFO - Using all 100 available rows for LINKUSDT
+2025-03-16 16:01:57,757 - __main__ - INFO - Removing Return column from LINKUSDT data
+2025-03-16 16:01:57,758 - __main__ - INFO - Removing Log_Return column from LINKUSDT data
+2025-03-16 16:01:57,758 - __main__ - INFO - Loaded 100 rows for LINKUSDT
+2025-03-16 16:01:57,759 - __main__ - INFO - Using live format data for MATICUSDT
+2025-03-16 16:01:57,761 - __main__ - WARNING - Not enough data for MATICUSDT, only 0 rows available
+2025-03-16 16:01:57,761 - __main__ - INFO - Using live format data for SOLUSDT
+2025-03-16 16:01:57,763 - __main__ - INFO - Using all 100 available rows for SOLUSDT
+2025-03-16 16:01:57,764 - __main__ - INFO - Removing Return column from SOLUSDT data
+2025-03-16 16:01:57,764 - __main__ - INFO - Removing Log_Return column from SOLUSDT data
+2025-03-16 16:01:57,765 - __main__ - INFO - Loaded 100 rows for SOLUSDT
+2025-03-16 16:01:57,767 - __main__ - INFO - Split for BTCUSDT: 70 train, 15 validation, 15 test
+2025-03-16 16:01:57,767 - __main__ - INFO - Split for ETHUSDT: 70 train, 15 validation, 15 test
+2025-03-16 16:01:57,767 - __main__ - INFO - Split for BNBUSDT: 70 train, 15 validation, 15 test
+2025-03-16 16:01:57,768 - __main__ - INFO - Split for ADAUSDT: 70 train, 15 validation, 15 test
+2025-03-16 16:01:57,768 - __main__ - INFO - Split for AVAXUSDT: 70 train, 15 validation, 15 test
+2025-03-16 16:01:57,768 - __main__ - INFO - Split for DOGEUSDT: 70 train, 15 validation, 15 test
+2025-03-16 16:01:57,769 - __main__ - INFO - Split for LINKUSDT: 70 train, 15 validation, 15 test
+2025-03-16 16:01:57,769 - __main__ - INFO - Split for SOLUSDT: 70 train, 15 validation, 15 test
+2025-03-16 16:01:57,769 - __main__ - INFO - After splitting: 8 symbols in train, 8 in validation, 8 in test
+2025-03-16 16:01:57,769 - __main__ - INFO - Creating standardized feature pipeline for consistent training and inference
+2025-03-16 16:01:57,769 - __main__ - INFO - Creating standardized feature pipeline for 8 symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOGEUSDT', 'LINKUSDT', 'SOLUSDT']
+2025-03-16 16:01:57,774 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:57,775 - __main__ - INFO - Sample processing for BTCUSDT generated 5 features
+2025-03-16 16:01:57,776 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:57,777 - __main__ - INFO - Sample processing for ETHUSDT generated 5 features
+2025-03-16 16:01:57,777 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:57,778 - __main__ - INFO - Sample processing for BNBUSDT generated 5 features
+2025-03-16 16:01:57,779 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:57,780 - __main__ - INFO - Sample processing for ADAUSDT generated 5 features
+2025-03-16 16:01:57,781 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:57,782 - __main__ - INFO - Sample processing for AVAXUSDT generated 5 features
+2025-03-16 16:01:57,782 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:57,783 - __main__ - INFO - Sample processing for DOGEUSDT generated 5 features
+2025-03-16 16:01:57,784 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:57,785 - __main__ - INFO - Sample processing for LINKUSDT generated 5 features
+2025-03-16 16:01:57,785 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:57,786 - __main__ - INFO - Sample processing for SOLUSDT generated 5 features
+2025-03-16 16:01:57,786 - __main__ - INFO - Standardized feature pipeline created with 40 total features
+2025-03-16 16:01:57,787 - __main__ - INFO - Saved feature pipeline configuration to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\feature_pipeline_config.json
+2025-03-16 16:01:57,788 - __main__ - INFO - Processing training data with standardized pipeline
+2025-03-16 16:01:57,788 - __main__ - INFO - Standardizing features for prediction on 8 symbols
+2025-03-16 16:01:57,798 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 16:01:57,800 - __main__ - WARNING - Found 418 NaN values for BTCUSDT
+2025-03-16 16:01:57,803 - __main__ - WARNING - Missing 5 expected features for BTCUSDT. Adding as zeros.
+2025-03-16 16:01:57,804 - __main__ - WARNING - Found 39 extra features for BTCUSDT. These will be removed.
+2025-03-16 16:01:57,805 - __main__ - INFO - Standardized features for BTCUSDT: 70 rows, 5 features
+2025-03-16 16:01:57,815 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 16:01:57,816 - __main__ - WARNING - Found 418 NaN values for ETHUSDT
+2025-03-16 16:01:57,820 - __main__ - WARNING - Missing 5 expected features for ETHUSDT. Adding as zeros.
+2025-03-16 16:01:57,821 - __main__ - WARNING - Found 39 extra features for ETHUSDT. These will be removed.
+2025-03-16 16:01:57,822 - __main__ - INFO - Standardized features for ETHUSDT: 70 rows, 5 features
+2025-03-16 16:01:57,846 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 16:01:57,847 - __main__ - WARNING - Found 418 NaN values for BNBUSDT
+2025-03-16 16:01:57,850 - __main__ - WARNING - Missing 5 expected features for BNBUSDT. Adding as zeros.
+2025-03-16 16:01:57,852 - __main__ - WARNING - Found 39 extra features for BNBUSDT. These will be removed.
+2025-03-16 16:01:57,853 - __main__ - INFO - Standardized features for BNBUSDT: 70 rows, 5 features
+2025-03-16 16:01:57,862 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 16:01:57,864 - __main__ - WARNING - Found 418 NaN values for ADAUSDT
+2025-03-16 16:01:57,868 - __main__ - WARNING - Missing 5 expected features for ADAUSDT. Adding as zeros.
+2025-03-16 16:01:57,869 - __main__ - WARNING - Found 39 extra features for ADAUSDT. These will be removed.
+2025-03-16 16:01:57,870 - __main__ - INFO - Standardized features for ADAUSDT: 70 rows, 5 features
+2025-03-16 16:01:57,880 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 16:01:57,881 - __main__ - WARNING - Found 418 NaN values for AVAXUSDT
+2025-03-16 16:01:57,885 - __main__ - WARNING - Missing 5 expected features for AVAXUSDT. Adding as zeros.
+2025-03-16 16:01:57,886 - __main__ - WARNING - Found 39 extra features for AVAXUSDT. These will be removed.
+2025-03-16 16:01:57,887 - __main__ - INFO - Standardized features for AVAXUSDT: 70 rows, 5 features
+2025-03-16 16:01:57,897 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 16:01:57,898 - __main__ - WARNING - Found 418 NaN values for DOGEUSDT
+2025-03-16 16:01:57,901 - __main__ - WARNING - Missing 5 expected features for DOGEUSDT. Adding as zeros.
+2025-03-16 16:01:57,902 - __main__ - WARNING - Found 39 extra features for DOGEUSDT. These will be removed.
+2025-03-16 16:01:57,903 - __main__ - INFO - Standardized features for DOGEUSDT: 70 rows, 5 features
+2025-03-16 16:01:57,913 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 16:01:57,915 - __main__ - WARNING - Found 418 NaN values for LINKUSDT
+2025-03-16 16:01:57,918 - __main__ - WARNING - Missing 5 expected features for LINKUSDT. Adding as zeros.
+2025-03-16 16:01:57,919 - __main__ - WARNING - Found 39 extra features for LINKUSDT. These will be removed.
+2025-03-16 16:01:57,920 - __main__ - INFO - Standardized features for LINKUSDT: 70 rows, 5 features
+2025-03-16 16:01:57,930 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 16:01:57,932 - __main__ - WARNING - Found 418 NaN values for SOLUSDT
+2025-03-16 16:01:57,935 - __main__ - WARNING - Missing 5 expected features for SOLUSDT. Adding as zeros.
+2025-03-16 16:01:57,936 - __main__ - WARNING - Found 39 extra features for SOLUSDT. These will be removed.
+2025-03-16 16:01:57,938 - __main__ - INFO - Standardized features for SOLUSDT: 70 rows, 5 features
+2025-03-16 16:01:57,938 - __main__ - INFO - Standardizing features for prediction on 8 symbols
+2025-03-16 16:01:57,948 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 16:01:57,949 - __main__ - WARNING - Found 268 NaN values for BTCUSDT
+2025-03-16 16:01:57,953 - __main__ - WARNING - Missing 5 expected features for BTCUSDT. Adding as zeros.
+2025-03-16 16:01:57,954 - __main__ - WARNING - Found 39 extra features for BTCUSDT. These will be removed.
+2025-03-16 16:01:57,955 - __main__ - INFO - Standardized features for BTCUSDT: 15 rows, 5 features
+2025-03-16 16:01:57,964 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 16:01:57,966 - __main__ - WARNING - Found 268 NaN values for ETHUSDT
+2025-03-16 16:01:57,969 - __main__ - WARNING - Missing 5 expected features for ETHUSDT. Adding as zeros.
+2025-03-16 16:01:57,970 - __main__ - WARNING - Found 39 extra features for ETHUSDT. These will be removed.
+2025-03-16 16:01:57,971 - __main__ - INFO - Standardized features for ETHUSDT: 15 rows, 5 features
+2025-03-16 16:01:57,981 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 16:01:57,982 - __main__ - WARNING - Found 268 NaN values for BNBUSDT
+2025-03-16 16:01:57,986 - __main__ - WARNING - Missing 5 expected features for BNBUSDT. Adding as zeros.
+2025-03-16 16:01:57,987 - __main__ - WARNING - Found 39 extra features for BNBUSDT. These will be removed.
+2025-03-16 16:01:57,988 - __main__ - INFO - Standardized features for BNBUSDT: 15 rows, 5 features
+2025-03-16 16:01:57,997 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 16:01:57,998 - __main__ - WARNING - Found 268 NaN values for ADAUSDT
+2025-03-16 16:01:58,002 - __main__ - WARNING - Missing 5 expected features for ADAUSDT. Adding as zeros.
+2025-03-16 16:01:58,003 - __main__ - WARNING - Found 39 extra features for ADAUSDT. These will be removed.
+2025-03-16 16:01:58,004 - __main__ - INFO - Standardized features for ADAUSDT: 15 rows, 5 features
+2025-03-16 16:01:58,013 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 16:01:58,015 - __main__ - WARNING - Found 268 NaN values for AVAXUSDT
+2025-03-16 16:01:58,018 - __main__ - WARNING - Missing 5 expected features for AVAXUSDT. Adding as zeros.
+2025-03-16 16:01:58,019 - __main__ - WARNING - Found 39 extra features for AVAXUSDT. These will be removed.
+2025-03-16 16:01:58,020 - __main__ - INFO - Standardized features for AVAXUSDT: 15 rows, 5 features
+2025-03-16 16:01:58,030 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 16:01:58,031 - __main__ - WARNING - Found 268 NaN values for DOGEUSDT
+2025-03-16 16:01:58,035 - __main__ - WARNING - Missing 5 expected features for DOGEUSDT. Adding as zeros.
+2025-03-16 16:01:58,036 - __main__ - WARNING - Found 39 extra features for DOGEUSDT. These will be removed.
+2025-03-16 16:01:58,037 - __main__ - INFO - Standardized features for DOGEUSDT: 15 rows, 5 features
+2025-03-16 16:01:58,046 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 16:01:58,048 - __main__ - WARNING - Found 268 NaN values for LINKUSDT
+2025-03-16 16:01:58,051 - __main__ - WARNING - Missing 5 expected features for LINKUSDT. Adding as zeros.
+2025-03-16 16:01:58,052 - __main__ - WARNING - Found 39 extra features for LINKUSDT. These will be removed.
+2025-03-16 16:01:58,053 - __main__ - INFO - Standardized features for LINKUSDT: 15 rows, 5 features
+2025-03-16 16:01:58,063 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 16:01:58,064 - __main__ - WARNING - Found 268 NaN values for SOLUSDT
+2025-03-16 16:01:58,067 - __main__ - WARNING - Missing 5 expected features for SOLUSDT. Adding as zeros.
+2025-03-16 16:01:58,068 - __main__ - WARNING - Found 39 extra features for SOLUSDT. These will be removed.
+2025-03-16 16:01:58,069 - __main__ - INFO - Standardized features for SOLUSDT: 15 rows, 5 features
+2025-03-16 16:01:58,070 - __main__ - INFO - Training with 8 symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOGEUSDT', 'LINKUSDT', 'SOLUSDT']
+2025-03-16 16:01:58,071 - __main__ - INFO - Saved trained symbols list to: E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\trained_symbols.txt
+2025-03-16 16:01:58,071 - __main__ - INFO - Initializing model...
+2025-03-16 16:01:58,071 - __main__ - INFO - Training model...
+2025-03-16 16:01:58,075 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,076 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,077 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,077 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,078 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,078 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,079 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,079 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,094 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,095 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,096 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,096 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,097 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,097 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,098 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,098 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,113 - __main__ - INFO - Training data shape: (69, 40), Validation data shape: (14, 40)
+2025-03-16 16:01:58,114 - __main__ - INFO - Training with 40 features
+2025-03-16 16:01:58,120 - __main__ - INFO - Model for BTCUSDT trained successfully
+2025-03-16 16:01:58,125 - __main__ - INFO - Model for ETHUSDT trained successfully
+2025-03-16 16:01:58,129 - __main__ - INFO - Model for BNBUSDT trained successfully
+2025-03-16 16:01:58,133 - __main__ - INFO - Model for ADAUSDT trained successfully
+2025-03-16 16:01:58,137 - __main__ - INFO - Model for AVAXUSDT trained successfully
+2025-03-16 16:01:58,142 - __main__ - INFO - Model for DOGEUSDT trained successfully
+2025-03-16 16:01:58,146 - __main__ - INFO - Model for LINKUSDT trained successfully
+2025-03-16 16:01:58,150 - __main__ - INFO - Model for SOLUSDT trained successfully
+2025-03-16 16:01:58,150 - __main__ - INFO - Model trained successfully with 40 features
+2025-03-16 16:01:58,154 - __main__ - INFO - Model saved to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\lgbm_model.pkl
+2025-03-16 16:01:58,156 - __main__ - INFO - Feature info saved to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\feature_info.json
+2025-03-16 16:01:58,156 - __main__ - INFO - Validating model with live-format data...
+2025-03-16 16:01:58,159 - __main__ - INFO - Loaded 100 rows of live-format data for BTCUSDT
+2025-03-16 16:01:58,161 - __main__ - INFO - Loaded 100 rows of live-format data for ETHUSDT
+2025-03-16 16:01:58,162 - __main__ - INFO - Loaded 100 rows of live-format data for BNBUSDT
+2025-03-16 16:01:58,164 - __main__ - INFO - Loaded 100 rows of live-format data for ADAUSDT
+2025-03-16 16:01:58,165 - __main__ - INFO - Loaded 100 rows of live-format data for AVAXUSDT
+2025-03-16 16:01:58,167 - __main__ - INFO - Loaded 100 rows of live-format data for DOGEUSDT
+2025-03-16 16:01:58,169 - __main__ - INFO - Loaded 100 rows of live-format data for LINKUSDT
+2025-03-16 16:01:58,170 - __main__ - INFO - Loaded 100 rows of live-format data for SOLUSDT
+2025-03-16 16:01:58,170 - __main__ - INFO - Standardizing live data through the same feature pipeline
+2025-03-16 16:01:58,171 - __main__ - INFO - Standardizing 8 symbols using saved pipeline from E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models
+2025-03-16 16:01:58,171 - __main__ - INFO - Loading feature pipeline from E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models
+2025-03-16 16:01:58,178 - __main__ - INFO - Loaded pipeline config with 40 expected features
+2025-03-16 16:01:58,178 - __main__ - INFO - Feature pipeline loaded for 8 symbols
+2025-03-16 16:01:58,178 - __main__ - INFO - Standardizing features for prediction on 8 symbols
+2025-03-16 16:01:58,188 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 16:01:58,189 - __main__ - WARNING - Found 420 NaN values for BTCUSDT
+2025-03-16 16:01:58,193 - __main__ - WARNING - Missing 5 expected features for BTCUSDT. Adding as zeros.
+2025-03-16 16:01:58,194 - __main__ - WARNING - Found 41 extra features for BTCUSDT. These will be removed.
+2025-03-16 16:01:58,195 - __main__ - INFO - Standardized features for BTCUSDT: 100 rows, 5 features
+2025-03-16 16:01:58,205 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 16:01:58,206 - __main__ - WARNING - Found 420 NaN values for ETHUSDT
+2025-03-16 16:01:58,210 - __main__ - WARNING - Missing 5 expected features for ETHUSDT. Adding as zeros.
+2025-03-16 16:01:58,211 - __main__ - WARNING - Found 41 extra features for ETHUSDT. These will be removed.
+2025-03-16 16:01:58,212 - __main__ - INFO - Standardized features for ETHUSDT: 100 rows, 5 features
+2025-03-16 16:01:58,221 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 16:01:58,222 - __main__ - WARNING - Found 420 NaN values for BNBUSDT
+2025-03-16 16:01:58,226 - __main__ - WARNING - Missing 5 expected features for BNBUSDT. Adding as zeros.
+2025-03-16 16:01:58,227 - __main__ - WARNING - Found 41 extra features for BNBUSDT. These will be removed.
+2025-03-16 16:01:58,228 - __main__ - INFO - Standardized features for BNBUSDT: 100 rows, 5 features
+2025-03-16 16:01:58,238 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 16:01:58,239 - __main__ - WARNING - Found 420 NaN values for ADAUSDT
+2025-03-16 16:01:58,243 - __main__ - WARNING - Missing 5 expected features for ADAUSDT. Adding as zeros.
+2025-03-16 16:01:58,244 - __main__ - WARNING - Found 41 extra features for ADAUSDT. These will be removed.
+2025-03-16 16:01:58,245 - __main__ - INFO - Standardized features for ADAUSDT: 100 rows, 5 features
+2025-03-16 16:01:58,254 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 16:01:58,255 - __main__ - WARNING - Found 420 NaN values for AVAXUSDT
+2025-03-16 16:01:58,259 - __main__ - WARNING - Missing 5 expected features for AVAXUSDT. Adding as zeros.
+2025-03-16 16:01:58,260 - __main__ - WARNING - Found 41 extra features for AVAXUSDT. These will be removed.
+2025-03-16 16:01:58,261 - __main__ - INFO - Standardized features for AVAXUSDT: 100 rows, 5 features
+2025-03-16 16:01:58,272 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 16:01:58,274 - __main__ - WARNING - Found 420 NaN values for DOGEUSDT
+2025-03-16 16:01:58,277 - __main__ - WARNING - Missing 5 expected features for DOGEUSDT. Adding as zeros.
+2025-03-16 16:01:58,278 - __main__ - WARNING - Found 41 extra features for DOGEUSDT. These will be removed.
+2025-03-16 16:01:58,280 - __main__ - INFO - Standardized features for DOGEUSDT: 100 rows, 5 features
+2025-03-16 16:01:58,289 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 16:01:58,291 - __main__ - WARNING - Found 420 NaN values for LINKUSDT
+2025-03-16 16:01:58,294 - __main__ - WARNING - Missing 5 expected features for LINKUSDT. Adding as zeros.
+2025-03-16 16:01:58,296 - __main__ - WARNING - Found 41 extra features for LINKUSDT. These will be removed.
+2025-03-16 16:01:58,297 - __main__ - INFO - Standardized features for LINKUSDT: 100 rows, 5 features
+2025-03-16 16:01:58,307 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 16:01:58,308 - __main__ - WARNING - Found 420 NaN values for SOLUSDT
+2025-03-16 16:01:58,312 - __main__ - WARNING - Missing 5 expected features for SOLUSDT. Adding as zeros.
+2025-03-16 16:01:58,313 - __main__ - WARNING - Found 41 extra features for SOLUSDT. These will be removed.
+2025-03-16 16:01:58,315 - __main__ - INFO - Standardized features for SOLUSDT: 100 rows, 5 features
+2025-03-16 16:01:58,315 - __main__ - INFO - Making predictions with standardized live data
+2025-03-16 16:01:58,316 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,316 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,317 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,317 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,318 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,319 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,319 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,320 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 16:01:58,337 - __main__ - INFO - Model correctly predicted 8 symbols in live data format
+2025-03-16 16:01:58,337 - __main__ - INFO - Predictions for BTCUSDT: min=0.000000, max=0.000000, mean=0.000000
+2025-03-16 16:01:58,338 - __main__ - INFO - Predictions for ETHUSDT: min=0.000000, max=0.000000, mean=0.000000
+2025-03-16 16:01:58,338 - __main__ - INFO - Predictions for BNBUSDT: min=0.000000, max=0.000000, mean=0.000000
+2025-03-16 16:01:58,338 - __main__ - INFO - Predictions for ADAUSDT: min=0.000000, max=0.000000, mean=0.000000
+2025-03-16 16:01:58,339 - __main__ - INFO - Predictions for AVAXUSDT: min=0.000000, max=0.000000, mean=0.000000
+2025-03-16 16:01:58,339 - __main__ - INFO - Predictions for DOGEUSDT: min=0.000000, max=0.000000, mean=0.000000
+2025-03-16 16:01:58,339 - __main__ - INFO - Predictions for LINKUSDT: min=0.000000, max=0.000000, mean=0.000000
+2025-03-16 16:01:58,340 - __main__ - INFO - Predictions for SOLUSDT: min=0.000000, max=0.000000, mean=0.000000

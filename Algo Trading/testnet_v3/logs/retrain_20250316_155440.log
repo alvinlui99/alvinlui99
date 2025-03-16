@@ -1,0 +1,87 @@
+2025-03-16 15:54:40,375 - __main__ - INFO - Starting model retraining
+2025-03-16 15:54:40,376 - __main__ - INFO - Starting model retraining with symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:54:40,376 - __main__ - INFO - Loading data for symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:54:40,376 - __main__ - INFO - Using live format data for BTCUSDT
+2025-03-16 15:54:40,379 - __main__ - INFO - Using all 100 available rows for BTCUSDT
+2025-03-16 15:54:40,380 - __main__ - INFO - Removing Return column from BTCUSDT data
+2025-03-16 15:54:40,381 - __main__ - INFO - Removing Log_Return column from BTCUSDT data
+2025-03-16 15:54:40,382 - __main__ - INFO - Loaded 100 rows for BTCUSDT
+2025-03-16 15:54:40,382 - __main__ - INFO - Using live format data for ETHUSDT
+2025-03-16 15:54:40,384 - __main__ - INFO - Using all 100 available rows for ETHUSDT
+2025-03-16 15:54:40,386 - __main__ - INFO - Removing Return column from ETHUSDT data
+2025-03-16 15:54:40,386 - __main__ - INFO - Removing Log_Return column from ETHUSDT data
+2025-03-16 15:54:40,387 - __main__ - INFO - Loaded 100 rows for ETHUSDT
+2025-03-16 15:54:40,388 - __main__ - INFO - Split for BTCUSDT: 70 train, 15 validation, 15 test
+2025-03-16 15:54:40,389 - __main__ - INFO - Split for ETHUSDT: 70 train, 15 validation, 15 test
+2025-03-16 15:54:40,389 - __main__ - INFO - After splitting: 2 symbols in train, 2 in validation, 2 in test
+2025-03-16 15:54:40,389 - __main__ - INFO - Creating standardized feature pipeline for consistent training and inference
+2025-03-16 15:54:40,389 - __main__ - INFO - Creating standardized feature pipeline for 2 symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:54:40,391 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 15:54:40,392 - __main__ - INFO - Sample processing for BTCUSDT generated 5 features
+2025-03-16 15:54:40,393 - utils.feature_engineering - ERROR - Error in feature engineering: 'Open'
+2025-03-16 15:54:40,394 - __main__ - INFO - Sample processing for ETHUSDT generated 5 features
+2025-03-16 15:54:40,394 - __main__ - INFO - Standardized feature pipeline created with 10 total features
+2025-03-16 15:54:40,395 - __main__ - INFO - Saved feature pipeline configuration to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\feature_pipeline_config.json
+2025-03-16 15:54:40,395 - __main__ - INFO - Processing training data with standardized pipeline
+2025-03-16 15:54:40,396 - __main__ - INFO - Standardizing features for prediction on 2 symbols
+2025-03-16 15:54:40,405 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:54:40,407 - __main__ - WARNING - Found 418 NaN values for BTCUSDT
+2025-03-16 15:54:40,410 - __main__ - WARNING - Missing 5 expected features for BTCUSDT. Adding as zeros.
+2025-03-16 15:54:40,412 - __main__ - WARNING - Found 39 extra features for BTCUSDT. These will be removed.
+2025-03-16 15:54:40,413 - __main__ - INFO - Standardized features for BTCUSDT: 70 rows, 5 features
+2025-03-16 15:54:40,423 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:54:40,424 - __main__ - WARNING - Found 418 NaN values for ETHUSDT
+2025-03-16 15:54:40,428 - __main__ - WARNING - Missing 5 expected features for ETHUSDT. Adding as zeros.
+2025-03-16 15:54:40,429 - __main__ - WARNING - Found 39 extra features for ETHUSDT. These will be removed.
+2025-03-16 15:54:40,430 - __main__ - INFO - Standardized features for ETHUSDT: 70 rows, 5 features
+2025-03-16 15:54:40,431 - __main__ - INFO - Standardizing features for prediction on 2 symbols
+2025-03-16 15:54:40,439 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:54:40,441 - __main__ - WARNING - Found 268 NaN values for BTCUSDT
+2025-03-16 15:54:40,445 - __main__ - WARNING - Missing 5 expected features for BTCUSDT. Adding as zeros.
+2025-03-16 15:54:40,446 - __main__ - WARNING - Found 39 extra features for BTCUSDT. These will be removed.
+2025-03-16 15:54:40,447 - __main__ - INFO - Standardized features for BTCUSDT: 15 rows, 5 features
+2025-03-16 15:54:40,456 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:54:40,458 - __main__ - WARNING - Found 268 NaN values for ETHUSDT
+2025-03-16 15:54:40,461 - __main__ - WARNING - Missing 5 expected features for ETHUSDT. Adding as zeros.
+2025-03-16 15:54:40,462 - __main__ - WARNING - Found 39 extra features for ETHUSDT. These will be removed.
+2025-03-16 15:54:40,463 - __main__ - INFO - Standardized features for ETHUSDT: 15 rows, 5 features
+2025-03-16 15:54:40,464 - __main__ - INFO - Training with 2 symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:54:40,464 - __main__ - INFO - Saved trained symbols list to: E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\trained_symbols.txt
+2025-03-16 15:54:40,465 - __main__ - INFO - Initializing model...
+2025-03-16 15:54:40,465 - __main__ - INFO - Training model...
+2025-03-16 15:54:40,467 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 15:54:40,467 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 15:54:40,472 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 15:54:40,473 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 15:54:40,477 - __main__ - INFO - Training data shape: (69, 10), Validation data shape: (14, 10)
+2025-03-16 15:54:40,477 - __main__ - INFO - Training with 10 features
+2025-03-16 15:54:40,484 - __main__ - INFO - Model for BTCUSDT trained successfully
+2025-03-16 15:54:40,488 - __main__ - INFO - Model for ETHUSDT trained successfully
+2025-03-16 15:54:40,488 - __main__ - INFO - Model trained successfully with 10 features
+2025-03-16 15:54:40,501 - __main__ - INFO - Model saved to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\lgbm_model.pkl
+2025-03-16 15:54:40,502 - __main__ - INFO - Feature info saved to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\feature_info.json
+2025-03-16 15:54:40,502 - __main__ - INFO - Validating model with live-format data...
+2025-03-16 15:54:40,505 - __main__ - INFO - Loaded 100 rows of live-format data for BTCUSDT
+2025-03-16 15:54:40,506 - __main__ - INFO - Loaded 100 rows of live-format data for ETHUSDT
+2025-03-16 15:54:40,507 - __main__ - INFO - Standardizing live data through the same feature pipeline
+2025-03-16 15:54:40,507 - __main__ - INFO - Standardizing 2 symbols using saved pipeline from E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models
+2025-03-16 15:54:40,507 - __main__ - INFO - Loading feature pipeline from E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models
+2025-03-16 15:54:40,513 - __main__ - INFO - Loaded pipeline config with 10 expected features
+2025-03-16 15:54:40,513 - __main__ - INFO - Feature pipeline loaded for 2 symbols
+2025-03-16 15:54:40,514 - __main__ - INFO - Standardizing features for prediction on 2 symbols
+2025-03-16 15:54:40,523 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 15:54:40,525 - __main__ - WARNING - Found 420 NaN values for BTCUSDT
+2025-03-16 15:54:40,528 - __main__ - WARNING - Missing 5 expected features for BTCUSDT. Adding as zeros.
+2025-03-16 15:54:40,529 - __main__ - WARNING - Found 41 extra features for BTCUSDT. These will be removed.
+2025-03-16 15:54:40,530 - __main__ - INFO - Standardized features for BTCUSDT: 100 rows, 5 features
+2025-03-16 15:54:40,539 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 15:54:40,541 - __main__ - WARNING - Found 420 NaN values for ETHUSDT
+2025-03-16 15:54:40,544 - __main__ - WARNING - Missing 5 expected features for ETHUSDT. Adding as zeros.
+2025-03-16 15:54:40,545 - __main__ - WARNING - Found 41 extra features for ETHUSDT. These will be removed.
+2025-03-16 15:54:40,546 - __main__ - INFO - Standardized features for ETHUSDT: 100 rows, 5 features
+2025-03-16 15:54:40,546 - __main__ - INFO - Making predictions with standardized live data
+2025-03-16 15:54:40,547 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 15:54:40,547 - __main__ - ERROR - Error in feature engineering: 'Open'
+2025-03-16 15:54:40,552 - __main__ - INFO - Model correctly predicted 2 symbols in live data format
+2025-03-16 15:54:40,553 - __main__ - INFO - Predictions for BTCUSDT: min=0.000000, max=0.000000, mean=0.000000
+2025-03-16 15:54:40,553 - __main__ - INFO - Predictions for ETHUSDT: min=0.000000, max=0.000000, mean=0.000000

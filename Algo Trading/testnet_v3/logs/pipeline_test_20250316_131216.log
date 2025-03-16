@@ -1,0 +1,33 @@
+2025-03-16 13:12:16,954 - __main__ - INFO - ================================================================================
+2025-03-16 13:12:16,955 - __main__ - INFO - STARTING TRAINING AND INFERENCE PIPELINE TEST
+2025-03-16 13:12:16,955 - __main__ - INFO - ================================================================================
+2025-03-16 13:12:16,956 - __main__ - INFO - Running model training...
+2025-03-16 13:12:16,956 - __main__ - INFO - Command: python train_model.py --symbols BTCUSDT ETHUSDT BNBUSDT --save-dir model/test_pipeline
+2025-03-16 13:12:19,399 - __main__ - ERROR - Command failed with exit code 1
+2025-03-16 13:12:19,399 - __main__ - ERROR - Error output: [LightGBM] [Fatal] Check failed: (num_data) > (0) at D:\bld\liblightgbm_1739978630172\work\src\io\dataset.cpp, line 39 .
+
+Traceback (most recent call last):
+  File "E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\train_model.py", line 302, in <module>
+    main()
+  File "E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\train_model.py", line 235, in main
+    model.train(train_dfs, val_dfs)
+  File "E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\LGBMmodel.py", line 50, in train
+    model = lgb.train(
+            ^^^^^^^^^^
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\engine.py", line 301, in train
+    booster.add_valid(valid_set, name_valid_set)
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 4058, in add_valid
+    data.construct()._handle,
+    ^^^^^^^^^^^^^^^^
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 2539, in construct
+    self._lazy_init(
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 2187, in _lazy_init
+    self.__init_from_np2d(data, params_str, ref_dataset)
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 2318, in __init_from_np2d
+    _safe_call(
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 313, in _safe_call
+    raise LightGBMError(_LIB.LGBM_GetLastError().decode("utf-8"))
+lightgbm.basic.LightGBMError: Check failed: (num_data) > (0) at D:\bld\liblightgbm_1739978630172\work\src\io\dataset.cpp, line 39 .
+
+
+2025-03-16 13:12:19,402 - __main__ - ERROR - Model training failed. Aborting pipeline test.

@@ -1,0 +1,102 @@
+2025-03-16 15:35:27,449 - __main__ - INFO - Starting model retraining
+2025-03-16 15:35:27,450 - __main__ - INFO - Starting model retraining with symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']
+2025-03-16 15:35:27,450 - __main__ - INFO - Loading data for symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']
+2025-03-16 15:35:27,450 - __main__ - INFO - Using live format data for BTCUSDT
+2025-03-16 15:35:27,453 - __main__ - INFO - Using all 100 available rows for BTCUSDT
+2025-03-16 15:35:27,454 - __main__ - INFO - Removing Return column from BTCUSDT data
+2025-03-16 15:35:27,455 - __main__ - INFO - Removing Log_Return column from BTCUSDT data
+2025-03-16 15:35:27,456 - __main__ - INFO - Loaded 100 rows for BTCUSDT
+2025-03-16 15:35:27,456 - __main__ - INFO - Using live format data for ETHUSDT
+2025-03-16 15:35:27,458 - __main__ - INFO - Using all 100 available rows for ETHUSDT
+2025-03-16 15:35:27,459 - __main__ - INFO - Removing Return column from ETHUSDT data
+2025-03-16 15:35:27,460 - __main__ - INFO - Removing Log_Return column from ETHUSDT data
+2025-03-16 15:35:27,460 - __main__ - INFO - Loaded 100 rows for ETHUSDT
+2025-03-16 15:35:27,460 - __main__ - INFO - Using live format data for BNBUSDT
+2025-03-16 15:35:27,462 - __main__ - INFO - Using all 100 available rows for BNBUSDT
+2025-03-16 15:35:27,463 - __main__ - INFO - Removing Return column from BNBUSDT data
+2025-03-16 15:35:27,463 - __main__ - INFO - Removing Log_Return column from BNBUSDT data
+2025-03-16 15:35:27,464 - __main__ - INFO - Loaded 100 rows for BNBUSDT
+2025-03-16 15:35:27,465 - __main__ - INFO - Split for BTCUSDT: 70 train, 15 validation, 15 test
+2025-03-16 15:35:27,465 - __main__ - INFO - Split for ETHUSDT: 70 train, 15 validation, 15 test
+2025-03-16 15:35:27,465 - __main__ - INFO - Split for BNBUSDT: 70 train, 15 validation, 15 test
+2025-03-16 15:35:27,465 - __main__ - INFO - After splitting: 3 symbols in train, 3 in validation, 3 in test
+2025-03-16 15:35:27,466 - __main__ - INFO - Preparing data for LightGBM training
+2025-03-16 15:35:27,475 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:35:27,477 - __main__ - WARNING - Found 418 NaN values in training data for BTCUSDT
+2025-03-16 15:35:27,482 - __main__ - WARNING - Dropping 1 non-numeric columns for BTCUSDT
+2025-03-16 15:35:27,483 - __main__ - INFO - Processed training data for BTCUSDT: 70 rows, 38 features
+2025-03-16 15:35:27,492 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:35:27,494 - __main__ - WARNING - Found 418 NaN values in training data for ETHUSDT
+2025-03-16 15:35:27,499 - __main__ - WARNING - Dropping 1 non-numeric columns for ETHUSDT
+2025-03-16 15:35:27,500 - __main__ - INFO - Processed training data for ETHUSDT: 70 rows, 38 features
+2025-03-16 15:35:27,509 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:35:27,511 - __main__ - WARNING - Found 418 NaN values in training data for BNBUSDT
+2025-03-16 15:35:27,516 - __main__ - WARNING - Dropping 1 non-numeric columns for BNBUSDT
+2025-03-16 15:35:27,518 - __main__ - INFO - Processed training data for BNBUSDT: 70 rows, 38 features
+2025-03-16 15:35:27,528 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:35:27,530 - __main__ - WARNING - Found 268 NaN values in validation data for BTCUSDT
+2025-03-16 15:35:27,533 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:35:27,536 - __main__ - WARNING - Dropping 1 non-numeric columns for BTCUSDT
+2025-03-16 15:35:27,537 - __main__ - INFO - Processed validation data for BTCUSDT: 15 rows, 38 features
+2025-03-16 15:35:27,547 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:35:27,548 - __main__ - WARNING - Found 268 NaN values in validation data for ETHUSDT
+2025-03-16 15:35:27,551 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:35:27,554 - __main__ - WARNING - Dropping 1 non-numeric columns for ETHUSDT
+2025-03-16 15:35:27,555 - __main__ - INFO - Processed validation data for ETHUSDT: 15 rows, 38 features
+2025-03-16 15:35:27,565 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:35:27,566 - __main__ - WARNING - Found 268 NaN values in validation data for BNBUSDT
+2025-03-16 15:35:27,570 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:35:27,572 - __main__ - WARNING - Dropping 1 non-numeric columns for BNBUSDT
+2025-03-16 15:35:27,573 - __main__ - INFO - Processed validation data for BNBUSDT: 15 rows, 38 features
+2025-03-16 15:35:27,574 - __main__ - INFO - Common symbols for training and validation: {'BTCUSDT', 'BNBUSDT', 'ETHUSDT'}
+2025-03-16 15:35:27,574 - __main__ - INFO - Training with 3 symbols: ['BTCUSDT', 'BNBUSDT', 'ETHUSDT']
+2025-03-16 15:35:27,575 - __main__ - INFO - Saved trained symbols list to: e:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\trained_symbols.txt
+2025-03-16 15:35:27,575 - __main__ - INFO - Initializing model...
+2025-03-16 15:35:27,577 - __main__ - INFO - Testing feature engineering on samples for 3 symbols
+2025-03-16 15:35:27,584 - utils.feature_engineering - WARNING - Found 321 null values in feature-engineered data
+2025-03-16 15:35:27,584 - __main__ - INFO - Feature engineering test for BTCUSDT: 38 features generated
+2025-03-16 15:35:27,585 - __main__ - WARNING - Test sample for BTCUSDT has 321 NaN values
+2025-03-16 15:35:27,592 - utils.feature_engineering - WARNING - Found 321 null values in feature-engineered data
+2025-03-16 15:35:27,592 - __main__ - INFO - Feature engineering test for BNBUSDT: 38 features generated
+2025-03-16 15:35:27,594 - __main__ - WARNING - Test sample for BNBUSDT has 321 NaN values
+2025-03-16 15:35:27,600 - utils.feature_engineering - WARNING - Found 321 null values in feature-engineered data
+2025-03-16 15:35:27,600 - __main__ - INFO - Feature engineering test for ETHUSDT: 38 features generated
+2025-03-16 15:35:27,602 - __main__ - WARNING - Test sample for ETHUSDT has 321 NaN values
+2025-03-16 15:35:27,602 - __main__ - INFO - Training model...
+2025-03-16 15:35:27,614 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:35:27,621 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:35:27,628 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:35:27,629 - __main__ - WARNING - Found 418 NaN values in feature-engineered data for BTCUSDT
+2025-03-16 15:35:27,632 - __main__ - INFO - Successfully fixed NaN values for BTCUSDT: 70 rows preserved
+2025-03-16 15:35:27,633 - __main__ - WARNING - Found 418 NaN values in feature-engineered data for BNBUSDT
+2025-03-16 15:35:27,637 - __main__ - INFO - Successfully fixed NaN values for BNBUSDT: 70 rows preserved
+2025-03-16 15:35:27,638 - __main__ - WARNING - Found 418 NaN values in feature-engineered data for ETHUSDT
+2025-03-16 15:35:27,641 - __main__ - INFO - Successfully fixed NaN values for ETHUSDT: 70 rows preserved
+2025-03-16 15:35:27,672 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:35:27,679 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:35:27,686 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:35:27,687 - __main__ - WARNING - Found 268 NaN values in feature-engineered data for BTCUSDT
+2025-03-16 15:35:27,690 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:35:27,691 - __main__ - INFO - Successfully fixed NaN values for BTCUSDT: 15 rows preserved
+2025-03-16 15:35:27,693 - __main__ - WARNING - Found 268 NaN values in feature-engineered data for BNBUSDT
+2025-03-16 15:35:27,696 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:35:27,697 - __main__ - INFO - Successfully fixed NaN values for BNBUSDT: 15 rows preserved
+2025-03-16 15:35:27,715 - __main__ - WARNING - Found 268 NaN values in feature-engineered data for ETHUSDT
+2025-03-16 15:35:27,719 - __main__ - WARNING - Still have 180 NaN values after ffill/bfill, filling with zeros
+2025-03-16 15:35:27,720 - __main__ - INFO - Successfully fixed NaN values for ETHUSDT: 15 rows preserved
+2025-03-16 15:35:27,728 - __main__ - WARNING - Error filtering close prices using index: positional indexers are out-of-bounds
+2025-03-16 15:35:27,737 - __main__ - WARNING - Error filtering close prices using index: positional indexers are out-of-bounds
+2025-03-16 15:35:27,745 - __main__ - WARNING - Error filtering close prices using index: positional indexers are out-of-bounds
+2025-03-16 15:35:27,746 - __main__ - INFO - Training data shape: (69, 111), Validation data shape: (14, 111)
+2025-03-16 15:35:27,747 - __main__ - INFO - Training with 111 features
+2025-03-16 15:35:27,760 - __main__ - INFO - Model for BTCUSDT trained successfully
+2025-03-16 15:35:27,773 - __main__ - INFO - Model for BNBUSDT trained successfully
+2025-03-16 15:35:27,785 - __main__ - INFO - Model for ETHUSDT trained successfully
+2025-03-16 15:35:27,786 - __main__ - INFO - Model trained successfully with 111 features
+2025-03-16 15:35:27,786 - __main__ - ERROR - Model training failed: 'LGBMmodel' object has no attribute 'save'
+2025-03-16 15:35:27,787 - __main__ - INFO - Training data for BTCUSDT: (70, 38), NaN values: 0
+2025-03-16 15:35:27,789 - __main__ - INFO - Validation data for BTCUSDT: (15, 38), NaN values: 0
+2025-03-16 15:35:27,790 - __main__ - INFO - Training data for BNBUSDT: (70, 38), NaN values: 0
+2025-03-16 15:35:27,791 - __main__ - INFO - Validation data for BNBUSDT: (15, 38), NaN values: 0
+2025-03-16 15:35:27,792 - __main__ - INFO - Training data for ETHUSDT: (70, 38), NaN values: 0
+2025-03-16 15:35:27,794 - __main__ - INFO - Validation data for ETHUSDT: (15, 38), NaN values: 0

@@ -1,0 +1,8 @@
+2025-03-16 15:18:13,131 - __main__ - ERROR - Error during model retraining: type object 'ModelConfig' has no attribute 'DEFAULT_SYMBOLS'
+Traceback (most recent call last):
+  File "E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\retrain_model.py", line 372, in <module>
+    main()
+  File "E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\retrain_model.py", line 233, in main
+    parser.add_argument("--symbols", nargs="+", default=ModelConfig.DEFAULT_SYMBOLS,
+                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'ModelConfig' has no attribute 'DEFAULT_SYMBOLS'

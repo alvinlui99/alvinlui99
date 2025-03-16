@@ -1,0 +1,332 @@
+2025-03-16 13:12:19,024 - root - INFO - Starting model training process (PRODUCTION CONSISTENT VERSION)
+2025-03-16 13:12:19,025 - root - INFO - Training model for symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']
+2025-03-16 13:12:19,025 - root - INFO - Using production format data for BTCUSDT: data/BTCUSDT_1h.csv
+2025-03-16 13:12:19,025 - root - INFO - Using production format data for ETHUSDT: data/ETHUSDT_1h.csv
+2025-03-16 13:12:19,025 - root - INFO - Using production format data for BNBUSDT: data/BNBUSDT_1h.csv
+2025-03-16 13:12:19,025 - root - INFO - Proceeding with 3 symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']
+2025-03-16 13:12:19,026 - root - INFO - Preparing production-consistent data
+2025-03-16 13:12:19,026 - root - INFO - Preparing production-like data for 3 symbols
+2025-03-16 13:12:19,029 - root - INFO - Loaded 100 rows for BTCUSDT from data/BTCUSDT_1h.csv
+2025-03-16 13:12:19,036 - root - INFO - Removed Return columns from BTCUSDT data for model consistency
+2025-03-16 13:12:19,037 - root - INFO - Loaded 100 rows for ETHUSDT from data/ETHUSDT_1h.csv
+2025-03-16 13:12:19,041 - root - INFO - Removed Return columns from ETHUSDT data for model consistency
+2025-03-16 13:12:19,043 - root - INFO - Loaded 100 rows for BNBUSDT from data/BNBUSDT_1h.csv
+2025-03-16 13:12:19,046 - root - INFO - Removed Return columns from BNBUSDT data for model consistency
+2025-03-16 13:12:19,047 - utils.feature_engineering - DEBUG - Starting feature engineering. Original shape: (100, 12)
+2025-03-16 13:12:19,049 - utils.feature_engineering - DEBUG - Added trend indicators. New shape: (100, 19)
+2025-03-16 13:12:19,050 - utils.feature_engineering - DEBUG - Added momentum indicators. New shape: (100, 23)
+2025-03-16 13:12:19,051 - utils.feature_engineering - DEBUG - Added volatility indicators. New shape: (100, 28)
+2025-03-16 13:12:19,051 - utils.feature_engineering - DEBUG - Added volume indicators. New shape: (100, 31)
+2025-03-16 13:12:19,054 - utils.feature_engineering - DEBUG - Added custom indicators. New shape: (100, 39)
+2025-03-16 13:12:19,055 - utils.feature_engineering - DEBUG - Feature engineering complete. Final shape: (100, 38)
+2025-03-16 13:12:19,056 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:12:19,058 - utils.feature_engineering - DEBUG - Starting feature engineering. Original shape: (100, 12)
+2025-03-16 13:12:19,059 - utils.feature_engineering - DEBUG - Added trend indicators. New shape: (100, 19)
+2025-03-16 13:12:19,060 - utils.feature_engineering - DEBUG - Added momentum indicators. New shape: (100, 23)
+2025-03-16 13:12:19,061 - utils.feature_engineering - DEBUG - Added volatility indicators. New shape: (100, 28)
+2025-03-16 13:12:19,062 - utils.feature_engineering - DEBUG - Added volume indicators. New shape: (100, 31)
+2025-03-16 13:12:19,065 - utils.feature_engineering - DEBUG - Added custom indicators. New shape: (100, 39)
+2025-03-16 13:12:19,065 - utils.feature_engineering - DEBUG - Feature engineering complete. Final shape: (100, 38)
+2025-03-16 13:12:19,067 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:12:19,068 - utils.feature_engineering - DEBUG - Starting feature engineering. Original shape: (100, 12)
+2025-03-16 13:12:19,070 - utils.feature_engineering - DEBUG - Added trend indicators. New shape: (100, 19)
+2025-03-16 13:12:19,070 - utils.feature_engineering - DEBUG - Added momentum indicators. New shape: (100, 23)
+2025-03-16 13:12:19,071 - utils.feature_engineering - DEBUG - Added volatility indicators. New shape: (100, 28)
+2025-03-16 13:12:19,071 - utils.feature_engineering - DEBUG - Added volume indicators. New shape: (100, 31)
+2025-03-16 13:12:19,075 - utils.feature_engineering - DEBUG - Added custom indicators. New shape: (100, 39)
+2025-03-16 13:12:19,076 - utils.feature_engineering - DEBUG - Feature engineering complete. Final shape: (100, 38)
+2025-03-16 13:12:19,077 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:12:19,077 - root - INFO - Feature counts per symbol: {'BTCUSDT': 38, 'ETHUSDT': 38, 'BNBUSDT': 38}
+2025-03-16 13:12:19,077 - root - INFO - Final symbols for training: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']
+2025-03-16 13:12:19,078 - root - INFO - Saved list of trained symbols to model/test_pipeline\trained_symbols.txt
+2025-03-16 13:12:19,078 - root - INFO - Splitting data into train/val/test sets
+2025-03-16 13:12:19,084 - root - INFO - Train data rows: [70, 70, 70]
+2025-03-16 13:12:19,084 - root - INFO - Val data rows: [15, 15, 15]
+2025-03-16 13:12:19,085 - root - INFO - Test data rows: [15, 15, 15]
+2025-03-16 13:12:19,085 - root - INFO - Initializing model
+2025-03-16 13:12:19,085 - root - INFO - Training model
+2025-03-16 13:12:19,085 - root - DEBUG - Converting klines to model input format
+2025-03-16 13:12:19,086 - root - DEBUG - Starting feature engineering. Original shape: (70, 5)
+2025-03-16 13:12:19,088 - root - DEBUG - Added trend indicators. New shape: (70, 12)
+2025-03-16 13:12:19,088 - root - DEBUG - Added momentum indicators. New shape: (70, 16)
+2025-03-16 13:12:19,089 - root - DEBUG - Added volatility indicators. New shape: (70, 21)
+2025-03-16 13:12:19,090 - root - DEBUG - Added volume indicators. New shape: (70, 24)
+2025-03-16 13:12:19,094 - root - DEBUG - Added custom indicators. New shape: (70, 32)
+2025-03-16 13:12:19,094 - root - DEBUG - Feature engineering complete. Final shape: (70, 32)
+2025-03-16 13:12:19,095 - root - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:12:19,097 - root - DEBUG - Starting feature engineering. Original shape: (70, 5)
+2025-03-16 13:12:19,098 - root - DEBUG - Added trend indicators. New shape: (70, 12)
+2025-03-16 13:12:19,099 - root - DEBUG - Added momentum indicators. New shape: (70, 16)
+2025-03-16 13:12:19,100 - root - DEBUG - Added volatility indicators. New shape: (70, 21)
+2025-03-16 13:12:19,100 - root - DEBUG - Added volume indicators. New shape: (70, 24)
+2025-03-16 13:12:19,103 - root - DEBUG - Added custom indicators. New shape: (70, 32)
+2025-03-16 13:12:19,103 - root - DEBUG - Feature engineering complete. Final shape: (70, 32)
+2025-03-16 13:12:19,104 - root - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:12:19,106 - root - DEBUG - Starting feature engineering. Original shape: (70, 5)
+2025-03-16 13:12:19,109 - root - DEBUG - Added trend indicators. New shape: (70, 12)
+2025-03-16 13:12:19,109 - root - DEBUG - Added momentum indicators. New shape: (70, 16)
+2025-03-16 13:12:19,110 - root - DEBUG - Added volatility indicators. New shape: (70, 21)
+2025-03-16 13:12:19,111 - root - DEBUG - Added volume indicators. New shape: (70, 24)
+2025-03-16 13:12:19,114 - root - DEBUG - Added custom indicators. New shape: (70, 32)
+2025-03-16 13:12:19,114 - root - DEBUG - Feature engineering complete. Final shape: (70, 32)
+2025-03-16 13:12:19,115 - root - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:12:19,116 - root - DEBUG - Filtered BTCUSDT dataframe from 70 to 21 rows
+2025-03-16 13:12:19,116 - root - DEBUG - Filtered ETHUSDT dataframe from 70 to 21 rows
+2025-03-16 13:12:19,117 - root - DEBUG - Filtered BNBUSDT dataframe from 70 to 21 rows
+2025-03-16 13:12:19,118 - root - DEBUG - Excluded columns for BTCUSDT: {'Open_time'}
+2025-03-16 13:12:19,118 - root - DEBUG - Data types for BTCUSDT:
+2025-03-16 13:12:19,118 - root - DEBUG -   Open: float64, Sample: 82775.5
+2025-03-16 13:12:19,118 - root - DEBUG -   High: float64, Sample: 82853.0
+2025-03-16 13:12:19,118 - root - DEBUG -   Low: float64, Sample: 82774.1
+2025-03-16 13:12:19,118 - root - DEBUG -   Close: float64, Sample: 82852.6
+2025-03-16 13:12:19,118 - root - DEBUG -   Volume: float64, Sample: 145.151
+2025-03-16 13:12:19,118 - root - DEBUG -   SMA5: float64, Sample: 82820.16
+2025-03-16 13:12:19,118 - root - DEBUG -   SMA10: float64, Sample: 82820.69
+2025-03-16 13:12:19,118 - root - DEBUG -   SMA20: float64, Sample: 82942.985
+2025-03-16 13:12:19,119 - root - DEBUG -   SMA50: float64, Sample: 82785.198
+2025-03-16 13:12:19,119 - root - DEBUG -   EMA5: float64, Sample: 82824.69983744374
+2025-03-16 13:12:19,119 - root - DEBUG -   EMA10: float64, Sample: 82849.00439293393
+2025-03-16 13:12:19,119 - root - DEBUG -   EMA20: float64, Sample: 82892.79289098202
+2025-03-16 13:12:19,119 - root - DEBUG -   RSI14: float64, Sample: 47.79045446603376
+2025-03-16 13:12:19,119 - root - DEBUG -   MACD: float64, Sample: -13.107472377814702
+2025-03-16 13:12:19,119 - root - DEBUG -   MACD_signal: float64, Sample: 21.47297254083651
+2025-03-16 13:12:19,119 - root - DEBUG -   MACD_hist: float64, Sample: -34.58044491865121
+2025-03-16 13:12:19,119 - root - DEBUG -   BB_upper: float64, Sample: 83356.03740478278
+2025-03-16 13:12:19,119 - root - DEBUG -   BB_middle: float64, Sample: 82942.985
+2025-03-16 13:12:19,119 - root - DEBUG -   BB_lower: float64, Sample: 82529.93259521722
+2025-03-16 13:12:19,119 - root - DEBUG -   BB_width: float64, Sample: 0.009959911734133476
+2025-03-16 13:12:19,119 - root - DEBUG -   ATR: float64, Sample: 307.29896484175634
+2025-03-16 13:12:19,120 - root - DEBUG -   OBV: float64, Sample: 931658.6809999999
+2025-03-16 13:12:19,120 - root - DEBUG -   Volume_SMA5: float64, Sample: 124.6237999999712
+2025-03-16 13:12:19,120 - root - DEBUG -   Volume_ratio_5: float64, Sample: 1.1647133212117875
+2025-03-16 13:12:19,120 - root - DEBUG -   Price_to_SMA5: float64, Sample: 0.0003916920711093397
+2025-03-16 13:12:19,120 - root - DEBUG -   Price_to_SMA20: float64, Sample: -0.001089724465547004
+2025-03-16 13:12:19,120 - root - DEBUG -   Price_to_SMA50: float64, Sample: 0.0008141793657363561
+2025-03-16 13:12:19,120 - root - DEBUG -   Return_1d: float64, Sample: 0.0009326442397139534
+2025-03-16 13:12:19,120 - root - DEBUG -   Return_3d: float64, Sample: 0.0007029460929726117
+2025-03-16 13:12:19,120 - root - DEBUG -   Return_5d: float64, Sample: 0.0001472711382370928
+2025-03-16 13:12:19,120 - root - DEBUG -   Volatility_5: float64, Sample: 0.00040232034560166183
+2025-03-16 13:12:19,120 - root - DEBUG -   Volatility_10: float64, Sample: 0.00036909844180283053
+2025-03-16 13:12:19,127 - root - DEBUG - Excluded columns for ETHUSDT: {'Open_time'}
+2025-03-16 13:12:19,127 - root - DEBUG - Data types for ETHUSDT:
+2025-03-16 13:12:19,127 - root - DEBUG -   Open: float64, Sample: 1855.2
+2025-03-16 13:12:19,127 - root - DEBUG -   High: float64, Sample: 1856.97
+2025-03-16 13:12:19,128 - root - DEBUG -   Low: float64, Sample: 1839.85
+2025-03-16 13:12:19,128 - root - DEBUG -   Close: float64, Sample: 1848.71
+2025-03-16 13:12:19,128 - root - DEBUG -   Volume: float64, Sample: 4245118.397
+2025-03-16 13:12:19,128 - root - DEBUG -   SMA5: float64, Sample: 1847.870000000002
+2025-03-16 13:12:19,128 - root - DEBUG -   SMA10: float64, Sample: 1856.623
+2025-03-16 13:12:19,128 - root - DEBUG -   SMA20: float64, Sample: 1866.368500000001
+2025-03-16 13:12:19,128 - root - DEBUG -   SMA50: float64, Sample: 1880.7802000000008
+2025-03-16 13:12:19,128 - root - DEBUG -   EMA5: float64, Sample: 1850.8223742675307
+2025-03-16 13:12:19,128 - root - DEBUG -   EMA10: float64, Sample: 1856.2475615255096
+2025-03-16 13:12:19,128 - root - DEBUG -   EMA20: float64, Sample: 1864.7347102513168
+2025-03-16 13:12:19,128 - root - DEBUG -   RSI14: float64, Sample: 41.15928628786799
+2025-03-16 13:12:19,128 - root - DEBUG -   MACD: float64, Sample: -10.062732555986258
+2025-03-16 13:12:19,128 - root - DEBUG -   MACD_signal: float64, Sample: -8.146392086219922
+2025-03-16 13:12:19,128 - root - DEBUG -   MACD_hist: float64, Sample: -1.916340469766336
+2025-03-16 13:12:19,129 - root - DEBUG -   BB_upper: float64, Sample: 1897.4792552301
+2025-03-16 13:12:19,129 - root - DEBUG -   BB_middle: float64, Sample: 1866.368500000001
+2025-03-16 13:12:19,129 - root - DEBUG -   BB_lower: float64, Sample: 1835.2577447699018
+2025-03-16 13:12:19,129 - root - DEBUG -   BB_width: float64, Sample: 0.03333827722670964
+2025-03-16 13:12:19,129 - root - DEBUG -   ATR: float64, Sample: 28.227082503075756
+2025-03-16 13:12:19,129 - root - DEBUG -   OBV: float64, Sample: -43635930.191999994
+2025-03-16 13:12:19,129 - root - DEBUG -   Volume_SMA5: float64, Sample: 4451047.3354
+2025-03-16 13:12:19,129 - root - DEBUG -   Volume_ratio_5: float64, Sample: 0.9537347228904511
+2025-03-16 13:12:19,129 - root - DEBUG -   Price_to_SMA5: float64, Sample: 0.00045457743239407655
+2025-03-16 13:12:19,129 - root - DEBUG -   Price_to_SMA20: float64, Sample: -0.009461422007497888
+2025-03-16 13:12:19,129 - root - DEBUG -   Price_to_SMA50: float64, Sample: -0.01705154063191472
+2025-03-16 13:12:19,129 - root - DEBUG -   Return_1d: float64, Sample: -0.003498275118585581
+2025-03-16 13:12:19,129 - root - DEBUG -   Return_3d: float64, Sample: 0.00283702562544752
+2025-03-16 13:12:19,129 - root - DEBUG -   Return_5d: float64, Sample: -0.0007513107399599317
+2025-03-16 13:12:19,130 - root - DEBUG -   Volatility_5: float64, Sample: 0.0024713458640333065
+2025-03-16 13:12:19,130 - root - DEBUG -   Volatility_10: float64, Sample: 0.00681080643797651
+2025-03-16 13:12:19,136 - root - DEBUG - Excluded columns for BNBUSDT: {'Open_time'}
+2025-03-16 13:12:19,136 - root - DEBUG - Data types for BNBUSDT:
+2025-03-16 13:12:19,136 - root - DEBUG -   Open: float64, Sample: 602.342
+2025-03-16 13:12:19,136 - root - DEBUG -   High: float64, Sample: 602.342
+2025-03-16 13:12:19,136 - root - DEBUG -   Low: float64, Sample: 596.2
+2025-03-16 13:12:19,136 - root - DEBUG -   Close: float64, Sample: 596.201
+2025-03-16 13:12:19,136 - root - DEBUG -   Volume: float64, Sample: 23.49
+2025-03-16 13:12:19,136 - root - DEBUG -   SMA5: float64, Sample: 597.3929999999999
+2025-03-16 13:12:19,136 - root - DEBUG -   SMA10: float64, Sample: 597.9981999999999
+2025-03-16 13:12:19,136 - root - DEBUG -   SMA20: float64, Sample: 598.6123500000001
+2025-03-16 13:12:19,136 - root - DEBUG -   SMA50: float64, Sample: 598.8562200000005
+2025-03-16 13:12:19,136 - root - DEBUG -   EMA5: float64, Sample: 597.5157481003587
+2025-03-16 13:12:19,136 - root - DEBUG -   EMA10: float64, Sample: 597.9713542993908
+2025-03-16 13:12:19,137 - root - DEBUG -   EMA20: float64, Sample: 598.3859055094865
+2025-03-16 13:12:19,137 - root - DEBUG -   RSI14: float64, Sample: 47.61369772867994
+2025-03-16 13:12:19,137 - root - DEBUG -   MACD: float64, Sample: -0.436235827441692
+2025-03-16 13:12:19,137 - root - DEBUG -   MACD_signal: float64, Sample: -0.2437939698633255
+2025-03-16 13:12:19,137 - root - DEBUG -   MACD_hist: float64, Sample: -0.1924418575783665
+2025-03-16 13:12:19,137 - root - DEBUG -   BB_upper: float64, Sample: 604.7030621512904
+2025-03-16 13:12:19,137 - root - DEBUG -   BB_middle: float64, Sample: 598.6123500000001
+2025-03-16 13:12:19,137 - root - DEBUG -   BB_lower: float64, Sample: 592.5216378487098
+2025-03-16 13:12:19,137 - root - DEBUG -   BB_width: float64, Sample: 0.020349436998051543
+2025-03-16 13:12:19,137 - root - DEBUG -   ATR: float64, Sample: 6.110448030015866
+2025-03-16 13:12:19,137 - root - DEBUG -   OBV: float64, Sample: -289.0099999999999
+2025-03-16 13:12:19,137 - root - DEBUG -   Volume_SMA5: float64, Sample: 124.53199999999995
+2025-03-16 13:12:19,137 - root - DEBUG -   Volume_ratio_5: float64, Sample: 0.18862621655478115
+2025-03-16 13:12:19,137 - root - DEBUG -   Price_to_SMA5: float64, Sample: -0.001995336403339043
+2025-03-16 13:12:19,137 - root - DEBUG -   Price_to_SMA20: float64, Sample: -0.004028232962450695
+2025-03-16 13:12:19,138 - root - DEBUG -   Price_to_SMA50: float64, Sample: -0.004433818855551719
+2025-03-16 13:12:19,138 - root - DEBUG -   Return_1d: float64, Sample: 1.6772895001793131e-06
+2025-03-16 13:12:19,138 - root - DEBUG -   Return_3d: float64, Sample: 0.0001509785929130203
+2025-03-16 13:12:19,138 - root - DEBUG -   Return_5d: float64, Sample: -0.010195204717585615
+2025-03-16 13:12:19,138 - root - DEBUG -   Volatility_5: float64, Sample: 0.00464094663535174
+2025-03-16 13:12:19,138 - root - DEBUG -   Volatility_10: float64, Sample: 0.005028033945047427
+2025-03-16 13:12:19,144 - root - DEBUG - Final input data shape: (20, 96)
+2025-03-16 13:12:19,144 - root - DEBUG - Converting klines to model input format
+2025-03-16 13:12:19,146 - root - DEBUG - Starting feature engineering. Original shape: (15, 5)
+2025-03-16 13:12:19,147 - root - DEBUG - Added trend indicators. New shape: (15, 12)
+2025-03-16 13:12:19,148 - root - DEBUG - Added momentum indicators. New shape: (15, 16)
+2025-03-16 13:12:19,148 - root - DEBUG - Added volatility indicators. New shape: (15, 21)
+2025-03-16 13:12:19,149 - root - DEBUG - Added volume indicators. New shape: (15, 24)
+2025-03-16 13:12:19,152 - root - DEBUG - Added custom indicators. New shape: (15, 32)
+2025-03-16 13:12:19,152 - root - DEBUG - Feature engineering complete. Final shape: (15, 32)
+2025-03-16 13:12:19,153 - root - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:12:19,155 - root - DEBUG - Starting feature engineering. Original shape: (15, 5)
+2025-03-16 13:12:19,156 - root - DEBUG - Added trend indicators. New shape: (15, 12)
+2025-03-16 13:12:19,157 - root - DEBUG - Added momentum indicators. New shape: (15, 16)
+2025-03-16 13:12:19,158 - root - DEBUG - Added volatility indicators. New shape: (15, 21)
+2025-03-16 13:12:19,159 - root - DEBUG - Added volume indicators. New shape: (15, 24)
+2025-03-16 13:12:19,162 - root - DEBUG - Added custom indicators. New shape: (15, 32)
+2025-03-16 13:12:19,162 - root - DEBUG - Feature engineering complete. Final shape: (15, 32)
+2025-03-16 13:12:19,163 - root - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:12:19,165 - root - DEBUG - Starting feature engineering. Original shape: (15, 5)
+2025-03-16 13:12:19,166 - root - DEBUG - Added trend indicators. New shape: (15, 12)
+2025-03-16 13:12:19,167 - root - DEBUG - Added momentum indicators. New shape: (15, 16)
+2025-03-16 13:12:19,168 - root - DEBUG - Added volatility indicators. New shape: (15, 21)
+2025-03-16 13:12:19,168 - root - DEBUG - Added volume indicators. New shape: (15, 24)
+2025-03-16 13:12:19,172 - root - DEBUG - Added custom indicators. New shape: (15, 32)
+2025-03-16 13:12:19,172 - root - DEBUG - Feature engineering complete. Final shape: (15, 32)
+2025-03-16 13:12:19,173 - root - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:12:19,175 - root - DEBUG - Filtered BTCUSDT dataframe from 15 to 0 rows
+2025-03-16 13:12:19,175 - root - DEBUG - Filtered ETHUSDT dataframe from 15 to 0 rows
+2025-03-16 13:12:19,175 - root - DEBUG - Filtered BNBUSDT dataframe from 15 to 0 rows
+2025-03-16 13:12:19,176 - root - DEBUG - Excluded columns for BTCUSDT: {'Open_time'}
+2025-03-16 13:12:19,176 - root - DEBUG - Data types for BTCUSDT:
+2025-03-16 13:12:19,176 - root - DEBUG -   Open: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   High: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   Low: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   Close: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   Volume: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   SMA5: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   SMA10: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   SMA20: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   SMA50: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   EMA5: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   EMA10: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   EMA20: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   RSI14: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   MACD: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   MACD_signal: float64, Sample: empty
+2025-03-16 13:12:19,177 - root - DEBUG -   MACD_hist: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   BB_upper: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   BB_middle: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   BB_lower: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   BB_width: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   ATR: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   OBV: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Volume_SMA5: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Volume_ratio_5: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Price_to_SMA5: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Price_to_SMA20: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Price_to_SMA50: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Return_1d: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Return_3d: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Return_5d: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Volatility_5: float64, Sample: empty
+2025-03-16 13:12:19,178 - root - DEBUG -   Volatility_10: float64, Sample: empty
+2025-03-16 13:12:19,184 - root - DEBUG - Excluded columns for ETHUSDT: {'Open_time'}
+2025-03-16 13:12:19,184 - root - DEBUG - Data types for ETHUSDT:
+2025-03-16 13:12:19,184 - root - DEBUG -   Open: float64, Sample: empty
+2025-03-16 13:12:19,184 - root - DEBUG -   High: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   Low: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   Close: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   Volume: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   SMA5: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   SMA10: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   SMA20: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   SMA50: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   EMA5: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   EMA10: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   EMA20: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   RSI14: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   MACD: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   MACD_signal: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   MACD_hist: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   BB_upper: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   BB_middle: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   BB_lower: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   BB_width: float64, Sample: empty
+2025-03-16 13:12:19,185 - root - DEBUG -   ATR: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   OBV: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Volume_SMA5: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Volume_ratio_5: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Price_to_SMA5: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Price_to_SMA20: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Price_to_SMA50: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Return_1d: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Return_3d: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Return_5d: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Volatility_5: float64, Sample: empty
+2025-03-16 13:12:19,186 - root - DEBUG -   Volatility_10: float64, Sample: empty
+2025-03-16 13:12:19,192 - root - DEBUG - Excluded columns for BNBUSDT: {'Open_time'}
+2025-03-16 13:12:19,193 - root - DEBUG - Data types for BNBUSDT:
+2025-03-16 13:12:19,193 - root - DEBUG -   Open: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   High: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   Low: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   Close: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   Volume: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   SMA5: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   SMA10: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   SMA20: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   SMA50: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   EMA5: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   EMA10: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   EMA20: float64, Sample: empty
+2025-03-16 13:12:19,193 - root - DEBUG -   RSI14: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   MACD: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   MACD_signal: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   MACD_hist: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   BB_upper: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   BB_middle: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   BB_lower: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   BB_width: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   ATR: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   OBV: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   Volume_SMA5: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   Volume_ratio_5: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   Price_to_SMA5: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   Price_to_SMA20: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   Price_to_SMA50: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   Return_1d: float64, Sample: empty
+2025-03-16 13:12:19,194 - root - DEBUG -   Return_3d: float64, Sample: empty
+2025-03-16 13:12:19,195 - root - DEBUG -   Return_5d: float64, Sample: empty
+2025-03-16 13:12:19,195 - root - DEBUG -   Volatility_5: float64, Sample: empty
+2025-03-16 13:12:19,195 - root - DEBUG -   Volatility_10: float64, Sample: empty
+2025-03-16 13:12:19,200 - root - DEBUG - Final input data shape: (0, 96)
+2025-03-16 13:12:19,200 - root - INFO - Training with 96 features
+2025-03-16 13:12:19,204 - root - ERROR - Error in training process: Check failed: (num_data) > (0) at D:\bld\liblightgbm_1739978630172\work\src\io\dataset.cpp, line 39 .
+Traceback (most recent call last):
+  File "E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\train_model.py", line 235, in main
+    model.train(train_dfs, val_dfs)
+  File "E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\LGBMmodel.py", line 50, in train
+    model = lgb.train(
+            ^^^^^^^^^^
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\engine.py", line 301, in train
+    booster.add_valid(valid_set, name_valid_set)
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 4058, in add_valid
+    data.construct()._handle,
+    ^^^^^^^^^^^^^^^^
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 2539, in construct
+    self._lazy_init(
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 2187, in _lazy_init
+    self.__init_from_np2d(data, params_str, ref_dataset)
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 2318, in __init_from_np2d
+    _safe_call(
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 313, in _safe_call
+    raise LightGBMError(_LIB.LGBM_GetLastError().decode("utf-8"))
+lightgbm.basic.LightGBMError: Check failed: (num_data) > (0) at D:\bld\liblightgbm_1739978630172\work\src\io\dataset.cpp, line 39 .
+

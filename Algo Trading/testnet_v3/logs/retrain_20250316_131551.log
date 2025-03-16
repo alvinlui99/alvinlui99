@@ -1,0 +1,100 @@
+2025-03-16 13:15:51,789 - __main__ - INFO - ================================================================================
+2025-03-16 13:15:51,790 - __main__ - INFO - STARTING MODEL RETRAINING - FEATURE COUNT MISMATCH FIX
+2025-03-16 13:15:51,790 - __main__ - INFO - ================================================================================
+2025-03-16 13:15:51,790 - __main__ - INFO - Will train with symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOGEUSDT', 'LINKUSDT', 'AVAXUSDT']
+2025-03-16 13:15:51,790 - __main__ - INFO - Loading data for 9 symbols
+2025-03-16 13:15:51,791 - __main__ - INFO - Using live format data for BTCUSDT
+2025-03-16 13:15:51,794 - __main__ - INFO - Loaded 100 rows for BTCUSDT
+2025-03-16 13:15:51,798 - __main__ - INFO - Removed Return columns from BTCUSDT for model compatibility
+2025-03-16 13:15:51,798 - __main__ - INFO - Using live format data for ETHUSDT
+2025-03-16 13:15:51,800 - __main__ - INFO - Loaded 100 rows for ETHUSDT
+2025-03-16 13:15:51,804 - __main__ - INFO - Removed Return columns from ETHUSDT for model compatibility
+2025-03-16 13:15:51,804 - __main__ - INFO - Using live format data for BNBUSDT
+2025-03-16 13:15:51,806 - __main__ - INFO - Loaded 100 rows for BNBUSDT
+2025-03-16 13:15:51,809 - __main__ - INFO - Removed Return columns from BNBUSDT for model compatibility
+2025-03-16 13:15:51,810 - __main__ - INFO - Using live format data for ADAUSDT
+2025-03-16 13:15:51,811 - __main__ - INFO - Loaded 100 rows for ADAUSDT
+2025-03-16 13:15:51,814 - __main__ - INFO - Removed Return columns from ADAUSDT for model compatibility
+2025-03-16 13:15:51,814 - __main__ - INFO - Using live format data for XRPUSDT
+2025-03-16 13:15:51,816 - __main__ - INFO - Loaded 100 rows for XRPUSDT
+2025-03-16 13:15:51,820 - __main__ - INFO - Removed Return columns from XRPUSDT for model compatibility
+2025-03-16 13:15:51,820 - __main__ - INFO - Using live format data for SOLUSDT
+2025-03-16 13:15:51,822 - __main__ - INFO - Loaded 100 rows for SOLUSDT
+2025-03-16 13:15:51,825 - __main__ - INFO - Removed Return columns from SOLUSDT for model compatibility
+2025-03-16 13:15:51,825 - __main__ - INFO - Using live format data for DOGEUSDT
+2025-03-16 13:15:51,827 - __main__ - INFO - Loaded 100 rows for DOGEUSDT
+2025-03-16 13:15:51,829 - __main__ - INFO - Removed Return columns from DOGEUSDT for model compatibility
+2025-03-16 13:15:51,829 - __main__ - INFO - Using live format data for LINKUSDT
+2025-03-16 13:15:51,831 - __main__ - INFO - Loaded 100 rows for LINKUSDT
+2025-03-16 13:15:51,834 - __main__ - INFO - Removed Return columns from LINKUSDT for model compatibility
+2025-03-16 13:15:51,835 - __main__ - INFO - Using live format data for AVAXUSDT
+2025-03-16 13:15:51,837 - __main__ - INFO - Loaded 100 rows for AVAXUSDT
+2025-03-16 13:15:51,840 - __main__ - INFO - Removed Return columns from AVAXUSDT for model compatibility
+2025-03-16 13:15:51,840 - __main__ - INFO - Prepared data for 9 symbols
+2025-03-16 13:15:51,852 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,861 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,872 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,881 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,891 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,901 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,910 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,920 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,930 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,930 - __main__ - INFO - Feature counts per symbol: {'BTCUSDT': 38, 'ETHUSDT': 38, 'BNBUSDT': 38, 'ADAUSDT': 38, 'XRPUSDT': 38, 'SOLUSDT': 38, 'DOGEUSDT': 38, 'LINKUSDT': 38, 'AVAXUSDT': 38}
+2025-03-16 13:15:51,931 - __main__ - INFO - Feature counts consistent across all symbols: 38
+2025-03-16 13:15:51,931 - __main__ - INFO - Final training symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOGEUSDT', 'LINKUSDT', 'AVAXUSDT']
+2025-03-16 13:15:51,932 - __main__ - INFO - Split BTCUSDT: train=70, val=15, test=15
+2025-03-16 13:15:51,933 - __main__ - INFO - Split ETHUSDT: train=70, val=15, test=15
+2025-03-16 13:15:51,934 - __main__ - INFO - Split BNBUSDT: train=70, val=15, test=15
+2025-03-16 13:15:51,935 - __main__ - INFO - Split ADAUSDT: train=70, val=15, test=15
+2025-03-16 13:15:51,936 - __main__ - INFO - Split XRPUSDT: train=70, val=15, test=15
+2025-03-16 13:15:51,937 - __main__ - INFO - Split SOLUSDT: train=70, val=15, test=15
+2025-03-16 13:15:51,938 - __main__ - INFO - Split DOGEUSDT: train=70, val=15, test=15
+2025-03-16 13:15:51,939 - __main__ - INFO - Split LINKUSDT: train=70, val=15, test=15
+2025-03-16 13:15:51,940 - __main__ - INFO - Split AVAXUSDT: train=70, val=15, test=15
+2025-03-16 13:15:51,940 - __main__ - INFO - Saved trained symbols list to: e:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\trained_symbols.txt
+2025-03-16 13:15:51,941 - __main__ - INFO - Initializing model...
+2025-03-16 13:15:51,941 - __main__ - INFO - Training model...
+2025-03-16 13:15:51,952 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,963 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,974 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,985 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:51,996 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:52,007 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:52,018 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:52,029 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:52,040 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 13:15:52,128 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:15:52,138 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:15:52,149 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:15:52,160 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:15:52,171 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:15:52,181 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:15:52,192 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:15:52,204 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:15:52,214 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 13:15:52,283 - __main__ - INFO - Training with 333 features
+2025-03-16 13:15:52,290 - __main__ - ERROR - Error during model retraining: Check failed: (num_data) > (0) at D:\bld\liblightgbm_1739978630172\work\src\io\dataset.cpp, line 39 .
+Traceback (most recent call last):
+  File "e:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\retrain_model.py", line 281, in <module>
+    main()
+  File "e:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\retrain_model.py", line 210, in main
+    model.train(train_dfs, val_dfs)
+  File "e:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\LGBMmodel.py", line 50, in train
+    model = lgb.train(
+            ^^^^^^^^^^
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\engine.py", line 301, in train
+    booster.add_valid(valid_set, name_valid_set)
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 4058, in add_valid
+    data.construct()._handle,
+    ^^^^^^^^^^^^^^^^
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 2539, in construct
+    self._lazy_init(
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 2187, in _lazy_init
+    self.__init_from_np2d(data, params_str, ref_dataset)
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 2318, in __init_from_np2d
+    _safe_call(
+  File "C:\Users\Alvin Lui\anaconda3\envs\humpback\Lib\site-packages\lightgbm\basic.py", line 313, in _safe_call
+    raise LightGBMError(_LIB.LGBM_GetLastError().decode("utf-8"))
+lightgbm.basic.LightGBMError: Check failed: (num_data) > (0) at D:\bld\liblightgbm_1739978630172\work\src\io\dataset.cpp, line 39 .
+

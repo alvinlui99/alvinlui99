@@ -87,19 +87,28 @@ def initialize_system(args):
     
     # Load trading model
     try:
-        model = LGBMmodel(args.symbols, feature_config=ModelConfig.FEATURE_CONFIG, logger=logger)
+        # IMPORTANT: Make sure to check symbol compatibility with trained model
+        available_models = []
+        for symbol in args.symbols:
+            model_path = os.path.join(BaseConfig.MODEL_DIR, f"{ModelConfig.MODEL_FILE_PREFIX}{symbol}{ModelConfig.MODEL_FILE_EXTENSION}")
+            if os.path.exists(model_path):
+                available_models.append(symbol)
+            else:
+                logger.warning(f"No model file found for {symbol} at {model_path}")
         
-        first_model_file = os.path.join(BaseConfig.MODEL_DIR, f"{ModelConfig.MODEL_FILE_PREFIX}{args.symbols[0]}{ModelConfig.MODEL_FILE_EXTENSION}")
-        
-        if os.path.exists(first_model_file):
-            logger.info(f"Loading models from {BaseConfig.MODEL_DIR}")
-            model.load_model(BaseConfig.MODEL_DIR)
-        else:
-            logger.error(f"Model files not found in {BaseConfig.MODEL_DIR}. Please train the model first.")
-            logger.error(f"Expected first model file: {first_model_file}")
+        if not available_models:
+            logger.error(f"No model files found in {BaseConfig.MODEL_DIR}. Please train the model first.")
             sys.exit(1)
             
-        logger.info(f"Model loaded successfully for {len(args.symbols)} symbols")
+        # Use only symbols that have trained models
+        logger.info(f"Using {len(available_models)} symbols with available models: {available_models}")
+        
+        model = LGBMmodel(available_models, feature_config=ModelConfig.FEATURE_CONFIG, logger=logger)
+        model.load_model(BaseConfig.MODEL_DIR)
+        logger.info(f"Model loaded successfully for {len(available_models)} symbols")
+        
+        # Update args.symbols to match available models
+        args.symbols = available_models
     except Exception as e:
         logger.error(f"Failed to load model: {str(e)}")
         sys.exit(1)
@@ -182,4 +191,6 @@ def main():
         logger.info("Trading system shutdown complete")
 
 if __name__ == "__main__":
-    main() 
+    # Sample usag
+    # python main.py --test --interval 60 --timeframe 1h 
+    main()

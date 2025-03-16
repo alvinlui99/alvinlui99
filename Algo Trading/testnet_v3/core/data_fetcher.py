@@ -32,7 +32,8 @@ class DataFetcher:
     def fetch_klines(self, timeframe: str = DataConfig.DEFAULT_TIMEFRAME, 
                      limit: int = DataConfig.DEFAULT_LIMIT,
                      start_time: Optional[datetime] = None,
-                     end_time: Optional[datetime] = None) -> Dict[str, pd.DataFrame]:
+                     end_time: Optional[datetime] = None,
+                     **kwargs) -> Dict[str, pd.DataFrame]:
         """
         Fetch klines data for the specified symbols.
         
@@ -41,6 +42,8 @@ class DataFetcher:
             limit: Number of klines to fetch
             start_time: Optional start time for klines
             end_time: Optional end time for klines
+            **kwargs: Additional parameters:
+                for_model (bool): If True, will remove Return and Log_Return columns for model compatibility
             
         Returns:
             Dictionary of DataFrames with klines data
@@ -95,6 +98,13 @@ class DataFetcher:
                     
                     if DataConfig.CALCULATE_LOG_RETURNS:
                         df['Log_Return'] = np.log(df['Close'] / df['Close'].shift(1))
+                    
+                    # Optional: Remove return columns for model compatibility
+                    if DataConfig.REMOVE_RETURNS_FOR_MODEL and 'for_model' in kwargs and kwargs['for_model']:
+                        if 'Return' in df.columns:
+                            df = df.drop(['Return'], axis=1)
+                        if 'Log_Return' in df.columns:
+                            df = df.drop(['Log_Return'], axis=1)
                     
                     # Handle filling missing values if needed
                     if DataConfig.FILL_MISSING_VALUES and df.isnull().any().any():

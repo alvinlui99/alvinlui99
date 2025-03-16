@@ -1,0 +1,52 @@
+2025-03-16 15:13:45,277 - __main__ - INFO - ================================================================================
+2025-03-16 15:13:45,278 - __main__ - INFO - STARTING MODEL RETRAINING - FEATURE COUNT MISMATCH FIX
+2025-03-16 15:13:45,278 - __main__ - INFO - ================================================================================
+2025-03-16 15:13:45,279 - __main__ - INFO - Will train with symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:13:45,280 - __main__ - INFO - Loading data for 2 symbols
+2025-03-16 15:13:45,280 - __main__ - INFO - Using live format data for BTCUSDT
+2025-03-16 15:13:45,283 - __main__ - INFO - Loaded 100 rows for BTCUSDT
+2025-03-16 15:13:45,287 - __main__ - INFO - Removed Return columns from BTCUSDT for model compatibility
+2025-03-16 15:13:45,288 - __main__ - INFO - Using live format data for ETHUSDT
+2025-03-16 15:13:45,290 - __main__ - INFO - Loaded 100 rows for ETHUSDT
+2025-03-16 15:13:45,292 - __main__ - INFO - Removed Return columns from ETHUSDT for model compatibility
+2025-03-16 15:13:45,293 - __main__ - INFO - Prepared data for 2 symbols
+2025-03-16 15:13:45,302 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:13:45,311 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:13:45,312 - __main__ - INFO - Feature counts per symbol: {'BTCUSDT': 38, 'ETHUSDT': 38}
+2025-03-16 15:13:45,312 - __main__ - INFO - Feature counts consistent across all symbols: 38
+2025-03-16 15:13:45,312 - __main__ - INFO - Final training symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:13:45,313 - __main__ - INFO - Split BTCUSDT: train=70, val=15, test=15
+2025-03-16 15:13:45,314 - __main__ - INFO - Split ETHUSDT: train=70, val=15, test=15
+2025-03-16 15:13:45,314 - __main__ - INFO - Preparing data for LightGBM...
+2025-03-16 15:13:45,324 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:13:45,325 - __main__ - INFO - Filling 418 NaN values in training data for BTCUSDT
+2025-03-16 15:13:45,330 - __main__ - INFO - Successfully filled all NaNs in training data
+2025-03-16 15:13:45,330 - __main__ - INFO - Prepared 70 training rows for BTCUSDT
+2025-03-16 15:13:45,339 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:13:45,340 - __main__ - INFO - Filling 418 NaN values in training data for ETHUSDT
+2025-03-16 15:13:45,344 - __main__ - INFO - Successfully filled all NaNs in training data
+2025-03-16 15:13:45,344 - __main__ - INFO - Prepared 70 training rows for ETHUSDT
+2025-03-16 15:13:45,353 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:13:45,355 - __main__ - INFO - Filling 268 NaN values in validation data for BTCUSDT
+2025-03-16 15:13:45,358 - __main__ - INFO - Successfully filled all NaNs in validation data
+2025-03-16 15:13:45,359 - __main__ - INFO - Prepared 15 validation rows for BTCUSDT
+2025-03-16 15:13:45,368 - utils.feature_engineering - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:13:45,369 - __main__ - INFO - Filling 268 NaN values in validation data for ETHUSDT
+2025-03-16 15:13:45,373 - __main__ - INFO - Successfully filled all NaNs in validation data
+2025-03-16 15:13:45,373 - __main__ - INFO - Prepared 15 validation rows for ETHUSDT
+2025-03-16 15:13:45,373 - __main__ - INFO - Will train with 2 symbols: {'ETHUSDT', 'BTCUSDT'}
+2025-03-16 15:13:45,374 - __main__ - INFO - Training with 2 symbols: ['ETHUSDT', 'BTCUSDT']
+2025-03-16 15:13:45,374 - __main__ - INFO - Saved trained symbols list to: E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\trained_symbols.txt
+2025-03-16 15:13:45,375 - __main__ - INFO - Initializing model...
+2025-03-16 15:13:45,375 - __main__ - INFO - Training model...
+2025-03-16 15:13:45,383 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:13:45,392 - __main__ - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:13:45,416 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:13:45,424 - __main__ - WARNING - Found 268 null values in feature-engineered data
+2025-03-16 15:13:45,440 - __main__ - INFO - Training with 74 features
+2025-03-16 15:13:45,446 - __main__ - ERROR - Model training failed: Check failed: (num_data) > (0) at D:\bld\liblightgbm_1739978630172\work\src\io\dataset.cpp, line 39 .
+
+2025-03-16 15:13:45,447 - __main__ - INFO - Training data for ETHUSDT: (70, 38), NaN values: 0
+2025-03-16 15:13:45,448 - __main__ - INFO - Validation data for ETHUSDT: (15, 38), NaN values: 0
+2025-03-16 15:13:45,449 - __main__ - INFO - Training data for BTCUSDT: (70, 38), NaN values: 0
+2025-03-16 15:13:45,451 - __main__ - INFO - Validation data for BTCUSDT: (15, 38), NaN values: 0

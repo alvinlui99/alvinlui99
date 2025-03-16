@@ -1,0 +1,37 @@
+2025-03-16 15:11:43,256 - __main__ - INFO - ================================================================================
+2025-03-16 15:11:43,257 - __main__ - INFO - STARTING DIRECT MODEL TRAINING
+2025-03-16 15:11:43,257 - __main__ - INFO - ================================================================================
+2025-03-16 15:11:43,258 - __main__ - INFO - Using symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:11:43,259 - __main__ - INFO - Loading data for 2 symbols
+2025-03-16 15:11:43,259 - __main__ - INFO - Using live format data for BTCUSDT
+2025-03-16 15:11:43,262 - __main__ - INFO - Loaded 100 rows for BTCUSDT
+2025-03-16 15:11:43,265 - __main__ - INFO - Removed Return columns from BTCUSDT for model compatibility
+2025-03-16 15:11:43,265 - __main__ - INFO - Using live format data for ETHUSDT
+2025-03-16 15:11:43,267 - __main__ - INFO - Loaded 100 rows for ETHUSDT
+2025-03-16 15:11:43,269 - __main__ - INFO - Removed Return columns from ETHUSDT for model compatibility
+2025-03-16 15:11:43,270 - __main__ - INFO - Prepared data for 2 symbols
+2025-03-16 15:11:43,270 - __main__ - INFO - Applying feature engineering...
+2025-03-16 15:11:43,280 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:11:43,282 - __main__ - INFO - Filling 418 NaN values in BTCUSDT after feature engineering
+2025-03-16 15:11:43,286 - __main__ - INFO - Processed BTCUSDT: (100, 38)
+2025-03-16 15:11:43,295 - utils.feature_engineering - WARNING - Found 418 null values in feature-engineered data
+2025-03-16 15:11:43,297 - __main__ - INFO - Filling 418 NaN values in ETHUSDT after feature engineering
+2025-03-16 15:11:43,300 - __main__ - INFO - Processed ETHUSDT: (100, 38)
+2025-03-16 15:11:43,300 - __main__ - INFO - Preparing data for LightGBM...
+2025-03-16 15:11:43,302 - __main__ - INFO - Adding 99 samples from BTCUSDT
+2025-03-16 15:11:43,305 - __main__ - INFO - Adding 99 samples from ETHUSDT
+2025-03-16 15:11:43,307 - __main__ - INFO - Combined data: X shape (198, 32), y shape (198,)
+2025-03-16 15:11:43,307 - __main__ - INFO - Training data: (138, 32), (138,)
+2025-03-16 15:11:43,307 - __main__ - INFO - Validation data: (29, 32), (29,)
+2025-03-16 15:11:43,308 - __main__ - INFO - Test data: (31, 32), (31,)
+2025-03-16 15:11:43,308 - __main__ - INFO - Training model...
+2025-03-16 15:11:43,308 - __main__ - INFO - Training model with LightGBM...
+2025-03-16 15:11:43,308 - __main__ - ERROR - Error during direct model training: train() got an unexpected keyword argument 'early_stopping_rounds'
+Traceback (most recent call last):
+  File "E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\direct_retrain.py", line 349, in main
+    model = train_model(X_train, y_train, X_val, y_val)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\direct_retrain.py", line 239, in train_model
+    model = lgb.train(
+            ^^^^^^^^^^
+TypeError: train() got an unexpected keyword argument 'early_stopping_rounds'

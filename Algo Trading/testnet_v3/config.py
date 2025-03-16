@@ -9,6 +9,7 @@ import logging.handlers
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
+import json
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,7 +28,7 @@ class BaseConfig:
         os.makedirs(directory, exist_ok=True)
     
     # Trading symbols
-    SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "XRPUSDT", 
+    SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "MATICUSDT", 
                "SOLUSDT", "DOGEUSDT", "LINKUSDT", "AVAXUSDT"]
     
     # Data timeframes
@@ -244,6 +245,9 @@ class DataConfig:
     # Derived features
     CALCULATE_RETURNS = True
     CALCULATE_LOG_RETURNS = True
+    
+    # Model compatibility
+    REMOVE_RETURNS_FOR_MODEL = True  # Remove Return and Log_Return columns for model input
     
     # Data cleanup
     REMOVE_DUPLICATE_TIMESTAMPS = True

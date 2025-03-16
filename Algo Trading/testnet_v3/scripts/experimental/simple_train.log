@@ -1,0 +1,29 @@
+2025-03-16 15:24:11,972 - __main__ - INFO - Starting simple model training
+2025-03-16 15:24:11,972 - __main__ - INFO - Training with symbols: ['BTCUSDT', 'ETHUSDT']
+2025-03-16 15:24:11,976 - __main__ - INFO - Loaded live data for BTCUSDT: 100 rows
+2025-03-16 15:24:11,977 - __main__ - INFO - Loaded live data for ETHUSDT: 100 rows
+2025-03-16 15:24:11,989 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 15:24:11,990 - __main__ - WARNING - Found 420 NaN values in features for BTCUSDT
+2025-03-16 15:24:11,993 - __main__ - INFO - Successfully filled NaN values for BTCUSDT
+2025-03-16 15:24:11,994 - __main__ - WARNING - Dropping 1 non-numeric columns
+2025-03-16 15:24:11,996 - __main__ - INFO - Features shape for BTCUSDT: (99, 39), Target shape: 99
+2025-03-16 15:24:11,996 - __main__ - INFO - Feature columns for BTCUSDT (39): ['Open', 'High', 'Low', 'Close', 'Volume']...
+2025-03-16 15:24:11,997 - __main__ - INFO - Adding 99 rows for BTCUSDT to training data
+2025-03-16 15:24:12,007 - utils.feature_engineering - WARNING - Found 420 null values in feature-engineered data
+2025-03-16 15:24:12,008 - __main__ - WARNING - Found 420 NaN values in features for ETHUSDT
+2025-03-16 15:24:12,011 - __main__ - INFO - Successfully filled NaN values for ETHUSDT
+2025-03-16 15:24:12,012 - __main__ - WARNING - Dropping 1 non-numeric columns
+2025-03-16 15:24:12,014 - __main__ - INFO - Features shape for ETHUSDT: (99, 39), Target shape: 99
+2025-03-16 15:24:12,014 - __main__ - INFO - Feature columns for ETHUSDT (39): ['Open', 'High', 'Low', 'Close', 'Volume']...
+2025-03-16 15:24:12,015 - __main__ - INFO - Adding 99 rows for ETHUSDT to training data
+2025-03-16 15:24:12,015 - __main__ - INFO - Using 99 rows for training (minimum across all symbols)
+2025-03-16 15:24:12,015 - __main__ - INFO - Combined features shape: (99, 78)
+2025-03-16 15:24:12,016 - __main__ - INFO - Training model for BTCUSDT with 99 rows and 78 features
+2025-03-16 15:24:12,016 - __main__ - INFO - Starting LightGBM training for BTCUSDT
+2025-03-16 15:24:12,030 - __main__ - INFO - Model for BTCUSDT trained successfully
+2025-03-16 15:24:12,031 - __main__ - INFO - Training model for ETHUSDT with 99 rows and 78 features
+2025-03-16 15:24:12,031 - __main__ - INFO - Starting LightGBM training for ETHUSDT
+2025-03-16 15:24:12,041 - __main__ - INFO - Model for ETHUSDT trained successfully
+2025-03-16 15:24:12,055 - __main__ - INFO - Model for BTCUSDT saved to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\simple_models\model_BTCUSDT.lgb
+2025-03-16 15:24:12,057 - __main__ - INFO - Model for ETHUSDT saved to E:\Alvin Lui\GitHub\alvinlui99\Algo Trading\testnet_v3\model\trained_models\simple_models\model_ETHUSDT.lgb
+2025-03-16 15:24:12,058 - __main__ - INFO - Training completed successfully for 2 symbols
