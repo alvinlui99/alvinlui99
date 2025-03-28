@@ -18,7 +18,16 @@ class LGBMmodel:
         self.symbols = symbols
         self.models = {}
         self.logger = logger or logging.getLogger(__name__)
+        
+        # Use ModelConfig's feature configuration if none provided
+        if feature_config is None:
+            from config import ModelConfig
+            feature_config = ModelConfig.FEATURE_CONFIG
+            self.logger.info("Using default feature configuration from ModelConfig")
+            
         self.feature_engineer = FeatureEngineer(feature_config, logger=self.logger)
+        self.logger.info(f"Initialized feature engineering with config: {feature_config}")
+        
         # Added for compatibility
         self.expected_feature_counts = {}  # Will be populated when loading models
         self.compatibility_mode = False  # Allow prediction with different feature counts
@@ -96,95 +105,65 @@ class LGBMmodel:
                 raise ValueError(f"Training failed for {symbol}: {str(e)}")
 
     def predict(self, klines: dict[str, pd.DataFrame]) -> dict[str, np.ndarray]:
-        input_data, _ = self._convert_klines(klines)
+        """
+        Make predictions using the trained models.
+        
+        Args:
+            klines: Dictionary of DataFrames containing price/volume data
+            
+        Returns:
+            Dictionary of predictions for each symbol
+        """
+        self.logger.info("Starting prediction process...")
         predictions = {}
 
         # First check if we have any data
-        if input_data.size == 0:
-            self.logger.error("No input data available for prediction")
+        if not klines:
+            self.logger.error("No input data provided")
             return {}
-
-        # Try to safely convert to numeric before checking for NaN/Inf
-        try:
-            # Check if input data is already numeric
-            if not np.issubdtype(input_data.dtype, np.number):
-                self.logger.warning(f"Input data has non-numeric dtype: {input_data.dtype}")
-                # First try to identify any problematic columns
-                for i in range(input_data.shape[1]):
-                    col_data = input_data[:, i]
-                    if not all(isinstance(x, (int, float, np.number)) for x in col_data):
-                        self.logger.error(f"Column at index {i} contains non-numeric data: {col_data[0]}")
-                
-                # Now try to convert to float
-                input_data = input_data.astype(np.float64)
             
-            # Now safe to check for NaN/Inf
-            if np.isnan(input_data).any() or np.isinf(input_data).any():
-                self.logger.warning("Input data contains NaN or Inf values, these will cause prediction errors")
-                # Replace with 0 to prevent errors
-                input_data = np.nan_to_num(input_data, nan=0.0, posinf=0.0, neginf=0.0)
-        except (ValueError, TypeError) as e:
-            self.logger.error(f"Failed to process input data: {str(e)}")
-            # More detailed error information
-            if len(input_data) > 0:
-                self.logger.error(f"Input data shape: {input_data.shape}, type: {type(input_data)}, dtype: {input_data.dtype}")
-                if hasattr(input_data, 'dtypes'):
-                    self.logger.error(f"Column dtypes: {input_data.dtypes}")
-            raise ValueError("Model requires numeric input data only") from e
-
-        # Check feature count compatibility
-        feature_count = input_data.shape[1]
-        # If we have expected feature counts for any model
-        if self.expected_feature_counts and not self.compatibility_mode:
-            first_symbol = next(iter(self.expected_feature_counts))
-            expected_count = self.expected_feature_counts[first_symbol]
+        self.logger.info(f"Processing data for symbols: {list(klines.keys())}")
+        
+        # Process each symbol's data
+        for symbol, df in klines.items():
+            self.logger.info(f"\nProcessing {symbol}:")
+            self.logger.info(f"Input data shape: {df.shape}")
+            self.logger.info(f"Input columns: {df.columns.tolist()}")
             
-            if feature_count != expected_count:
-                self.logger.warning(f"Feature count mismatch: expected {expected_count}, got {feature_count}")
+            try:
+                # Feature engineering
+                self.logger.info("Applying feature engineering...")
+                processed_data = self.feature_engineer.add_all_features(df)
                 
-                # Enable compatibility mode if user wants to proceed anyway
-                enable_compat = os.environ.get("ENABLE_MODEL_COMPATIBILITY", "false").lower() in ["true", "1", "yes"]
-                if enable_compat:
-                    self.logger.warning("Enabling compatibility mode to allow prediction with different feature counts")
-                    self.compatibility_mode = True
-                    
-                    # Set the predict_disable_shape_check flag for all models
-                    for symbol in self.symbols:
-                        if symbol in self.models:
-                            self.models[symbol].params["predict_disable_shape_check"] = True
-                else:
-                    # Explain the issue and how to fix it
-                    self.logger.error("Feature count mismatch between training and prediction data")
-                    self.logger.error("This usually happens when:")
-                    self.logger.error("1. You're using different symbols in training vs prediction")
-                    self.logger.error("2. The feature engineering configuration has changed")
-                    self.logger.error("3. The input data format has changed")
-                    self.logger.error("\nTo fix this, you can:")
-                    self.logger.error("1. Retrain the model with the same symbols and configuration")
-                    self.logger.error("2. Ensure you're using the same symbols in prediction as training")
-                    self.logger.error("3. Set ENABLE_MODEL_COMPATIBILITY=true in environment to force prediction")
-                    
-                    raise ValueError(f"Feature count mismatch: expected {expected_count}, got {feature_count}. Set ENABLE_MODEL_COMPATIBILITY=true to ignore.")
-
-        for symbol in self.symbols:
-            if symbol in self.models:
-                model = self.models[symbol]
-                
-                # Set the predict_disable_shape_check flag if in compatibility mode
-                if self.compatibility_mode:
-                    model.params["predict_disable_shape_check"] = True
-                
-                # Make predictions using the model
-                try:
-                    predictions[symbol] = model.predict(input_data)
-                except Exception as e:
-                    self.logger.error(f"Error predicting for {symbol}: {str(e)}")
-                    # If compatibility mode is enabled but still fails:
-                    if self.compatibility_mode:
-                        self.logger.error("Prediction failed even with compatibility mode. This suggests a more fundamental issue.")
+                if processed_data.empty:
+                    self.logger.warning(f"No valid data after feature engineering for {symbol}")
+                    predictions[symbol] = np.array([])
                     continue
-            else:
-                self.logger.warning(f"Model for symbol {symbol} not found. Skipping prediction.")
+                    
+                self.logger.info(f"Processed data shape: {processed_data.shape}")
+                self.logger.info(f"Processed columns: {processed_data.columns.tolist()}")
+                
+                # Convert to numpy array
+                input_data = processed_data.values
+                
+                # Get predictions
+                if symbol in self.models:
+                    try:
+                        self.logger.info("Making predictions...")
+                        pred = self.models[symbol].predict(input_data)
+                        self.logger.info(f"Generated predictions shape: {pred.shape}")
+                        self.logger.info(f"Last 5 predictions: {pred[-5:] if len(pred) > 0 else 'empty'}")
+                        predictions[symbol] = pred
+                    except Exception as e:
+                        self.logger.error(f"Error predicting for {symbol}: {str(e)}", exc_info=True)
+                        predictions[symbol] = np.array([])
+                else:
+                    self.logger.warning(f"No trained model found for {symbol}")
+                    predictions[symbol] = np.array([])
+                    
+            except Exception as e:
+                self.logger.error(f"Error processing data for {symbol}: {str(e)}", exc_info=True)
+                predictions[symbol] = np.array([])
         
         return predictions
 

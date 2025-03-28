@@ -128,12 +128,19 @@ class FeatureEngineer:
         if 'Open_time' in df.columns:
             df = df.drop(['Open_time'], axis=1)
             
-        # Log final shape and null values for debugging
-        self.logger.debug(f"Feature engineering complete. Final shape: {df.shape}")
-        null_counts = df.isnull().sum().sum()
-        if null_counts > 0:
-            self.logger.warning(f"Found {null_counts} null values in feature-engineered data")
+        # Drop rows with NaN values
+        original_rows = len(df)
+        df = df.dropna()
+        dropped_rows = original_rows - len(df)
         
+        if dropped_rows > 0:
+            self.logger.info(f"Dropped {dropped_rows} rows with NaN values (expected due to indicator lookback periods)")
+        
+        # Verify we have enough data
+        if len(df) < 10:  # Minimum required rows
+            self.logger.error("Insufficient data rows after processing")
+            return pd.DataFrame()  # Return empty DataFrame to signal error
+            
         return df
     
     def _extract_ohlcv(self, df: pd.DataFrame) -> Tuple:

@@ -69,7 +69,3 @@ When contributing to this project, please follow these practices:
 2. Document your code with docstrings and comments
 3. Update README files when adding new functionality
 4. Keep experimental code in the experimental directory
-
-## License
-
-This project is for educational purposes only. Use at your own risk.

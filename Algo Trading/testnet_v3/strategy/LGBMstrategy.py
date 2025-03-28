@@ -66,27 +66,63 @@ class LGBMstrategy(Strategy):
             for symbol in klines.keys()
         }
         
-        self.logger.debug("Generating signals from model predictions")
+        self.logger.info("Starting signal generation...")
+        self.logger.info(f"Processing data for symbols: {list(klines.keys())}")
         
         try:
+            # Verify we have valid data
+            for symbol, df in klines.items():
+                self.logger.info(f"Data for {symbol}:")
+                self.logger.info(f"  Shape: {df.shape}")
+                self.logger.info(f"  Columns: {df.columns.tolist()}")
+                self.logger.info(f"  First timestamp: {df.index[0]}")
+                self.logger.info(f"  Last timestamp: {df.index[-1]}")
+                
+                if df.empty:
+                    self.logger.warning(f"Empty data for {symbol}")
+                    continue
+                    
+                if 'Close' not in df.columns:
+                    self.logger.warning(f"Missing Close price data for {symbol}")
+                    continue
+            
             # Get predictions from the model
-            predictions = self.model.predict(klines)
+            try:
+                self.logger.info("Getting predictions from model...")
+                predictions = self.model.predict(klines)
+                self.logger.info(f"Got predictions for symbols: {list(predictions.keys())}")
+                for symbol, pred in predictions.items():
+                    self.logger.info(f"Prediction for {symbol}: shape={np.array(pred).shape}, values={pred[-5:] if len(pred) > 0 else 'empty'}")
+            except Exception as e:
+                self.logger.error(f"Error getting predictions: {str(e)}", exc_info=True)
+                return signals
             
             # Process predictions for each symbol
             for symbol, pred in predictions.items():
                 # Skip if we don't have predictions
-                if len(pred) == 0:
-                    self.logger.warning(f"No predictions available for {symbol}")
+                if not isinstance(pred, (list, np.ndarray)) or len(pred) == 0:
+                    self.logger.warning(f"Invalid predictions for {symbol}: {pred}")
                     continue
                     
                 # Get the last prediction (for the most recent candle)
-                latest_prediction = pred[-1]
+                try:
+                    latest_prediction = float(pred[-1])  # Ensure numeric
+                    self.logger.info(f"{symbol} latest prediction: {latest_prediction:.6f}")
+                except (IndexError, ValueError, TypeError) as e:
+                    self.logger.error(f"Error processing prediction for {symbol}: {str(e)}")
+                    continue
                 
                 # Get the current price from the klines data
                 try:
-                    current_price = klines[symbol]['Close'].iloc[-1]
-                except (KeyError, IndexError) as e:
+                    current_price = float(klines[symbol]['Close'].iloc[-1])
+                    self.logger.info(f"{symbol} current price: {current_price:.2f}")
+                except (KeyError, IndexError, ValueError) as e:
                     self.logger.error(f"Could not get current price for {symbol}: {str(e)}")
+                    continue
+                
+                # Skip if price is invalid
+                if not current_price > 0:
+                    self.logger.warning(f"Invalid price for {symbol}: {current_price}")
                     continue
                 
                 # Calculate predicted percent change
@@ -96,19 +132,31 @@ class LGBMstrategy(Strategy):
                 signals[symbol]['confidence'] = abs(predicted_pct_change)
                 
                 # Determine trading action based on prediction
-                if predicted_pct_change > self.threshold:
-                    # Bullish signal - Buy
-                    signals[symbol]['side'] = "BUY"
-                    signals[symbol]['price'] = current_price
-                    signals[symbol]['quantity'] = self._calculate_position_size(symbol, current_price)
+                try:
+                    self.logger.info(f"{symbol} predicted change: {predicted_pct_change:.6f} (threshold: {self.threshold})")
+                    if predicted_pct_change > self.threshold:
+                        # Bullish signal - Buy
+                        quantity = self._calculate_position_size(symbol, current_price)
+                        if quantity > 0:
+                            signals[symbol]['side'] = "BUY"
+                            signals[symbol]['price'] = current_price
+                            signals[symbol]['quantity'] = quantity
+                            self.logger.info(f"Generated BUY signal for {symbol}: quantity={quantity:.3f}, price={current_price:.2f}")
+                        
+                    elif predicted_pct_change < -self.threshold and self.allow_shorts:
+                        # Bearish signal - Sell (short)
+                        quantity = self._calculate_position_size(symbol, current_price)
+                        if quantity > 0:
+                            signals[symbol]['side'] = "SELL"
+                            signals[symbol]['price'] = current_price
+                            signals[symbol]['quantity'] = quantity
+                            self.logger.info(f"Generated SELL signal for {symbol}: quantity={quantity:.3f}, price={current_price:.2f}")
+                    else:
+                        self.logger.info(f"No signal generated for {symbol} (prediction within threshold)")
                     
-                elif predicted_pct_change < -self.threshold and self.allow_shorts:
-                    # Bearish signal - Sell (short)
-                    signals[symbol]['side'] = "SELL"
-                    signals[symbol]['price'] = current_price
-                    signals[symbol]['quantity'] = self._calculate_position_size(symbol, current_price)
-                
-                self.logger.info(f"Signal for {symbol}: {signals[symbol]['side']} | Predicted change: {predicted_pct_change:.4f}")
+                except Exception as e:
+                    self.logger.error(f"Error calculating signal for {symbol}: {str(e)}")
+                    continue
                 
         except Exception as e:
             self.logger.error(f"Error generating signals: {str(e)}", exc_info=True)
