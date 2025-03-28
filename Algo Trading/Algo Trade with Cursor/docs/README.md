@@ -4,7 +4,8 @@
 ```
 ├── src/
 │   ├── data/           # Market data collection
-│   │   └── market_data.py    # Binance Futures data fetching
+│   │   ├── market_data.py    # Binance Futures data fetching
+│   │   └── data_cache.py     # Data caching mechanism
 │   ├── trading/        # Trading bot implementation
 │   │   └── trading_bot.py    # Core trading logic
 │   └── strategy/       # Trading strategies
@@ -15,14 +16,17 @@
 ├── tests/              # Test scripts
 │   ├── test_gpu.py     # GPU availability check
 │   ├── test_orders.py  # Order placement testing
-│   └── test_backtest.py # Strategy backtesting
+│   ├── test_backtest.py # Basic strategy backtesting
+│   └── backtest_visualization.py # Strategy backtesting with visualization
 ├── docs/              # Documentation
+├── data/              # Cached market data
 └── config/            # Configuration files
 ```
 
 ## Current Status
 - [x] Basic project structure
 - [x] Market data collection from Binance Futures
+- [x] Market data caching for faster backtesting
 - [x] Testnet integration
 - [x] Basic order placement with leverage
 - [x] Position tracking
@@ -31,6 +35,7 @@
 - [x] Base strategy framework
 - [x] MACD strategy implementation
 - [x] Backtesting framework
+- [x] Backtest visualization
 - [ ] Portfolio optimization
 - [ ] Machine learning integration
 - [ ] Risk management
@@ -53,6 +58,7 @@
 - [x] Base strategy framework
 - [x] MACD strategy
 - [x] Backtesting framework
+- [x] Backtest visualization
 - [ ] Strategy optimization
 - [ ] Multiple timeframe analysis
 - [ ] Market regime detection
@@ -83,4 +89,30 @@
 - [ ] Performance metrics
 - [ ] Strategy optimization
 - [ ] Real-time monitoring
-- [ ] Alert system 
+- [ ] Alert system
+
+## Using the Data Cache
+
+The bot includes a data caching mechanism to avoid repeated API calls when running backtests. This is especially useful during strategy development when you need to run multiple backtests on the same data.
+
+Key features:
+- Automatically caches market data to the `data/` directory
+- Reuses cached data when available instead of making API calls
+- Cache files are named with symbol, timeframe, and date range for easy identification
+- Includes metadata about when the data was cached
+
+To use the cache:
+```python
+# Create market data object with cache enabled
+market_data = MarketData(
+    client=client,
+    symbols=['BTCUSDT'],
+    start_date='2023-01-01',
+    end_date='2023-03-01',
+    timeframe='1h',
+    use_cache=True  # Enable caching
+)
+
+# This will use cache if available, otherwise fetch from API
+historical_data = market_data.fetch_historical_data()
+``` 

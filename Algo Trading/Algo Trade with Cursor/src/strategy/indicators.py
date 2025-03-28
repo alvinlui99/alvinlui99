@@ -37,6 +37,7 @@ def calculate_rsi(data: pd.DataFrame, period: int = 14, column: str = 'Close') -
     Args:
         data (pd.DataFrame): Price data
         period (int): Period for RSI
+        column (str): Column to calculate RSI on
         
     Returns:
         pd.Series: RSI values

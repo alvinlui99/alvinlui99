@@ -53,8 +53,15 @@ class Backtest:
             else:
                 common_index = common_index.intersection(df.index)
         
+        # Log number of data points
+        logger.info(f"Running backtest with {len(common_index)} data points")
+        
         # Run backtest for each timestamp
-        for timestamp in common_index:
+        for i, timestamp in enumerate(common_index):
+            # Skip the first few data points to allow indicators to initialize
+            if i < 30:
+                continue
+                
             # Get data for current timestamp
             current_data = {}
             for symbol, df in data.items():
@@ -65,6 +72,33 @@ class Backtest:
             
             # Generate signals for current timestamp
             signals = self.strategy.generate_signals(current_data)
+            
+            # Log indicator values every 10 periods
+            if i % 10 == 0 or i >= len(common_index) - 5:
+                for symbol in self.strategy.trading_pairs:
+                    if symbol in data:
+                        df = data[symbol]
+                        current_row = df.loc[timestamp]
+                        
+                        # Safe access to indicators
+                        macd_val = current_row.get('macd', 'N/A')
+                        signal_val = current_row.get('signal', 'N/A')
+                        rsi_val = current_row.get('rsi', 'N/A')
+                        price = current_row.get('Close', current_row.get('close', 'N/A'))
+                        
+                        # Log values and signal
+                        signal_action = signals.get(symbol, {}).get('action', 'NONE')
+                        logger.info(f"Time: {timestamp}, Price: {price}, "
+                                   f"MACD: {macd_val}, Signal: {signal_val}, "
+                                   f"RSI: {rsi_val}, Action: {signal_action}")
+                        
+                        # Log why no trade if MACD and RSI look good
+                        if signal_action == 'HOLD':
+                            if isinstance(macd_val, (int, float)) and isinstance(signal_val, (int, float)) and isinstance(rsi_val, (int, float)):
+                                if macd_val > signal_val and rsi_val < self.strategy.rsi_oversold:
+                                    logger.info(f"Potential BUY signal but no trade: MACD({macd_val:.4f}) > Signal({signal_val:.4f}) and RSI({rsi_val:.2f}) < {self.strategy.rsi_oversold}")
+                                elif macd_val < signal_val and rsi_val > self.strategy.rsi_overbought:
+                                    logger.info(f"Potential SELL signal but no trade: MACD({macd_val:.4f}) < Signal({signal_val:.4f}) and RSI({rsi_val:.2f}) > {self.strategy.rsi_overbought}")
             
             # Execute trades based on signals
             self._execute_trades(signals, current_data, timestamp)
@@ -154,11 +188,23 @@ class Backtest:
             
             # Calculate position size
             position_size = self.strategy.calculate_position_size(symbol, signal, current_capital)
+            if position_size == 0:
+                logger.info(f"Skipping trade: Position size is 0")
+                continue
+                
+            current_position = self.positions.get(symbol, {}).get('size', 0)
             
             # Handle position changes
-            if signal['action'] == 'BUY' and self.positions.get(symbol, {}).get('size', 0) <= 0:
+            if signal['action'] == 'BUY':
+                # Close any existing short position first
+                if current_position < 0:
+                    pnl = (self.positions[symbol]['entry_price'] - current_price) * abs(current_position)
+                    current_capital += pnl - (abs(current_position) * current_price * self.commission)
+                    self._record_trade(symbol, 'CLOSE', current_position, current_price, pnl, timestamp)
+                
                 # Open long position
                 cost = position_size * current_price * (1 + self.commission)
+                logger.info(f"Attempting BUY: Size: {position_size:.3f} BTC, Price: {current_price:.2f}, Cost: {cost:.2f} USDT, Capital: {current_capital:.2f} USDT")
                 if cost <= current_capital:
                     self.positions[symbol] = {
                         'size': position_size,
@@ -169,10 +215,20 @@ class Backtest:
                     }
                     current_capital -= cost
                     self._record_trade(symbol, 'BUY', position_size, current_price, -cost, timestamp)
+                    logger.info(f"BUY executed: New capital: {current_capital:.2f} USDT")
+                else:
+                    logger.info(f"BUY rejected: Insufficient capital (Need: {cost:.2f} USDT, Have: {current_capital:.2f} USDT)")
                     
-            elif signal['action'] == 'SELL' and self.positions.get(symbol, {}).get('size', 0) >= 0:
+            elif signal['action'] == 'SELL':
+                # Close any existing long position first
+                if current_position > 0:
+                    pnl = (current_price - self.positions[symbol]['entry_price']) * current_position
+                    current_capital += pnl - (current_position * current_price * self.commission)
+                    self._record_trade(symbol, 'CLOSE', current_position, current_price, pnl, timestamp)
+                
                 # Open short position
                 cost = position_size * current_price * (1 + self.commission)
+                logger.info(f"Attempting SELL: Size: {position_size:.3f} BTC, Price: {current_price:.2f}, Cost: {cost:.2f} USDT, Capital: {current_capital:.2f} USDT")
                 if cost <= current_capital:
                     self.positions[symbol] = {
                         'size': -position_size,
@@ -183,6 +239,9 @@ class Backtest:
                     }
                     current_capital -= cost
                     self._record_trade(symbol, 'SELL', -position_size, current_price, -cost, timestamp)
+                    logger.info(f"SELL executed: New capital: {current_capital:.2f} USDT")
+                else:
+                    logger.info(f"SELL rejected: Insufficient capital (Need: {cost:.2f} USDT, Have: {current_capital:.2f} USDT)")
     
     def _record_trade(self, symbol: str, action: str, size: float, price: float, pnl: float, timestamp: datetime) -> None:
         """
