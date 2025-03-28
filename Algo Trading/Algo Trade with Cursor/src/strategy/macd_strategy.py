@@ -4,6 +4,7 @@ import numpy as np
 from .base_strategy import BaseStrategy
 from .indicators import calculate_macd, calculate_rsi
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -179,19 +180,28 @@ class MACDStrategy(BaseStrategy):
         risk_amount = account_balance * self.risk_per_trade
         stop_loss_distance = abs(signal['price'] - signal['stop_loss'])
         
-        # Calculate position size based on risk
+        # Calculate initial position size based on risk
         position_size = risk_amount / stop_loss_distance
         
-        logger.info(f"Calculating position size for {signal['action']}:")
-        logger.info(f"  Account Balance: {account_balance:.2f} USDT")
-        logger.info(f"  Risk Amount ({self.risk_per_trade*100}%): {risk_amount:.2f} USDT")
-        logger.info(f"  Price: {signal['price']:.2f} USDT")
-        logger.info(f"  Stop Loss Distance: {stop_loss_distance:.2f} USDT")
-        logger.info(f"  Position Size: {position_size:.6f} BTC")
-        logger.info(f"  Position Value: {position_size * signal['price']:.2f} USDT")
+        # Calculate maximum affordable position size considering commission
+        max_position = account_balance / (signal['price'] * (1 + 0.0004))  # 0.0004 is commission
         
-        # Round position size to 3 decimal places (Binance requirement)
-        position_size = round(position_size, 3)
+        # Take the minimum of risk-based size and affordable size
+        position_size = min(position_size, max_position)
+        
+        # Round down to 3 decimal places to ensure we can afford it
+        position_size = math.floor(position_size * 1000) / 1000
+        
+        # logger.info(f"Calculating position size for {signal['action']}:")
+        # logger.info(f"  Account Balance: {account_balance:.2f} USDT")
+        # logger.info(f"  Risk Amount ({self.risk_per_trade*100}%): {risk_amount:.2f} USDT")
+        # logger.info(f"  Price: {signal['price']:.2f} USDT")
+        # logger.info(f"  Stop Loss Distance: {stop_loss_distance:.2f} USDT")
+        # logger.info(f"  Max Affordable Size: {max_position:.6f} BTC")
+        # logger.info(f"  Risk-Based Size: {risk_amount / stop_loss_distance:.6f} BTC")
+        # logger.info(f"  Final Position Size: {position_size:.6f} BTC")
+        # logger.info(f"  Position Value: {position_size * signal['price']:.2f} USDT")
+        # logger.info(f"  Total Cost with Commission: {position_size * signal['price'] * 1.0004:.2f} USDT")
         
         # Ensure minimum position size (0.001 BTC for Binance)
         if position_size < 0.001:
@@ -223,11 +233,11 @@ class MACDStrategy(BaseStrategy):
         take_profit_distance = abs(signal['price'] - signal['take_profit'])
         ratio = take_profit_distance / stop_loss_distance if stop_loss_distance != 0 else 0
         
-        logger.info(f"Validating {signal['action']} signal:")
-        logger.info(f"  Price: {signal['price']:.2f}")
-        logger.info(f"  Stop Loss: {signal['stop_loss']:.2f} (Distance: {stop_loss_distance:.2f})")
-        logger.info(f"  Take Profit: {signal['take_profit']:.2f} (Distance: {take_profit_distance:.2f})")
-        logger.info(f"  Ratio: {ratio:.2f}x (Required: >= 1.5x)")
+        # logger.info(f"Validating {signal['action']} signal:")
+        # logger.info(f"  Price: {signal['price']:.2f}")
+        # logger.info(f"  Stop Loss: {signal['stop_loss']:.2f} (Distance: {stop_loss_distance:.2f})")
+        # logger.info(f"  Take Profit: {signal['take_profit']:.2f} (Distance: {take_profit_distance:.2f})")
+        # logger.info(f"  Ratio: {ratio:.2f}x (Required: >= 1.5x)")
         
         is_valid = take_profit_distance >= (1.5 * stop_loss_distance)
         if not is_valid:

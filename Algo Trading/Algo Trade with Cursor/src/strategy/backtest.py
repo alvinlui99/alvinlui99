@@ -73,38 +73,23 @@ class Backtest:
             # Generate signals for current timestamp
             signals = self.strategy.generate_signals(current_data)
             
-            # Log indicator values every 10 periods
-            if i % 10 == 0 or i >= len(common_index) - 5:
-                for symbol in self.strategy.trading_pairs:
-                    if symbol in data:
-                        df = data[symbol]
-                        current_row = df.loc[timestamp]
-                        
-                        # Safe access to indicators
-                        macd_val = current_row.get('macd', 'N/A')
-                        signal_val = current_row.get('signal', 'N/A')
-                        rsi_val = current_row.get('rsi', 'N/A')
-                        price = current_row.get('Close', current_row.get('close', 'N/A'))
-                        
-                        # Log values and signal
-                        signal_action = signals.get(symbol, {}).get('action', 'NONE')
-                        logger.info(f"Time: {timestamp}, Price: {price}, "
-                                   f"MACD: {macd_val}, Signal: {signal_val}, "
-                                   f"RSI: {rsi_val}, Action: {signal_action}")
-                        
-                        # Log why no trade if MACD and RSI look good
-                        if signal_action == 'HOLD':
-                            if isinstance(macd_val, (int, float)) and isinstance(signal_val, (int, float)) and isinstance(rsi_val, (int, float)):
-                                if macd_val > signal_val and rsi_val < self.strategy.rsi_oversold:
-                                    logger.info(f"Potential BUY signal but no trade: MACD({macd_val:.4f}) > Signal({signal_val:.4f}) and RSI({rsi_val:.2f}) < {self.strategy.rsi_oversold}")
-                                elif macd_val < signal_val and rsi_val > self.strategy.rsi_overbought:
-                                    logger.info(f"Potential SELL signal but no trade: MACD({macd_val:.4f}) < Signal({signal_val:.4f}) and RSI({rsi_val:.2f}) > {self.strategy.rsi_overbought}")
-            
             # Execute trades based on signals
             self._execute_trades(signals, current_data, timestamp)
             
             # Record equity
             self.equity_curve.append(current_capital)
+            
+            # Log portfolio status every day (24 periods for 1h timeframe)
+            if i % 24 == 0:
+                logger.info(f"Portfolio Status at {timestamp}:")
+                logger.info(f"  Capital: {current_capital:.2f} USDT")
+                for symbol, pos in self.positions.items():
+                    if pos['size'] != 0:
+                        current_price = current_data[symbol].iloc[-1]['Close']
+                        unrealized_pnl = (current_price - pos['entry_price']) * pos['size']
+                        if pos['side'] == 'SELL':
+                            unrealized_pnl = -unrealized_pnl
+                        logger.info(f"  {symbol}: {pos['size']:.3f} @ {pos['entry_price']:.2f} ({pos['side']}) - PnL: {unrealized_pnl:.2f} USDT")
         
         # Calculate performance metrics
         results = self._calculate_performance_metrics()
@@ -215,9 +200,9 @@ class Backtest:
                     }
                     current_capital -= cost
                     self._record_trade(symbol, 'BUY', position_size, current_price, -cost, timestamp)
-                    logger.info(f"BUY executed: New capital: {current_capital:.2f} USDT")
-                else:
-                    logger.info(f"BUY rejected: Insufficient capital (Need: {cost:.2f} USDT, Have: {current_capital:.2f} USDT)")
+                    # logger.info(f"BUY executed: New capital: {current_capital:.2f} USDT")
+                # else:
+                    # logger.info(f"BUY rejected: Insufficient capital (Need: {cost:.2f} USDT, Have: {current_capital:.2f} USDT)")
                     
             elif signal['action'] == 'SELL':
                 # Close any existing long position first
@@ -266,7 +251,7 @@ class Backtest:
     
     def _calculate_performance_metrics(self) -> Dict:
         """
-        Calculate performance metrics.
+        Calculate performance metrics based on completed trades.
         
         Returns:
             Dict: Performance metrics
@@ -275,23 +260,96 @@ class Backtest:
         
         # Calculate returns
         returns = equity_curve.pct_change().dropna()
-        
-        # Calculate metrics
         total_return = (equity_curve.iloc[-1] / self.initial_capital - 1) * 100
         annual_return = (1 + total_return/100) ** (252/len(returns)) - 1
-        sharpe_ratio = np.sqrt(252) * returns.mean() / returns.std()
+        sharpe_ratio = np.sqrt(252) * returns.mean() / returns.std() if returns.std() != 0 else 0
         max_drawdown = (equity_curve / equity_curve.cummax() - 1).min() * 100
         
-        # Calculate trade statistics
+        # Convert trades to DataFrame
         trades_df = pd.DataFrame(self.trades)
+        
+        # Initialize metrics
+        completed_trades = []
+        
         if not trades_df.empty:
-            winning_trades = trades_df[trades_df['pnl'] > 0]
-            losing_trades = trades_df[trades_df['pnl'] < 0]
-            win_rate = len(winning_trades) / len(trades_df) * 100
-            avg_win = winning_trades['pnl'].mean()
-            avg_loss = losing_trades['pnl'].mean()
-            profit_factor = abs(winning_trades['pnl'].sum() / losing_trades['pnl'].sum())
+            trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'])
+            trades_df = trades_df.sort_values('timestamp')
+            
+            # Process trades to pair entries with exits
+            for symbol in trades_df['symbol'].unique():
+                symbol_trades = trades_df[trades_df['symbol'] == symbol].copy()
+                
+                i = 0
+                while i < len(symbol_trades):
+                    current_trade = symbol_trades.iloc[i]
+                    
+                    if current_trade['action'] in ['BUY', 'SELL']:
+                        # Look for the closing trade
+                        next_trades = symbol_trades.iloc[i+1:]
+                        close_trade = None
+                        
+                        if len(next_trades) > 0:
+                            if current_trade['action'] == 'BUY':
+                                close_idx = next_trades[next_trades['action'].isin(['CLOSE', 'SELL'])].index.min()
+                            else:  # SELL
+                                close_idx = next_trades[next_trades['action'].isin(['CLOSE', 'BUY'])].index.min()
+                            
+                            if pd.notna(close_idx):
+                                close_trade = trades_df.loc[close_idx]
+                                
+                                # Calculate trade metrics
+                                entry_price = current_trade['price']
+                                exit_price = close_trade['price']
+                                position_size = abs(current_trade['size'])
+                                
+                                if current_trade['action'] == 'BUY':
+                                    pnl = (exit_price - entry_price) * position_size
+                                    trade_type = 'Long'
+                                else:  # SELL
+                                    pnl = (entry_price - exit_price) * position_size
+                                    trade_type = 'Short'
+                                
+                                # Account for commission
+                                commission = (entry_price + exit_price) * position_size * self.commission
+                                net_pnl = pnl - commission
+                                
+                                completed_trades.append({
+                                    'symbol': symbol,
+                                    'type': trade_type,
+                                    'entry_time': current_trade['timestamp'],
+                                    'exit_time': close_trade['timestamp'],
+                                    'entry_price': entry_price,
+                                    'exit_price': exit_price,
+                                    'size': position_size,
+                                    'pnl': net_pnl,
+                                    'commission': commission,
+                                    'duration': (close_trade['timestamp'] - current_trade['timestamp']).total_seconds() / 3600
+                                })
+                                
+                                # Skip the closing trade
+                                i = trades_df.index.get_loc(close_idx) + 1
+                                continue
+                    
+                    i += 1
+            
+            # Convert completed trades to DataFrame
+            completed_df = pd.DataFrame(completed_trades) if completed_trades else pd.DataFrame()
+            
+            if not completed_df.empty:
+                winning_trades = completed_df[completed_df['pnl'] > 0]
+                losing_trades = completed_df[completed_df['pnl'] <= 0]
+                
+                win_rate = len(winning_trades) / len(completed_df) * 100
+                avg_win = winning_trades['pnl'].mean() if len(winning_trades) > 0 else 0
+                avg_loss = losing_trades['pnl'].mean() if len(losing_trades) > 0 else 0
+                profit_factor = abs(winning_trades['pnl'].sum() / losing_trades['pnl'].sum()) if len(losing_trades) > 0 and losing_trades['pnl'].sum() != 0 else 0
+            else:
+                win_rate = 0
+                avg_win = 0
+                avg_loss = 0
+                profit_factor = 0
         else:
+            completed_df = pd.DataFrame()
             win_rate = 0
             avg_win = 0
             avg_loss = 0
@@ -306,7 +364,8 @@ class Backtest:
             'avg_win': avg_win,
             'avg_loss': avg_loss,
             'profit_factor': profit_factor,
-            'total_trades': len(self.trades),
+            'total_trades': len(completed_df),
+            'total_commission': completed_df['commission'].sum() if not completed_df.empty else 0,
             'equity_curve': equity_curve,
-            'trades': self.trades
+            'trades': completed_trades  # Now returning the paired trades instead of raw trades
         } 

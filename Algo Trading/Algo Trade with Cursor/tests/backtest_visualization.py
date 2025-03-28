@@ -186,9 +186,7 @@ def main():
     
     # Print column names for debugging
     for symbol, df in historical_data.items():
-        logger.info(f"Columns for {symbol}: {df.columns.tolist()}")
         logger.info(f"Data shape for {symbol}: {df.shape}")
-        logger.info(f"First 5 rows for {symbol}:\n{df.head()}")
     
     # Modify strategy parameters for more signals - use much more relaxed RSI thresholds
     strategy = MACDStrategy(
@@ -210,34 +208,15 @@ def main():
         if 'macd' in df.columns and 'rsi' in df.columns:
             rsi_min = df['rsi'].min()
             rsi_max = df['rsi'].max()
-            macd_min = df['macd'].min()
-            macd_max = df['macd'].max()
-            
-            logger.info(f"Indicator ranges for {symbol}:")
-            logger.info(f"  RSI range: {rsi_min:.2f} to {rsi_max:.2f}")
-            logger.info(f"  MACD range: {macd_min:.4f} to {macd_max:.4f}")
             
             # Count potential signals with current settings
             rsi_buy_count = len(df[df['rsi'] < strategy.rsi_oversold])
             rsi_sell_count = len(df[df['rsi'] > strategy.rsi_overbought])
             
-            logger.info(f"  Potential RSI buy signals (RSI < {strategy.rsi_oversold}): {rsi_buy_count}")
-            logger.info(f"  Potential RSI sell signals (RSI > {strategy.rsi_overbought}): {rsi_sell_count}")
-            
-            # Generate signals and check reasons for no trades
-            for i in range(len(df) - 30, len(df)):  # Check the last 30 data points
-                if i < 1:
-                    continue
-                    
-                # Get current data slice
-                current_data = {symbol: df.iloc[:i+1]}
-                
-                # Generate signal
-                signals = strategy.generate_signals(current_data)
-                
-                if symbol in signals:
-                    signal = signals[symbol]
-                    logger.info(f"Time: {df.index[i]}, Action: {signal['action']}, Reason: {signal.get('reason', 'N/A')}")
+            logger.info(f"Potential signals for {symbol}:")
+            logger.info(f"  RSI range: {rsi_min:.2f} to {rsi_max:.2f}")
+            logger.info(f"  Buy signals: {rsi_buy_count}")
+            logger.info(f"  Sell signals: {rsi_sell_count}")
     
     # Initialize backtest
     backtest = Backtest(
@@ -263,16 +242,119 @@ def main():
         logger.info(f"Average Loss: {results['avg_loss']:.2f} USDT")
         logger.info(f"Profit Factor: {results['profit_factor']:.2f}")
         
-        # Print trade history
-        logger.info("\nTrade History:")
-        for trade in results['trades']:
-            logger.info(f"Time: {trade['timestamp']}, "
-                       f"Symbol: {trade['symbol']}, "
-                       f"Action: {trade['action']}, "
-                       f"Size: {trade['size']:.4f}, "
-                       f"Price: {trade['price']:.2f}, "
-                       f"PnL: {trade['pnl']:.2f} USDT")
+        # Export trade history to CSV
+        trades_df = pd.DataFrame(results['trades'])
+        if not trades_df.empty and 'timestamp' in trades_df.columns:
+            trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'])
+            trades_df = trades_df.sort_values('timestamp')
             
+            # Calculate cumulative PnL
+            trades_df['cumulative_pnl'] = trades_df['pnl'].cumsum()
+            
+            # Create a DataFrame for completed trades
+            completed_trades = []
+            
+            for symbol in trades_df['symbol'].unique():
+                symbol_trades = trades_df[trades_df['symbol'] == symbol].copy()
+                
+                i = 0
+                while i < len(symbol_trades):
+                    current_trade = symbol_trades.iloc[i]
+                    
+                    if current_trade['action'] in ['BUY', 'SELL']:
+                        # Look for the closing trade
+                        next_trades = symbol_trades.iloc[i+1:]
+                        close_trade = None
+                        
+                        if len(next_trades) > 0:
+                            if current_trade['action'] == 'BUY':
+                                close_idx = next_trades[next_trades['action'].isin(['CLOSE', 'SELL'])].index.min()
+                            else:  # SELL
+                                close_idx = next_trades[next_trades['action'].isin(['CLOSE', 'BUY'])].index.min()
+                            
+                            if pd.notna(close_idx):
+                                close_trade = trades_df.loc[close_idx]
+                                
+                                # Calculate trade metrics
+                                entry_price = current_trade['price']
+                                exit_price = close_trade['price']
+                                position_size = abs(current_trade['size'])
+                                
+                                if current_trade['action'] == 'BUY':
+                                    pnl = (exit_price - entry_price) * position_size
+                                    trade_type = 'Long'
+                                else:  # SELL
+                                    pnl = (entry_price - exit_price) * position_size
+                                    trade_type = 'Short'
+                                
+                                # Account for commission
+                                commission = (entry_price + exit_price) * position_size * 0.0004
+                                net_pnl = pnl - commission
+                                
+                                completed_trades.append({
+                                    'symbol': symbol,
+                                    'type': trade_type,
+                                    'entry_time': current_trade['timestamp'],
+                                    'exit_time': close_trade['timestamp'],
+                                    'entry_price': entry_price,
+                                    'exit_price': exit_price,
+                                    'size': position_size,
+                                    'pnl': net_pnl,
+                                    'commission': commission,
+                                    'duration': (close_trade['timestamp'] - current_trade['timestamp']).total_seconds() / 3600
+                                })
+                                
+                                # Skip the closing trade in the next iteration
+                                i = trades_df.index.get_loc(close_idx) + 1
+                                continue
+                    
+                    i += 1
+            
+            # Convert completed trades to DataFrame
+            if completed_trades:
+                completed_df = pd.DataFrame(completed_trades)
+                
+                # Export to CSV
+                csv_file = 'backtest_completed_trades.csv'
+                completed_df.to_csv(csv_file, index=False)
+                logger.info(f"\nCompleted trade history exported to {csv_file}")
+                
+                # Print trade summary
+                logger.info("\nTrade Summary:")
+                duration_stats = completed_df['duration'].agg(['mean', 'min', 'max'])
+                logger.info(f"Trade Durations (hours):")
+                logger.info(f"  Average: {duration_stats['mean']:.1f}")
+                logger.info(f"  Shortest: {duration_stats['min']:.1f}")
+                logger.info(f"  Longest: {duration_stats['max']:.1f}")
+                
+                # Overall statistics
+                total_trades = len(completed_df)
+                winning_trades = completed_df[completed_df['pnl'] > 0]
+                losing_trades = completed_df[completed_df['pnl'] <= 0]
+                
+                logger.info(f"\nOverall Performance:")
+                logger.info(f"  Total Completed Trades: {total_trades}")
+                logger.info(f"  Win Rate: {(len(winning_trades) / total_trades * 100):.1f}%")
+                logger.info(f"  Average Win: {winning_trades['pnl'].mean():.2f} USDT" if len(winning_trades) > 0 else "  No winning trades")
+                logger.info(f"  Average Loss: {losing_trades['pnl'].mean():.2f} USDT" if len(losing_trades) > 0 else "  No losing trades")
+                logger.info(f"  Largest Win: {winning_trades['pnl'].max():.2f} USDT" if len(winning_trades) > 0 else "  No winning trades")
+                logger.info(f"  Largest Loss: {losing_trades['pnl'].min():.2f} USDT" if len(losing_trades) > 0 else "  No losing trades")
+                logger.info(f"  Average Trade PnL: {completed_df['pnl'].mean():.2f} USDT")
+                logger.info(f"  Total Commission Paid: {completed_df['commission'].sum():.2f} USDT")
+                
+                # Calculate statistics by trade type
+                for trade_type in ['Long', 'Short']:
+                    type_trades = completed_df[completed_df['type'] == trade_type]
+                    if len(type_trades) > 0:
+                        type_winners = type_trades[type_trades['pnl'] > 0]
+                        win_rate = (len(type_winners) / len(type_trades)) * 100
+                        
+                        logger.info(f"\n{trade_type} Trades:")
+                        logger.info(f"  Count: {len(type_trades)}")
+                        logger.info(f"  Win Rate: {win_rate:.1f}%")
+                        logger.info(f"  Average PnL: {type_trades['pnl'].mean():.2f} USDT")
+                        logger.info(f"  Total PnL: {type_trades['pnl'].sum():.2f} USDT")
+        
         # Plot backtest results for each symbol
         for symbol, df in historical_data.items():
             plot_backtest_results(symbol, df, results, strategy)
