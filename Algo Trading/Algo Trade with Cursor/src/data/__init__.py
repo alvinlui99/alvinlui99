@@ -1,3 +1,3 @@
 """
-Market data module
+Market data collection package.
 """ 

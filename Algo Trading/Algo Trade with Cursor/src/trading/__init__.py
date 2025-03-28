@@ -1,3 +1,3 @@
 """
-Trading bot module
+Trading bot implementation package.
 """ 

@@ -1,3 +1,3 @@
 """
-Trading bot package
-""" 
+Crypto Trading Bot package.
+"""
