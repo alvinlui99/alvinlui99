@@ -1,118 +1,206 @@
-# Crypto Trading Bot
+# Algorithmic Trading System
+
+A comprehensive algorithmic trading system that integrates technical analysis, portfolio optimization, and risk management for cryptocurrency trading on Binance Futures.
+
+## Current Infrastructure
+
+### 1. Backtesting Engine
+- Full event-driven backtesting system
+- Multi-asset support
+- Commission handling
+- Position tracking
+- Performance metrics
+- Trade history
+- Visualization tools
+
+### 2. Portfolio Management
+- Position tracking and sizing
+- Capital allocation
+- Portfolio optimization (mean-variance, risk parity, etc.)
+- Risk management
+- Performance tracking
+
+### 3. Strategy Framework
+- Base strategy class for easy implementation
+- Signal generation interface
+- Position sizing interface
+- Technical indicator support
+- Multi-timeframe analysis
+
+### 4. Exchange Integration
+- Binance Futures API integration
+- Real-time data handling
+- Order execution
+- Account management
+- Position tracking
+
+### 5. Data Management
+- Historical data fetching
+- Data caching
+- Real-time updates
+- Multiple timeframe support
+
+## Next Steps
+
+### 1. Strategy Development
+- Implement and test various trading strategies
+- Optimize strategy parameters
+- Combine multiple signals
+- Add machine learning models
+- Implement portfolio-level strategies
+
+### 2. Risk Management Enhancement
+- Dynamic position sizing
+- Correlation-based exposure limits
+- Volatility-based adjustments
+- Drawdown protection
+- Portfolio-level stop-loss
+
+### 3. Performance Optimization
+- Strategy parameter optimization
+- Portfolio weight optimization
+- Transaction cost analysis
+- Slippage modeling
+- Market impact analysis
+
+### 4. Monitoring & Alerts
+- Real-time performance tracking
+- Risk metrics monitoring
+- Alert system for various conditions
+- Automated reporting
+- System health checks
 
 ## Project Structure
+
 ```
+algo_trading/
 ├── src/
-│   ├── data/           # Market data collection
-│   │   ├── market_data.py    # Binance Futures data fetching
-│   │   └── data_cache.py     # Data caching mechanism
-│   ├── trading/        # Trading bot implementation
-│   │   └── trading_bot.py    # Core trading logic
-│   └── strategy/       # Trading strategies
-│       ├── base_strategy.py  # Base strategy class
-│       ├── indicators.py     # Technical indicators
-│       ├── macd_strategy.py  # MACD-based strategy
-│       └── backtest.py       # Backtesting framework
-├── tests/              # Test scripts
-│   ├── test_gpu.py     # GPU availability check
-│   ├── test_orders.py  # Order placement testing
-│   ├── test_backtest.py # Basic strategy backtesting
-│   └── backtest_visualization.py # Strategy backtesting with visualization
-├── docs/              # Documentation
-├── data/              # Cached market data
-└── config/            # Configuration files
+│   ├── strategy/
+│   │   ├── backtest.py          # Backtesting engine
+│   │   ├── base_strategy.py     # Strategy interface
+│   │   └── macd_strategy.py     # Example strategy
+│   ├── portfolio/
+│   │   ├── portfolio_manager.py # Position and capital management
+│   │   └── portfolio_optimizer.py # Portfolio optimization
+│   ├── trading/
+│   │   └── trading_bot.py      # Exchange integration
+│   └── data/
+│       └── market_data.py      # Data management
+├── tests/
+│   ├── test_backtest.py
+│   ├── test_portfolio_manager.py
+│   ├── test_portfolio_optimizer.py
+│   └── backtest_visualization.py
+├── docs/
+│   └── README.md
+├── config/
+│   └── config.yaml
+├── data/
+│   └── historical_data/
+├── plots/
+│   └── backtest_results/
+├── setup.py
+├── requirements.txt
+├── environment.yml
+├── .env
+└── .gitignore
 ```
 
-## Current Status
-- [x] Basic project structure
-- [x] Market data collection from Binance Futures
-- [x] Market data caching for faster backtesting
-- [x] Testnet integration
-- [x] Basic order placement with leverage
-- [x] Position tracking
-- [x] Balance monitoring
-- [x] Technical indicators implementation
-- [x] Base strategy framework
-- [x] MACD strategy implementation
-- [x] Backtesting framework
-- [x] Backtest visualization
-- [ ] Portfolio optimization
-- [ ] Machine learning integration
-- [ ] Risk management
-- [ ] Performance monitoring
+## Installation
 
-## Development Roadmap
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/algo_trading.git
+cd algo_trading
+```
 
-### Phase 1: Core Trading Infrastructure (Current)
-- [x] Market data collection
-- [x] Basic order placement
-- [x] Position management
-- [x] Balance tracking
-- [x] Leverage management
-- [ ] Order history
-- [ ] Position sizing
-- [ ] Risk limits
+2. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-### Phase 2: Strategy Development (Current)
-- [x] Technical indicators
-- [x] Base strategy framework
-- [x] MACD strategy
-- [x] Backtesting framework
-- [x] Backtest visualization
-- [ ] Strategy optimization
-- [ ] Multiple timeframe analysis
-- [ ] Market regime detection
-- [ ] Strategy performance metrics
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-### Phase 3: Portfolio Management
-- [ ] Correlation analysis between assets
-- [ ] Position sizing optimization
-- [ ] Portfolio rebalancing
-- [ ] Risk allocation
-- [ ] Drawdown protection
+4. Set up your Binance API keys in `.env`:
+```
+BINANCE_API_KEY=your_api_key
+BINANCE_API_SECRET=your_api_secret
+```
 
-### Phase 4: Machine Learning Integration
-- [ ] Feature engineering
-- [ ] Price prediction models
-- [ ] Market regime detection
-- [ ] Sentiment analysis
-- [ ] Model performance tracking
+## Usage
 
-### Phase 5: Risk Management
-- [ ] Stop-loss automation
-- [ ] Take-profit strategies
-- [ ] Position sizing rules
-- [ ] Leverage management
-- [ ] Risk metrics calculation
+### Running a Backtest
 
-### Phase 6: Performance Optimization
-- [ ] Performance metrics
-- [ ] Strategy optimization
-- [ ] Real-time monitoring
-- [ ] Alert system
-
-## Using the Data Cache
-
-The bot includes a data caching mechanism to avoid repeated API calls when running backtests. This is especially useful during strategy development when you need to run multiple backtests on the same data.
-
-Key features:
-- Automatically caches market data to the `data/` directory
-- Reuses cached data when available instead of making API calls
-- Cache files are named with symbol, timeframe, and date range for easy identification
-- Includes metadata about when the data was cached
-
-To use the cache:
 ```python
-# Create market data object with cache enabled
-market_data = MarketData(
-    client=client,
-    symbols=['BTCUSDT'],
-    start_date='2023-01-01',
-    end_date='2023-03-01',
+from src.strategy.macd_strategy import MACDStrategy
+from src.strategy.backtest import Backtest
+from src.data.market_data import MarketData
+
+# Initialize strategy
+strategy = MACDStrategy(
+    trading_pairs=['BTCUSDT'],
     timeframe='1h',
-    use_cache=True  # Enable caching
+    rsi_period=14,
+    risk_per_trade=0.02
 )
 
-# This will use cache if available, otherwise fetch from API
-historical_data = market_data.fetch_historical_data()
-``` 
+# Initialize backtest
+backtest = Backtest(
+    strategy=strategy,
+    initial_capital=10000,
+    commission=0.0004
+)
+
+# Run backtest
+results = backtest.run(historical_data)
+
+# Print results
+print(f"Total Return: {results['total_return']:.2f}%")
+print(f"Sharpe Ratio: {results['sharpe_ratio']:.2f}")
+print(f"Max Drawdown: {results['max_drawdown']:.2f}%")
+print(f"Win Rate: {results['win_rate']:.2f}%")
+```
+
+### Portfolio Optimization
+
+```python
+from src.portfolio.portfolio_optimizer import PortfolioOptimizer
+
+# Initialize optimizer
+optimizer = PortfolioOptimizer(
+    symbols=['BTCUSDT', 'ETHUSDT', 'BNBUSDT'],
+    returns=historical_returns,
+    risk_free_rate=0.02
+)
+
+# Get optimal weights
+weights = optimizer.get_optimal_weights(strategy='maximum_sharpe')
+```
+
+## Testing
+
+Run the test suite:
+```bash
+python -m pytest tests/
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Thanks to the open-source community for various technical indicators and optimization algorithms
+- Special thanks to contributors and maintainers of key dependencies 

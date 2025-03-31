@@ -174,7 +174,6 @@ class Backtest:
             # Calculate position size
             position_size = self.strategy.calculate_position_size(symbol, signal, current_capital)
             if position_size == 0:
-                logger.info(f"Skipping trade: Position size is 0")
                 continue
                 
             current_position = self.positions.get(symbol, {}).get('size', 0)
@@ -189,20 +188,18 @@ class Backtest:
                 
                 # Open long position
                 cost = position_size * current_price * (1 + self.commission)
-                logger.info(f"Attempting BUY: Size: {position_size:.3f} BTC, Price: {current_price:.2f}, Cost: {cost:.2f} USDT, Capital: {current_capital:.2f} USDT")
                 if cost <= current_capital:
+                    # Adjust position size to account for commission
+                    adjusted_size = position_size / (1 + self.commission)
                     self.positions[symbol] = {
-                        'size': position_size,
+                        'size': adjusted_size,
                         'side': 'BUY',
                         'entry_price': current_price,
                         'stop_loss': signal['stop_loss'],
                         'take_profit': signal['take_profit']
                     }
                     current_capital -= cost
-                    self._record_trade(symbol, 'BUY', position_size, current_price, -cost, timestamp)
-                    # logger.info(f"BUY executed: New capital: {current_capital:.2f} USDT")
-                # else:
-                    # logger.info(f"BUY rejected: Insufficient capital (Need: {cost:.2f} USDT, Have: {current_capital:.2f} USDT)")
+                    self._record_trade(symbol, 'BUY', adjusted_size, current_price, -cost, timestamp)
                     
             elif signal['action'] == 'SELL':
                 # Close any existing long position first
@@ -213,20 +210,18 @@ class Backtest:
                 
                 # Open short position
                 cost = position_size * current_price * (1 + self.commission)
-                logger.info(f"Attempting SELL: Size: {position_size:.3f} BTC, Price: {current_price:.2f}, Cost: {cost:.2f} USDT, Capital: {current_capital:.2f} USDT")
                 if cost <= current_capital:
+                    # Adjust position size to account for commission
+                    adjusted_size = position_size / (1 + self.commission)
                     self.positions[symbol] = {
-                        'size': -position_size,
+                        'size': -adjusted_size,
                         'side': 'SELL',
                         'entry_price': current_price,
                         'stop_loss': signal['stop_loss'],
                         'take_profit': signal['take_profit']
                     }
                     current_capital -= cost
-                    self._record_trade(symbol, 'SELL', -position_size, current_price, -cost, timestamp)
-                    logger.info(f"SELL executed: New capital: {current_capital:.2f} USDT")
-                else:
-                    logger.info(f"SELL rejected: Insufficient capital (Need: {cost:.2f} USDT, Have: {current_capital:.2f} USDT)")
+                    self._record_trade(symbol, 'SELL', -adjusted_size, current_price, -cost, timestamp)
     
     def _record_trade(self, symbol: str, action: str, size: float, price: float, pnl: float, timestamp: datetime) -> None:
         """
@@ -240,14 +235,26 @@ class Backtest:
             pnl (float): Profit/loss
             timestamp (datetime): Trade timestamp
         """
-        self.trades.append({
-            'timestamp': timestamp,
-            'symbol': symbol,
-            'action': action,
-            'size': size,
-            'price': price,
-            'pnl': pnl
-        })
+        # For entry trades, store raw position size without commission
+        if action in ['BUY', 'SELL']:
+            raw_size = size / (1 + self.commission)
+            self.trades.append({
+                'timestamp': timestamp,
+                'symbol': symbol,
+                'action': action,
+                'size': raw_size,
+                'price': price,
+                'pnl': pnl
+            })
+        else:
+            self.trades.append({
+                'timestamp': timestamp,
+                'symbol': symbol,
+                'action': action,
+                'size': size,
+                'price': price,
+                'pnl': pnl
+            })
     
     def _calculate_performance_metrics(self) -> Dict:
         """
