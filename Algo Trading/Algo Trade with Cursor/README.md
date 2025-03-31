@@ -1,6 +1,6 @@
 # Algorithmic Trading System
 
-A robust algorithmic trading system that combines technical analysis, portfolio optimization, and risk management for cryptocurrency futures trading on Binance.
+A robust algorithmic trading system that combines technical analysis, statistical arbitrage, and machine learning for cryptocurrency futures trading on Binance.
 
 ## Features
 
@@ -8,9 +8,11 @@ A robust algorithmic trading system that combines technical analysis, portfolio 
   - Historical data fetching from Binance Futures
   - Efficient data preprocessing and storage
   - Support for multiple trading pairs and timeframes
+  - Real-time data streaming capabilities
 
-- **Trading Strategy**
+- **Trading Strategies**
   - MACD-based strategy with RSI confirmation
+  - Statistical arbitrage with Z-score monitoring
   - Dynamic position sizing based on risk management
   - Configurable risk parameters and indicators
 
@@ -38,10 +40,15 @@ A robust algorithmic trading system that combines technical analysis, portfolio 
 │   ├── strategy/
 │   │   ├── base_strategy.py    # Base strategy class
 │   │   ├── macd_strategy.py    # MACD strategy implementation
+│   │   ├── statistical_arbitrage.py  # Statistical arbitrage strategy
+│   │   ├── zscore_monitor.py   # Z-score monitoring system
+│   │   ├── position_sizer.py   # Position sizing logic
 │   │   └── backtest.py         # Backtesting framework
 │   └── portfolio/
 │       ├── portfolio_manager.py # Position and risk management
 │       └── portfolio_optimizer.py # Portfolio optimization
+├── docs/
+│   └── statistical_arbitrage_strategy.md  # Strategy documentation
 ├── tests/
 │   ├── test_data.py           # Market data tests
 │   ├── test_strategy.py       # Strategy tests
@@ -127,6 +134,34 @@ optimizer = PortfolioOptimizer(
 
 # Get optimal weights
 weights, return_, risk = optimizer.minimum_variance_optimization()
+```
+
+### Statistical Arbitrage
+
+```python
+from src.strategy.statistical_arbitrage import StatisticalArbitrageStrategy
+from src.strategy.zscore_monitor import ZScoreMonitor
+from src.strategy.position_sizer import PositionSizer
+
+# Initialize components
+strategy = StatisticalArbitrageStrategy(
+    pairs=[('LINKUSDT', 'NEARUSDT'), ('WIFUSDT', 'TRUMPUSDT')],
+    timeframe='15m',
+    lookback_periods=100
+)
+monitor = ZScoreMonitor(
+    client=binance_client,
+    pairs=strategy.pairs,
+    lookback_periods=100
+)
+sizer = PositionSizer(
+    initial_capital=10000,
+    max_position_size=0.2,
+    min_confidence=0.4
+)
+
+# Run backtest
+results = backtest.run(market_data)
 ```
 
 ## Risk Management
