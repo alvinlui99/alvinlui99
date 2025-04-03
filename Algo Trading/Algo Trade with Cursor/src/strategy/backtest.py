@@ -161,7 +161,11 @@ class Backtest:
         current_capital = self.equity_curve[-1]
         
         for symbol, signal in signals.items():
+            logger.info(f"\nProcessing signal for {symbol} at {timestamp}")
+            logger.info(f"Signal action: {signal['action']}")
+            
             if symbol not in data or not self.strategy.validate_signal(signal):
+                logger.info(f"Skipping {symbol}: Invalid signal or missing data")
                 continue
                 
             # Get the price using the correct column name
@@ -174,9 +178,11 @@ class Backtest:
             # Calculate position size
             position_size = self.strategy.calculate_position_size(symbol, signal, current_capital)
             if position_size == 0:
+                logger.info(f"Skipping {symbol}: Position size is 0")
                 continue
                 
             current_position = self.positions.get(symbol, {}).get('size', 0)
+            logger.info(f"Current position for {symbol}: {current_position}")
             
             # Handle position changes
             if signal['action'] == 'BUY':
@@ -185,6 +191,7 @@ class Backtest:
                     pnl = (self.positions[symbol]['entry_price'] - current_price) * abs(current_position)
                     current_capital += pnl - (abs(current_position) * current_price * self.commission)
                     self._record_trade(symbol, 'CLOSE', current_position, current_price, pnl, timestamp)
+                    logger.info(f"Closed short position for {symbol}: PnL = {pnl:.2f}")
                 
                 # Open long position
                 cost = position_size * current_price * (1 + self.commission)
@@ -200,6 +207,9 @@ class Backtest:
                     }
                     current_capital -= cost
                     self._record_trade(symbol, 'BUY', adjusted_size, current_price, -cost, timestamp)
+                    logger.info(f"Opened long position for {symbol}: Size = {adjusted_size:.3f}, Cost = {cost:.2f}")
+                else:
+                    logger.info(f"Skipping {symbol}: Insufficient capital for trade")
                     
             elif signal['action'] == 'SELL':
                 # Close any existing long position first
@@ -207,6 +217,7 @@ class Backtest:
                     pnl = (current_price - self.positions[symbol]['entry_price']) * current_position
                     current_capital += pnl - (current_position * current_price * self.commission)
                     self._record_trade(symbol, 'CLOSE', current_position, current_price, pnl, timestamp)
+                    logger.info(f"Closed long position for {symbol}: PnL = {pnl:.2f}")
                 
                 # Open short position
                 cost = position_size * current_price * (1 + self.commission)
@@ -222,6 +233,9 @@ class Backtest:
                     }
                     current_capital -= cost
                     self._record_trade(symbol, 'SELL', -adjusted_size, current_price, -cost, timestamp)
+                    logger.info(f"Opened short position for {symbol}: Size = {adjusted_size:.3f}, Cost = {cost:.2f}")
+                else:
+                    logger.info(f"Skipping {symbol}: Insufficient capital for trade")
     
     def _record_trade(self, symbol: str, action: str, size: float, price: float, pnl: float, timestamp: datetime) -> None:
         """
@@ -273,7 +287,8 @@ class Backtest:
                 'max_drawdown': 0.0,
                 'win_rate': 0.0,
                 'num_trades': 0,
-                'trades': []
+                'trades': [],
+                'equity_curve': []
             }
         
         # Calculate basic metrics
@@ -307,5 +322,6 @@ class Backtest:
             'max_drawdown': max_drawdown,
             'win_rate': win_rate,
             'num_trades': len(self.trades),
-            'trades': self.trades
+            'trades': self.trades,
+            'equity_curve': self.equity_curve
         } 

@@ -48,7 +48,7 @@ def plot_backtest_results(symbol, data, results, strategy):
         data['Close'] = data['closePrice']
     
     # Convert equity curve to DataFrame
-    equity_df = pd.DataFrame(results['equity_curve'], columns=['equity'])
+    equity_df = pd.DataFrame(results['equity_curve'], columns=['equity'], index=data.index[:len(results['equity_curve'])])
     
     # Convert trades to DataFrame
     trades_df = pd.DataFrame(results['trades'])
@@ -179,6 +179,13 @@ def main():
     # Fetch historical data - this will use cache if available
     historical_data = market_data.fetch_historical_data()
     
+    # Debug logging
+    for symbol, df in historical_data.items():
+        logger.info(f"\nData structure for {symbol}:")
+        logger.info(f"Columns: {df.columns.tolist()}")
+        logger.info(f"Index type: {type(df.index)}")
+        logger.info(f"First few rows:\n{df.head()}")
+    
     # Modify strategy parameters for more signals - use much more relaxed RSI thresholds
     strategy = MACDStrategy(
         trading_pairs=trading_pairs,
@@ -205,17 +212,56 @@ def main():
     
     # Print results
     logger.info("\nBacktest Results:")
-    logger.info(f"Total Return: {results['total_return']:.2f}%")
-    logger.info(f"Annual Return: {results['annual_return']:.2f}%")
+    logger.info(f"Total Return: {results['return']*100:.2f}%")
+    logger.info(f"Final Capital: {results['final_capital']:.2f} USDT")
+    logger.info(f"Number of Trades: {results['num_trades']}")
+    logger.info(f"Win Rate: {results['win_rate']*100:.2f}%")
+    logger.info(f"Max Drawdown: {results['max_drawdown']*100:.2f}%")
     logger.info(f"Sharpe Ratio: {results['sharpe_ratio']:.2f}")
-    logger.info(f"Max Drawdown: {results['max_drawdown']:.2f}%")
-    logger.info(f"Win Rate: {results['win_rate']:.2f}%")
-    logger.info(f"Total Trades: {results['total_trades']}")
     
-    if results['total_trades'] > 0:
-        logger.info(f"Average Win: {results['avg_win']:.2f} USDT")
-        logger.info(f"Average Loss: {results['avg_loss']:.2f} USDT")
-        logger.info(f"Profit Factor: {results['profit_factor']:.2f}")
+    # Export results to CSV
+    results_dir = os.path.join(project_root, 'results')
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Export summary metrics
+    summary_metrics = {
+        'initial_capital': results['initial_capital'],
+        'final_capital': results['final_capital'],
+        'total_pnl': results['total_pnl'],
+        'return': results['return'],
+        'sharpe_ratio': results['sharpe_ratio'],
+        'max_drawdown': results['max_drawdown'],
+        'win_rate': results['win_rate'],
+        'num_trades': results['num_trades']
+    }
+    pd.DataFrame([summary_metrics]).to_csv(os.path.join(results_dir, 'backtest_summary.csv'), index=False)
+    
+    # Export trades
+    if results['trades']:
+        trades_df = pd.DataFrame(results['trades'])
+        trades_df.to_csv(os.path.join(results_dir, 'backtest_trades.csv'), index=False)
+        
+        # Calculate additional trade metrics
+        winning_trades = [t for t in results['trades'] if t['pnl'] > 0]
+        losing_trades = [t for t in results['trades'] if t['pnl'] < 0]
+        
+        avg_win = sum(t['pnl'] for t in winning_trades) / len(winning_trades) if winning_trades else 0
+        avg_loss = sum(t['pnl'] for t in losing_trades) / len(losing_trades) if losing_trades else 0
+        profit_factor = abs(sum(t['pnl'] for t in winning_trades) / sum(t['pnl'] for t in losing_trades)) if losing_trades else float('inf')
+        
+        logger.info(f"Average Win: {avg_win:.2f} USDT")
+        logger.info(f"Average Loss: {avg_loss:.2f} USDT")
+        logger.info(f"Profit Factor: {profit_factor:.2f}")
+        
+        # Export trade metrics
+        trade_metrics = {
+            'avg_win': avg_win,
+            'avg_loss': avg_loss,
+            'profit_factor': profit_factor,
+            'num_winning_trades': len(winning_trades),
+            'num_losing_trades': len(losing_trades)
+        }
+        pd.DataFrame([trade_metrics]).to_csv(os.path.join(results_dir, 'backtest_trade_metrics.csv'), index=False)
         
         # Plot backtest results for each symbol
         for symbol, df in historical_data.items():

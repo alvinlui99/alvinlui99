@@ -88,26 +88,35 @@ class MarketData:
                 
                 # Convert to DataFrame
                 data = pd.DataFrame(klines, columns=[
-                    'Open time', 'Open', 'High', 'Low', 'Close', 'Volume',
-                    'Close time', 'Quote asset volume', 'Number of trades',
-                    'Taker buy base asset volume', 'Taker buy quote asset volume', 'Ignore'
+                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                    'close_time', 'quote_volume', 'trades',
+                    'taker_buy_base', 'taker_buy_quote', 'ignore'
                 ])
                 
                 # Convert timestamp to datetime
-                data['Open time'] = pd.to_datetime(data['Open time'], unit='ms')
-                data['Close time'] = pd.to_datetime(data['Close time'], unit='ms')
+                data['timestamp'] = pd.to_datetime(data['timestamp'], unit='ms')
+                data['close_time'] = pd.to_datetime(data['close_time'], unit='ms')
                 
                 # Convert string values to float
-                for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                for col in ['open', 'high', 'low', 'close', 'volume']:
                     data[col] = data[col].astype(float)
                 
-                # Set index to Open time
-                data.set_index('Open time', inplace=True)
+                # Set index
+                data.set_index('timestamp', inplace=True)
+                
+                # Rename columns to match strategy expectations
+                data.rename(columns={
+                    'open': 'Open',
+                    'high': 'High',
+                    'low': 'Low',
+                    'close': 'Close',
+                    'volume': 'Volume'
+                }, inplace=True)
                 
                 # Save to cache if enabled
                 if self.use_cache:
                     self.cache.save_to_cache(symbol, self.timeframe, self.start_date, self.end_date, data)
-                    
+                
                 historical_data[symbol] = data
                 
             except Exception as e:

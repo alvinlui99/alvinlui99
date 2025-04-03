@@ -4,3 +4,5 @@ globs:
 alwaysApply: true
 ---
 Make sure the logic is reasonably sound and reliable
+Do not adjust the parameters for now. Only fix code to make backtesting work
+Try not to reinvent the wheel. Use existing code and infrastructure whenever possible.

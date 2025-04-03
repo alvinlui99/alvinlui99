@@ -13,8 +13,8 @@ class MACDStrategy(BaseStrategy):
                  trading_pairs: list,
                  timeframe: str = '1h',
                  rsi_period: int = 14,
-                 rsi_overbought: float = 70,
-                 rsi_oversold: float = 30,
+                 rsi_overbought: float = 75,
+                 rsi_oversold: float = 25,
                  risk_per_trade: float = 0.02):
         """
         Initialize MACD Strategy.
@@ -78,6 +78,7 @@ class MACDStrategy(BaseStrategy):
         
         for symbol in self.trading_pairs:
             if symbol not in data:
+                logger.info(f"Symbol {symbol} not found in data")
                 continue
                 
             # Get the DataFrame for this symbol
@@ -85,6 +86,7 @@ class MACDStrategy(BaseStrategy):
             
             # Calculate indicators if not already done
             if 'macd' not in symbol_data.columns:
+                logger.info(f"Calculating indicators for {symbol}")
                 symbol_data = self.calculate_indicators(symbol_data)
             
             # Get latest values
@@ -92,6 +94,7 @@ class MACDStrategy(BaseStrategy):
             
             # Make sure we have at least 2 rows
             if len(symbol_data) < 2:
+                logger.info(f"Not enough data for {symbol}: {len(symbol_data)} rows")
                 signals[symbol] = {
                     'action': 'HOLD',
                     'strength': 0,
@@ -119,21 +122,41 @@ class MACDStrategy(BaseStrategy):
             macd_rising = latest['macd'] > prev['macd']
             macd_crossover = (prev['macd'] < prev['signal'] and latest['macd'] > latest['signal'])
             
+            # Log detailed signal conditions
+            logger.info(f"\nSignal Analysis for {symbol} at {latest.name}:")
+            logger.info(f"Price: {latest['Close']:.2f}")
+            logger.info(f"MACD: {latest['macd']:.4f}")
+            logger.info(f"Signal: {latest['signal']:.4f}")
+            logger.info(f"RSI: {latest['rsi']:.2f}")
+            logger.info(f"MACD above signal: {macd_above_signal}")
+            logger.info(f"MACD rising: {macd_rising}")
+            logger.info(f"MACD crossover: {macd_crossover}")
+            logger.info(f"RSI oversold: {latest['rsi'] < self.rsi_oversold}")
+            logger.info(f"RSI overbought: {latest['rsi'] > self.rsi_overbought}")
+            
             # Generate signals based on MACD and RSI
-            if macd_crossover and latest['rsi'] < self.rsi_oversold:
+            if macd_crossover:  # Buy on MACD crossover
                 signal['action'] = 'BUY'
                 signal['strength'] = 1
                 # Set stop loss and take profit
                 signal['stop_loss'] = latest['Close'] * 0.98  # 2% stop loss
                 signal['take_profit'] = latest['Close'] * 1.03  # 3% take profit
-                signal['reason'] = 'MACD crossover and oversold RSI'
-            elif not macd_above_signal and latest['rsi'] > self.rsi_overbought:
+                signal['reason'] = 'MACD crossover'
+                logger.info(f"BUY signal generated for {symbol}")
+                logger.info(f"Stop Loss: {signal['stop_loss']:.2f}")
+                logger.info(f"Take Profit: {signal['take_profit']:.2f}")
+            elif not macd_above_signal and latest['rsi'] > self.rsi_overbought:  # Sell on MACD below signal and overbought
                 signal['action'] = 'SELL'
                 signal['strength'] = 1
                 # Set stop loss and take profit
                 signal['stop_loss'] = latest['Close'] * 1.02  # 2% stop loss
                 signal['take_profit'] = latest['Close'] * 0.97  # 3% take profit
                 signal['reason'] = 'MACD below signal and overbought RSI'
+                logger.info(f"SELL signal generated for {symbol}")
+                logger.info(f"Stop Loss: {signal['stop_loss']:.2f}")
+                logger.info(f"Take Profit: {signal['take_profit']:.2f}")
+            else:
+                logger.info(f"No signal generated for {symbol}")
             
             signals[symbol] = signal
             
@@ -187,7 +210,13 @@ class MACDStrategy(BaseStrategy):
         
         # Ensure minimum position size (0.001 BTC for Binance)
         if position_size < 0.001:
+            logger.info(f"Position size {position_size} below minimum 0.001 for {symbol}")
             return 0
+            
+        logger.info(f"Calculated position size for {symbol}: {position_size}")
+        logger.info(f"Position value: {position_value:.2f} USDT")
+        logger.info(f"Risk amount: {risk_amount:.2f} USDT")
+        logger.info(f"Stop loss distance: {stop_loss_distance:.2f} USDT")
             
         return position_size
     
@@ -206,6 +235,7 @@ class MACDStrategy(BaseStrategy):
             
         # Check if stop loss and take profit are set
         if not signal['stop_loss'] or not signal['take_profit']:
+            logger.info("Signal validation failed: Missing stop loss or take profit")
             return False
             
         # Calculate distances
@@ -213,4 +243,17 @@ class MACDStrategy(BaseStrategy):
         take_profit_distance = abs(signal['price'] - signal['take_profit'])
         ratio = take_profit_distance / stop_loss_distance if stop_loss_distance != 0 else 0
         
-        return take_profit_distance >= (1.5 * stop_loss_distance) 
+        # Log validation details
+        logger.info(f"\nSignal validation for {signal['action']}:")
+        logger.info(f"Price: {signal['price']:.2f}")
+        logger.info(f"Stop Loss: {signal['stop_loss']:.2f}")
+        logger.info(f"Take Profit: {signal['take_profit']:.2f}")
+        logger.info(f"Stop Loss Distance: {stop_loss_distance:.2f}")
+        logger.info(f"Take Profit Distance: {take_profit_distance:.2f}")
+        logger.info(f"Risk:Reward Ratio: {ratio:.2f}")
+        
+        # Require at least 1.2:1 risk:reward ratio (less strict than 1.5:1)
+        is_valid = take_profit_distance >= (1.2 * stop_loss_distance)
+        logger.info(f"Signal valid: {is_valid}")
+        
+        return is_valid 
