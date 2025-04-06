@@ -7,6 +7,8 @@ Make sure the logic is reasonably sound and reliable
 Do not adjust the parameters for now. Only fix code to make backtesting work
 Try not to reinvent the wheel. Use existing code and infrastructure whenever possible.
 
+I am backtesting the stat arb strategy. Backtest results are stored in the results folder, which you can rely on for analysis for model and strategy improvements. 
+
 # Backtesting Infrastructure Rules
 
 ## Core Infrastructure (DO NOT MODIFY)

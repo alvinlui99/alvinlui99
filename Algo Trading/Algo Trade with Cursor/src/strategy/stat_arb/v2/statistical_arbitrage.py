@@ -137,10 +137,29 @@ class StatisticalArbitrageStrategyV2:
         if not returns.empty:
             # Only append if we have valid returns
             if not pd.isna(returns.iloc[-1]):
-                self.volatility[symbol].append(abs(returns.iloc[-1]))
-                # Keep only the last volatility_lookback periods
-                if len(self.volatility[symbol]) > self.volatility_lookback:
-                    self.volatility[symbol] = self.volatility[symbol][-self.volatility_lookback:]
+                # Calculate volatility on rolling window of returns
+                if len(returns) >= self.volatility_lookback:
+                    # Get the last volatility_lookback periods of returns
+                    recent_returns = returns.iloc[-self.volatility_lookback:]
+                    current_volatility = recent_returns.std()
+                    
+                    # Add detailed logging for SHIB and DOGE
+                    if symbol in ["1000SHIBUSDT", "DOGEUSDT"]:
+                        logger.info(f"\nUpdating volatility for {symbol}:")
+                        logger.info(f"Recent returns (last 5): {recent_returns.iloc[-5:].tolist()}")
+                        logger.info(f"Current volatility (std): {current_volatility:.8f}")
+                    
+                    # Update volatility history
+                    self.volatility[symbol].append(current_volatility)
+                    
+                    # Keep only the last volatility_lookback periods
+                    if len(self.volatility[symbol]) > self.volatility_lookback:
+                        self.volatility[symbol] = self.volatility[symbol][-self.volatility_lookback:]
+                        if symbol in ["1000SHIBUSDT", "DOGEUSDT"]:
+                            logger.info(f"Truncated volatility history to {self.volatility_lookback} periods")
+                            logger.info(f"Volatility history (last 5): {self.volatility[symbol][-5:]}")
+                            logger.info(f"History length: {len(self.volatility[symbol])}")
+                            logger.info(f"Data timestamps: {data.index[-self.volatility_lookback:].tolist()}")
 
     def initialize_pairs(self, data: Dict[str, pd.DataFrame]) -> None:
         """
@@ -221,7 +240,11 @@ class StatisticalArbitrageStrategyV2:
             # Update volatility for each symbol
             for symbol in self.symbols:
                 if symbol in data and not data[symbol].empty:
-                    self.update_volatility(symbol, data[symbol])
+                    # Get the most recent volatility_lookback periods of data
+                    current_idx = data[symbol].index.get_loc(timestamp)
+                    start_idx = max(0, current_idx - self.volatility_lookback + 1)
+                    recent_data = data[symbol].iloc[start_idx:current_idx + 1]
+                    self.update_volatility(symbol, recent_data)
             
             # Increment periods processed
             self.periods_processed += 1
@@ -342,6 +365,16 @@ class StatisticalArbitrageStrategyV2:
                             # Calculate volatility ratio for logging
                             vol1 = np.mean(self.volatility[symbol1][-self.volatility_lookback:]) if symbol1 in self.volatility else 0
                             vol2 = np.mean(self.volatility[symbol2][-self.volatility_lookback:]) if symbol2 in self.volatility else 0
+                            
+                            # Add detailed volatility logging
+                            if symbol1 == "1000SHIBUSDT" and symbol2 == "DOGEUSDT":
+                                logger.info(f"\nDetailed volatility stats for {symbol1}-{symbol2}:")
+                                logger.info(f"Volatility history {symbol1}: {self.volatility[symbol1]}")
+                                logger.info(f"Volatility history {symbol2}: {self.volatility[symbol2]}")
+                                logger.info(f"Recent volatility {symbol1}: {vol1:.8f}")
+                                logger.info(f"Recent volatility {symbol2}: {vol2:.8f}")
+                                logger.info(f"Volatility ratio calculation: min({vol1:.8f}, {vol2:.8f}) / max({vol1:.8f}, {vol2:.8f})")
+                            
                             vol_ratio = min(vol1, vol2) / max(vol1, vol2) if max(vol1, vol2) > 0 else 0
                             
                             # Log detailed spread statistics for debugging
