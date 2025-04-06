@@ -588,6 +588,6 @@ def main():
     # Save and display results
     results_manager.plot_results()
     results_manager.save_summary()
-    
+
 if __name__ == "__main__":
     main() 

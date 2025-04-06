@@ -47,7 +47,7 @@ class StatisticalArbitrageStrategyV2:
         self.positions: Dict[str, float] = {}
         self.trades: List[Dict] = []
         self.returns: List[float] = []
-        self.capital: List[float] = [initial_capital]  # Changed to list to match backtest expectations
+        self.capital: List[float] = [initial_capital]
         self.pair_returns: Dict[Tuple[str, str], List[Tuple[float, float]]] = {}
         self.pair_positions: Dict[Tuple[str, str], List[float]] = {}
         self.spreads: Dict[Tuple[str, str], List[float]] = {}
@@ -58,6 +58,16 @@ class StatisticalArbitrageStrategyV2:
         # Initialize symbols and pairs
         self.symbols: List[str] = []
         self.pairs: List[Tuple[str, str]] = []
+        
+        # Add warmup tracking
+        self.warmup_periods = volatility_lookback * 2  # Double the lookback for warmup
+        self.periods_processed = 0
+        
+        # Add spread thresholds - adjusted for better sensitivity
+        self.min_spread_std = 0.001  # Reduced threshold for normalized spread (percentage)
+        self.min_spread = 0.001  # Minimum spread value (percentage)
+        self.spread_multiplier = 1000  # Multiplier to increase spread sensitivity
+        self.volatility_adjustment_factor = 0.5  # Factor to adjust thresholds based on volatility
 
     def calculate_dynamic_thresholds(self, symbol: str, spread: float) -> Tuple[float, float]:
         """
@@ -83,134 +93,342 @@ class StatisticalArbitrageStrategyV2:
         
         return entry_threshold, exit_threshold
         
-    def calculate_position_size(self, symbol: str, spread: float) -> float:
+    def calculate_position_size(self, symbol1: str, symbol2: str, zscore: float) -> float:
         """
         Calculate adaptive position size based on spread confidence.
         
         Args:
-            symbol: Trading symbol
-            spread: Current spread value
+            symbol1: First trading symbol
+            symbol2: Second trading symbol
+            zscore: Current z-score of the spread
             
         Returns:
             Position size as fraction of capital
         """
-        if symbol not in self.spreads or len(self.spreads[symbol]) < self.volatility_lookback:
+        pair = (symbol1, symbol2)
+        if pair not in self.spreads or len(self.spreads[pair]) < self.volatility_lookback:
             return self.max_position_size
             
-        # Calculate spread confidence
-        recent_spreads = self.spreads[symbol][-self.volatility_lookback:]
-        spread_std = np.std(recent_spreads)
-        spread_mean = np.mean(recent_spreads)
+        # Calculate spread confidence based on z-score
+        confidence = min(1.0, abs(zscore) / 3.0)  # Cap at 1.0
         
-        # Adjust position size based on spread deviation
-        spread_deviation = abs(spread - spread_mean) / spread_std
-        confidence = min(1.0, spread_deviation / 3.0)  # Cap at 1.0
-        
+        # Adjust position size based on volatility
+        if symbol1 in self.volatility and symbol2 in self.volatility:
+            vol1 = np.mean(self.volatility[symbol1][-self.volatility_lookback:])
+            vol2 = np.mean(self.volatility[symbol2][-self.volatility_lookback:])
+            vol_ratio = min(vol1, vol2) / max(vol1, vol2)
+            confidence *= vol_ratio
+            
         return self.max_position_size * confidence
         
-    def update_volatility(self, symbol: str, returns: float):
+    def update_volatility(self, symbol: str, data: pd.DataFrame) -> None:
         """
         Update volatility tracking for a symbol.
         
         Args:
             symbol: Trading symbol
-            returns: Current period returns
+            data: DataFrame with price data
         """
         if symbol not in self.volatility:
             self.volatility[symbol] = []
             
-        self.volatility[symbol].append(abs(returns))
+        # Calculate returns
+        returns = data['close'].pct_change()
+        if not returns.empty:
+            # Only append if we have valid returns
+            if not pd.isna(returns.iloc[-1]):
+                self.volatility[symbol].append(abs(returns.iloc[-1]))
+                # Keep only the last volatility_lookback periods
+                if len(self.volatility[symbol]) > self.volatility_lookback:
+                    self.volatility[symbol] = self.volatility[symbol][-self.volatility_lookback:]
+
+    def initialize_pairs(self, data: Dict[str, pd.DataFrame]) -> None:
+        """
+        Initialize trading pairs based on available data.
         
-    def process_tick(self, timestamp: pd.Timestamp, data: Dict[str, pd.DataFrame]) -> Dict[str, Dict]:
+        Args:
+            data: Dictionary of price data for each symbol
+        """
+        # Get available symbols
+        self.symbols = list(data.keys())
+        
+        # Initialize pairs
+        self.pairs = []
+        for i in range(len(self.symbols)):
+            for j in range(i + 1, len(self.symbols)):
+                symbol1 = self.symbols[i]
+                symbol2 = self.symbols[j]
+                
+                # Initialize tracking for this pair
+                self.pair_returns[(symbol1, symbol2)] = []
+                self.pair_positions[(symbol1, symbol2)] = []
+                self.spreads[(symbol1, symbol2)] = []
+                
+                # Add to pairs list
+                self.pairs.append((symbol1, symbol2))
+                
+        logger.info(f"Initialized {len(self.pairs)} trading pairs")
+
+    def calculate_spread(self, price1: float, price2: float) -> float:
+        """
+        Calculate normalized spread between two prices using log returns.
+        
+        Args:
+            price1: Price of first asset
+            price2: Price of second asset
+            
+        Returns:
+            Normalized spread value
+        """
+        # Calculate log returns to normalize price scales
+        log_price1 = np.log(price1)
+        log_price2 = np.log(price2)
+        
+        # Calculate spread as difference in log prices
+        spread = log_price1 - log_price2
+        
+        return spread
+
+    def process_tick(self, data: Dict[str, pd.DataFrame], timestamp: pd.Timestamp) -> Dict[str, Dict]:
         """
         Process a single tick of market data.
         
         Args:
-            timestamp: Current timestamp
             data: Dictionary of price data for each symbol
+            timestamp: Current timestamp
             
         Returns:
             Dictionary of trading signals for each symbol
         """
         signals = {}
+        skipped_pairs = 0
+        total_pairs = 0
+        skip_reasons = {
+            'invalid_returns': 0,
+            'insufficient_data': 0,
+            'small_std': 0,
+            'small_spread': 0,
+            'nan_zscore': 0,
+            'infinite_zscore': 0,
+            'other': 0
+        }
         
         try:
+            # Initialize pairs if not done yet
+            if not self.pairs:
+                self.initialize_pairs(data)
+            
             # Update volatility for each symbol
             for symbol in self.symbols:
                 if symbol in data and not data[symbol].empty:
                     self.update_volatility(symbol, data[symbol])
             
+            # Increment periods processed
+            self.periods_processed += 1
+            
+            # Log price scales for debugging
+            if self.periods_processed == 0:
+                logger.info("\nPrice scales for each symbol:")
+                for symbol in self.symbols:
+                    if symbol in data and not data[symbol].empty:
+                        price = data[symbol]['close'].iloc[-1]
+                        logger.info(f"{symbol}: {price:.8f}")
+            
             # Calculate returns and spreads for each pair
             for symbol1, symbol2 in self.pairs:
+                total_pairs += 1
+                
                 if (symbol1 in data and symbol2 in data and 
                     not data[symbol1].empty and not data[symbol2].empty):
                     
-                    # Calculate returns
-                    ret1 = data[symbol1]['close'].pct_change().iloc[-1]
-                    ret2 = data[symbol2]['close'].pct_change().iloc[-1]
+                    # Get price data
+                    current_idx1 = data[symbol1].index.get_loc(timestamp)
+                    current_idx2 = data[symbol2].index.get_loc(timestamp)
                     
-                    # Calculate spread
-                    spread = data[symbol1]['close'].iloc[-1] - data[symbol2]['close'].iloc[-1]
+                    price1 = data[symbol1]['close'].iloc[current_idx1]
+                    price2 = data[symbol2]['close'].iloc[current_idx2]
+                    
+                    prev_price1 = data[symbol1]['close'].iloc[current_idx1 - 1] if current_idx1 > 0 else price1
+                    prev_price2 = data[symbol2]['close'].iloc[current_idx2 - 1] if current_idx2 > 0 else price2
+                    
+                    # Log detailed price information for debugging
+                    if symbol1 == "1000SHIBUSDT" and symbol2 == "DOGEUSDT":
+                        logger.info(f"\nDetailed price stats for {symbol1}-{symbol2} at {timestamp}:")
+                        logger.info(f"Current prices: {price1:.8f} vs {price2:.8f}")
+                        logger.info(f"Previous prices: {prev_price1:.8f} vs {prev_price2:.8f}")
+                        logger.info(f"Price changes: {(price1 - prev_price1):.8f} vs {(price2 - prev_price2):.8f}")
+                        logger.info(f"Price returns: {((price1 - prev_price1) / prev_price1):.8f} vs {((price2 - prev_price2) / prev_price2):.8f}")
+                        logger.info(f"Data timestamps: {data[symbol1].index[current_idx1-5:current_idx1+1].tolist()}")
+                        logger.info(f"Price history 1: {data[symbol1]['close'].iloc[current_idx1-5:current_idx1+1].tolist()}")
+                        logger.info(f"Price history 2: {data[symbol2]['close'].iloc[current_idx2-5:current_idx2+1].tolist()}")
+                    
+                    # Calculate returns
+                    ret1 = (price1 - prev_price1) / prev_price1
+                    ret2 = (price2 - prev_price2) / prev_price2
+                    
+                    # Skip if we have invalid returns
+                    if pd.isna(ret1) or pd.isna(ret2):
+                        logger.debug(f"Skipping {symbol1}-{symbol2}: Invalid returns (ret1={ret1}, ret2={ret2})")
+                        skipped_pairs += 1
+                        skip_reasons['invalid_returns'] += 1
+                        continue
+                    
+                    # Calculate normalized spread
+                    spread = self.calculate_spread(price1, price2)
+                    
+                    # Skip if spread is too small
+                    if abs(spread) < self.min_spread:
+                        logger.debug(f"Skipping {symbol1}-{symbol2}: Spread too small ({spread:.2e})")
+                        skipped_pairs += 1
+                        skip_reasons['small_spread'] += 1
+                        continue
                     
                     # Store data
                     self.pair_returns[(symbol1, symbol2)].append((ret1, ret2))
+                    
+                    # Initialize spread list if not exists
+                    if (symbol1, symbol2) not in self.spreads:
+                        self.spreads[(symbol1, symbol2)] = []
+                    
+                    # Store current spread
                     self.spreads[(symbol1, symbol2)].append(spread)
                     
+                    # Keep only the last volatility_lookback periods
+                    if len(self.spreads[(symbol1, symbol2)]) > self.volatility_lookback:
+                        self.spreads[(symbol1, symbol2)] = self.spreads[(symbol1, symbol2)][-self.volatility_lookback:]
+                    
+                    # Skip trading during warmup
+                    if self.periods_processed < self.warmup_periods:
+                        logger.debug(f"Accumulating data for {symbol1}-{symbol2} during warmup (period {self.periods_processed}/{self.warmup_periods})")
+                        continue
+                    
                     # Calculate dynamic thresholds
-                    entry_threshold, exit_threshold = self.calculate_dynamic_thresholds(symbol1, symbol2)
+                    entry_threshold, exit_threshold = self.calculate_dynamic_thresholds(symbol1, spread)
                     
                     # Calculate current z-score
                     if len(self.spreads[(symbol1, symbol2)]) >= self.volatility_lookback:
                         spread_series = pd.Series(self.spreads[(symbol1, symbol2)])
-                        zscore = (spread - spread_series.mean()) / spread_series.std()
                         
-                        # Generate signals
-                        if abs(zscore) > entry_threshold:
-                            # Calculate position size
-                            position_size = self.calculate_position_size(symbol1, symbol2, zscore)
+                        # Skip if we don't have enough valid data points
+                        valid_points = len(spread_series.dropna())
+                        if valid_points < self.volatility_lookback:
+                            logger.debug(f"Skipping {symbol1}-{symbol2}: Insufficient valid data points ({valid_points} < {self.volatility_lookback})")
+                            skipped_pairs += 1
+                            skip_reasons['insufficient_data'] += 1
+                            continue
                             
-                            if zscore > 0:
-                                # Short symbol1, long symbol2
+                        # Calculate z-score with proper error handling
+                        try:
+                            spread_mean = spread_series.mean()
+                            spread_std = spread_series.std()
+                            
+                            # Calculate dynamic minimum std threshold based on pair volatility
+                            pair_volatility = min(
+                                np.mean(self.volatility[symbol1][-self.volatility_lookback:]) if symbol1 in self.volatility else 0,
+                                np.mean(self.volatility[symbol2][-self.volatility_lookback:]) if symbol2 in self.volatility else 0
+                            )
+                            dynamic_min_std = self.min_spread_std * (1 + self.volatility_adjustment_factor * pair_volatility)
+                            
+                            # Skip if standard deviation is too small
+                            if spread_std < dynamic_min_std:
+                                logger.debug(f"Skipping {symbol1}-{symbol2}: Standard deviation too small ({spread_std:.2e} < {dynamic_min_std:.2e})")
+                                logger.debug(f"Pair volatility: {pair_volatility:.2e}, Dynamic threshold: {dynamic_min_std:.2e}")
+                                skipped_pairs += 1
+                                skip_reasons['small_std'] += 1
+                                continue
+                                
+                            zscore = (spread - spread_mean) / spread_std
+                            
+                            # Calculate volatility ratio for logging
+                            vol1 = np.mean(self.volatility[symbol1][-self.volatility_lookback:]) if symbol1 in self.volatility else 0
+                            vol2 = np.mean(self.volatility[symbol2][-self.volatility_lookback:]) if symbol2 in self.volatility else 0
+                            vol_ratio = min(vol1, vol2) / max(vol1, vol2) if max(vol1, vol2) > 0 else 0
+                            
+                            # Log detailed spread statistics for debugging
+                            if symbol1 == "1000SHIBUSDT" and symbol2 == "DOGEUSDT":
+                                logger.info(f"\nDetailed spread stats for {symbol1}-{symbol2}:")
+                                logger.info(f"Current spread: {spread:.8f}")
+                                logger.info(f"Spread mean: {spread_mean:.8f}")
+                                logger.info(f"Spread std: {spread_std:.8f}")
+                                logger.info(f"Min spread: {spread_series.min():.8f}")
+                                logger.info(f"Max spread: {spread_series.max():.8f}")
+                                logger.info(f"Number of points: {len(spread_series)}")
+                                logger.info(f"Valid points: {valid_points}")
+                                logger.info(f"Spread history: {self.spreads[(symbol1, symbol2)]}")
+                                logger.info(f"Entry threshold: {entry_threshold:.4f}")
+                                logger.info(f"Exit threshold: {exit_threshold:.4f}")
+                                logger.info(f"Z-score: {zscore:.4f}")
+                                logger.info(f"Volatility ratio: {vol_ratio:.4f}")
+                            
+                            # Skip if z-score is invalid
+                            if pd.isna(zscore):
+                                logger.debug(f"Skipping {symbol1}-{symbol2}: NaN z-score")
+                                skipped_pairs += 1
+                                skip_reasons['nan_zscore'] += 1
+                                continue
+                            elif not np.isfinite(zscore):
+                                logger.debug(f"Skipping {symbol1}-{symbol2}: Infinite z-score ({zscore})")
+                                skipped_pairs += 1
+                                skip_reasons['infinite_zscore'] += 1
+                                continue
+                            
+                            # Generate signals
+                            if abs(zscore) > entry_threshold:
+                                # Calculate position size
+                                position_size = self.calculate_position_size(symbol1, symbol2, zscore)
+                                
+                                if zscore > 0:
+                                    # Short symbol1, long symbol2
+                                    signals[symbol1] = {
+                                        'type': 'short',
+                                        'size': position_size,
+                                        'zscore': zscore,
+                                        'threshold': entry_threshold
+                                    }
+                                    signals[symbol2] = {
+                                        'type': 'long',
+                                        'size': position_size,
+                                        'zscore': zscore,
+                                        'threshold': entry_threshold
+                                    }
+                                else:
+                                    # Long symbol1, short symbol2
+                                    signals[symbol1] = {
+                                        'type': 'long',
+                                        'size': position_size,
+                                        'zscore': zscore,
+                                        'threshold': entry_threshold
+                                    }
+                                    signals[symbol2] = {
+                                        'type': 'short',
+                                        'size': position_size,
+                                        'zscore': zscore,
+                                        'threshold': entry_threshold
+                                    }
+                            elif abs(zscore) < exit_threshold:
+                                # Exit signal
                                 signals[symbol1] = {
-                                    'type': 'short',
-                                    'size': position_size,
+                                    'type': 'close',
+                                    'size': self.positions.get(symbol1, 0.0),
                                     'zscore': zscore,
-                                    'threshold': entry_threshold
+                                    'threshold': exit_threshold
                                 }
                                 signals[symbol2] = {
-                                    'type': 'long',
-                                    'size': position_size,
+                                    'type': 'close',
+                                    'size': self.positions.get(symbol2, 0.0),
                                     'zscore': zscore,
-                                    'threshold': entry_threshold
+                                    'threshold': exit_threshold
                                 }
-                            else:
-                                # Long symbol1, short symbol2
-                                signals[symbol1] = {
-                                    'type': 'long',
-                                    'size': position_size,
-                                    'zscore': zscore,
-                                    'threshold': entry_threshold
-                                }
-                                signals[symbol2] = {
-                                    'type': 'short',
-                                    'size': position_size,
-                                    'zscore': zscore,
-                                    'threshold': entry_threshold
-                                }
-                        elif abs(zscore) < exit_threshold:
-                            # Exit signal
-                            signals[symbol1] = {
-                                'type': 'close',
-                                'size': self.positions.get(symbol1, 0.0),
-                                'zscore': zscore,
-                                'threshold': exit_threshold
-                            }
-                            signals[symbol2] = {
-                                'type': 'close',
-                                'size': self.positions.get(symbol2, 0.0),
-                                'zscore': zscore,
-                                'threshold': exit_threshold
-                            }
+                        except Exception as e:
+                            logger.warning(f"Error calculating z-score for {symbol1}-{symbol2}: {str(e)}")
+                            skipped_pairs += 1
+                            skip_reasons['other'] += 1
+                            continue
+            
+            # Log skipped pairs statistics
+            if skipped_pairs > 0:
+                logger.info(f"Skipped {skipped_pairs}/{total_pairs} pairs at {timestamp}")
+                logger.info(f"Skip reasons: {skip_reasons}")
             
             # Update capital
             self.capital.append(self.capital[-1])  # Keep track of capital changes
