@@ -6,6 +6,9 @@ import pandas as pd
 from binance.um_futures import UMFutures
 from dotenv import load_dotenv
 import numpy as np
+import matplotlib.pyplot as plt
+from pathlib import Path
+import json
 
 # Add project root to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,6 +24,297 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+class BacktestResults:
+    def __init__(self, run_id: str = None):
+        """Initialize backtest results with a unique run ID."""
+        self.run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.results_dir = Path("results") / self.run_id
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create subdirectories
+        self.plots_dir = self.results_dir / "plots"
+        self.plots_dir.mkdir(exist_ok=True)
+        
+        self.metrics_dir = self.results_dir / "metrics"
+        self.metrics_dir.mkdir(exist_ok=True)
+        
+        self.trades_dir = self.results_dir / "trades"
+        self.trades_dir.mkdir(exist_ok=True)
+        
+        self.results = []
+        self.config = {}
+        
+    def add_config(self, config: dict):
+        """Add configuration parameters for this backtest run."""
+        self.config = config
+        with open(self.results_dir / "config.json", "w") as f:
+            json.dump(config, f, indent=4)
+            
+    def add_result(self, result: dict, period: str):
+        """Add a backtest result for a specific period."""
+        result['period'] = period
+        self.results.append(result)
+        
+        # Save detailed metrics
+        metrics = self._calculate_metrics(result)
+        metrics_df = pd.DataFrame([metrics])
+        metrics_df.to_csv(self.metrics_dir / f"{period}_metrics.csv", index=False)
+        
+        # Save trades
+        trades_df = pd.DataFrame(result['trades'])
+        if not trades_df.empty:
+            trades_df.to_csv(self.trades_dir / f"{period}_trades.csv", index=False)
+            
+    def _calculate_metrics(self, result: dict) -> dict:
+        """Calculate detailed performance metrics."""
+        returns = pd.Series(result['returns'])
+        capital = pd.Series(result['capital'])
+        
+        metrics = {
+            'period': result['period'],
+            'initial_capital': result['capital'][0],
+            'final_capital': result['capital'][-1],
+            'total_return': (result['capital'][-1] / result['capital'][0] - 1) * 100,
+            'sharpe_ratio': result['sharpe_ratio'],
+            'max_drawdown': result['max_drawdown'] * 100,
+            'num_trades': len(result['trades']),
+            'avg_trade_return': returns.mean() * 100 if not returns.empty else 0,
+            'std_trade_return': returns.std() * 100 if not returns.empty else 0,
+            'win_rate': self._calculate_win_rate(result['trades']),
+            'profit_factor': self._calculate_profit_factor(result['trades']),
+            'avg_holding_period': self._calculate_avg_holding_period(result['trades']),
+            'max_consecutive_wins': self._calculate_max_consecutive_wins(result['trades']),
+            'max_consecutive_losses': self._calculate_max_consecutive_losses(result['trades'])
+        }
+        return metrics
+        
+    def _calculate_win_rate(self, trades: list) -> float:
+        if not trades:
+            return 0.0
+        winning_trades = sum(1 for trade in trades if trade['type'] == 'close' and trade['size'] > 0)
+        return winning_trades / len(trades)
+        
+    def _calculate_profit_factor(self, trades: list) -> float:
+        if not trades:
+            return 0.0
+        profits = sum(trade['size'] for trade in trades if trade['type'] == 'close' and trade['size'] > 0)
+        losses = abs(sum(trade['size'] for trade in trades if trade['type'] == 'close' and trade['size'] < 0))
+        return profits / losses if losses != 0 else float('inf')
+        
+    def _calculate_avg_holding_period(self, trades: list) -> float:
+        if not trades:
+            return 0.0
+        holding_periods = []
+        for i in range(0, len(trades), 2):
+            if i + 1 < len(trades):
+                holding_periods.append((trades[i+1]['timestamp'] - trades[i]['timestamp']).total_seconds() / 3600)
+        return np.mean(holding_periods) if holding_periods else 0.0
+        
+    def _calculate_max_consecutive_wins(self, trades: list) -> int:
+        if not trades:
+            return 0
+        current_streak = 0
+        max_streak = 0
+        for trade in trades:
+            if trade['type'] == 'close' and trade['size'] > 0:
+                current_streak += 1
+                max_streak = max(max_streak, current_streak)
+            else:
+                current_streak = 0
+        return max_streak
+        
+    def _calculate_max_consecutive_losses(self, trades: list) -> int:
+        if not trades:
+            return 0
+        current_streak = 0
+        max_streak = 0
+        for trade in trades:
+            if trade['type'] == 'close' and trade['size'] < 0:
+                current_streak += 1
+                max_streak = max(max_streak, current_streak)
+            else:
+                current_streak = 0
+        return max_streak
+        
+    def plot_results(self):
+        """Create and save various performance plots."""
+        # Portfolio value over time
+        plt.figure(figsize=(12, 6))
+        for result in self.results:
+            plt.plot(result['capital'], label=result['period'].upper())
+        plt.title('Portfolio Value Over Time')
+        plt.xlabel('Time')
+        plt.ylabel('Portfolio Value ($)')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(self.plots_dir / 'portfolio_value.png')
+        plt.close()
+        
+        # Returns distribution
+        plt.figure(figsize=(12, 6))
+        for result in self.results:
+            returns = pd.Series(result['returns'])
+            plt.hist(returns, bins=50, alpha=0.5, label=result['period'].upper())
+        plt.title('Returns Distribution')
+        plt.xlabel('Return')
+        plt.ylabel('Frequency')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(self.plots_dir / 'returns_distribution.png')
+        plt.close()
+        
+        # Drawdown plot
+        plt.figure(figsize=(12, 6))
+        for result in self.results:
+            capital = pd.Series(result['capital'])
+            drawdown = (capital.expanding().max() - capital) / capital.expanding().max()
+            plt.plot(drawdown, label=result['period'].upper())
+        plt.title('Drawdown Over Time')
+        plt.xlabel('Time')
+        plt.ylabel('Drawdown')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(self.plots_dir / 'drawdown.png')
+        plt.close()
+        
+        # Spread analysis plots
+        for result in self.results:
+            for symbol in result['spreads']:
+                if result['spreads'][symbol]:
+                    # Spread over time
+                    plt.figure(figsize=(12, 6))
+                    plt.plot(result['spreads'][symbol])
+                    plt.title(f'{symbol} Spread Over Time')
+                    plt.xlabel('Time')
+                    plt.ylabel('Spread (Z-score)')
+                    plt.grid(True)
+                    plt.savefig(self.plots_dir / f'{symbol}_spread.png')
+                    plt.close()
+                    
+                    # Entry/exit points
+                    plt.figure(figsize=(12, 6))
+                    plt.plot(result['spreads'][symbol], label='Spread')
+                    
+                    # Plot entry points
+                    entry_times = [signal['timestamp'] for signal in result['entry_signals'][symbol]]
+                    entry_spreads = [signal['spread'] for signal in result['entry_signals'][symbol]]
+                    plt.scatter(entry_times, entry_spreads, color='green', label='Entry')
+                    
+                    # Plot exit points
+                    exit_times = [signal['timestamp'] for signal in result['exit_signals'][symbol]]
+                    exit_spreads = [signal['spread'] for signal in result['exit_signals'][symbol]]
+                    plt.scatter(exit_times, exit_spreads, color='red', label='Exit')
+                    
+                    plt.title(f'{symbol} Spread with Entry/Exit Points')
+                    plt.xlabel('Time')
+                    plt.ylabel('Spread (Z-score)')
+                    plt.legend()
+                    plt.grid(True)
+                    plt.savefig(self.plots_dir / f'{symbol}_signals.png')
+                    plt.close()
+                    
+        # Trade analysis plots
+        for result in self.results:
+            if result['trades']:
+                trades_df = pd.DataFrame(result['trades'])
+                
+                # Trade returns distribution
+                plt.figure(figsize=(12, 6))
+                trade_returns = trades_df[trades_df['type'] == 'close']['size']
+                plt.hist(trade_returns, bins=50)
+                plt.title('Trade Returns Distribution')
+                plt.xlabel('Return ($)')
+                plt.ylabel('Frequency')
+                plt.grid(True)
+                plt.savefig(self.plots_dir / 'trade_returns.png')
+                plt.close()
+                
+                # Trade duration analysis
+                plt.figure(figsize=(12, 6))
+                trade_durations = []
+                for i in range(0, len(trades_df), 2):
+                    if i + 1 < len(trades_df):
+                        duration = (trades_df.iloc[i+1]['timestamp'] - 
+                                  trades_df.iloc[i]['timestamp']).total_seconds() / 3600
+                        trade_durations.append(duration)
+                plt.hist(trade_durations, bins=50)
+                plt.title('Trade Duration Distribution')
+                plt.xlabel('Duration (hours)')
+                plt.ylabel('Frequency')
+                plt.grid(True)
+                plt.savefig(self.plots_dir / 'trade_durations.png')
+                plt.close()
+                
+                # Trade entry/exit spread analysis
+                plt.figure(figsize=(12, 6))
+                # Match entry and exit trades
+                entry_trades = trades_df[trades_df['type'] == 'open']
+                exit_trades = trades_df[trades_df['type'] == 'close']
+                
+                # Create a dictionary to match entry and exit trades
+                trade_pairs = {}
+                for _, entry in entry_trades.iterrows():
+                    symbol = entry['symbol']
+                    if symbol not in trade_pairs:
+                        trade_pairs[symbol] = []
+                    trade_pairs[symbol].append({
+                        'entry': entry,
+                        'exit': None
+                    })
+                
+                for _, exit in exit_trades.iterrows():
+                    symbol = exit['symbol']
+                    if symbol in trade_pairs and trade_pairs[symbol]:
+                        for pair in trade_pairs[symbol]:
+                            if pair['exit'] is None:
+                                pair['exit'] = exit
+                                break
+                
+                # Plot matched entry/exit spreads
+                entry_spreads = []
+                exit_spreads = []
+                for symbol, pairs in trade_pairs.items():
+                    for pair in pairs:
+                        if pair['entry'] is not None and pair['exit'] is not None:
+                            entry_spreads.append(pair['entry']['spread'])
+                            exit_spreads.append(pair['exit']['spread'])
+                
+                if entry_spreads and exit_spreads:
+                    plt.scatter(entry_spreads, exit_spreads)
+                    plt.title('Entry vs Exit Spreads')
+                    plt.xlabel('Entry Spread')
+                    plt.ylabel('Exit Spread')
+                    plt.grid(True)
+                    plt.savefig(self.plots_dir / 'spread_analysis.png')
+                    plt.close()
+
+    def save_summary(self):
+        """Save a summary of all results."""
+        summary = []
+        for result in self.results:
+            metrics = self._calculate_metrics(result)
+            summary.append(metrics)
+            
+        summary_df = pd.DataFrame(summary)
+        summary_df.to_csv(self.results_dir / "summary.csv", index=False)
+        
+        # Print summary to console
+        logger.info("\nBacktest Results Summary:")
+        logger.info("=" * 50)
+        for metrics in summary:
+            logger.info(f"\n{metrics['period'].upper()} Period:")
+            logger.info(f"Initial Capital: ${metrics['initial_capital']:,.2f}")
+            logger.info(f"Final Capital: ${metrics['final_capital']:,.2f}")
+            logger.info(f"Total Return: {metrics['total_return']:.2f}%")
+            logger.info(f"Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
+            logger.info(f"Max Drawdown: {metrics['max_drawdown']:.2f}%")
+            logger.info(f"Number of Trades: {metrics['num_trades']}")
+            logger.info(f"Win Rate: {metrics['win_rate']:.2%}")
+            logger.info(f"Profit Factor: {metrics['profit_factor']:.2f}")
+            logger.info(f"Avg Holding Period: {metrics['avg_holding_period']:.2f} hours")
+            logger.info(f"Max Consecutive Wins: {metrics['max_consecutive_wins']}")
+            logger.info(f"Max Consecutive Losses: {metrics['max_consecutive_losses']}")
 
 def load_data_from_csv(symbols: list, timeframe: str, data_dir: str) -> dict:
     """
@@ -202,32 +496,107 @@ def backtest_strategy(data: dict,
         'trades': [],
         'returns': [],
         'sharpe_ratio': 0.0,
-        'max_drawdown': 0.0
+        'max_drawdown': 0.0,
+        'pair_returns': {},  # Track returns for each pair
+        'pair_positions': {},  # Track positions for each pair
+        'spreads': {},  # Track spreads for each pair
+        'entry_signals': {},  # Track entry signals
+        'exit_signals': {}  # Track exit signals
     }
     
-    # Initialize positions
+    # Initialize positions and tracking
     for symbol in data.keys():
         results['positions'][symbol] = 0.0
+        results['pair_returns'][symbol] = []
+        results['pair_positions'][symbol] = []
+        results['spreads'][symbol] = []
+        results['entry_signals'][symbol] = []
+        results['exit_signals'][symbol] = []
         
-    # Backtest loop
+    # Calculate spreads and signals
     for i in range(1, len(common_timestamps)):
         current_time = common_timestamps[i]
         previous_time = common_timestamps[i-1]
         
         try:
-            # Calculate returns for each pair
-            returns = {}
+            # Calculate returns and spreads for each pair
             for symbol, df in data.items():
                 if current_time in df.index and previous_time in df.index:
-                    returns[symbol] = (df.loc[current_time, 'close'] / 
-                                     df.loc[previous_time, 'close'] - 1)
+                    # Calculate returns
+                    returns = (df.loc[current_time, 'close'] / 
+                             df.loc[previous_time, 'close'] - 1)
+                    results['pair_returns'][symbol].append(returns)
                     
-            if not returns:
-                logger.warning(f"No returns calculated for {current_time}")
-                continue
-                
+                    # Calculate spread (using z-score)
+                    lookback = 20  # Adjust as needed
+                    if len(results['pair_returns'][symbol]) >= lookback:
+                        recent_returns = results['pair_returns'][symbol][-lookback:]
+                        spread = (returns - np.mean(recent_returns)) / np.std(recent_returns)
+                        results['spreads'][symbol].append(spread)
+                        
+                        # Generate signals
+                        if abs(spread) > 2.0:  # Entry threshold
+                            results['entry_signals'][symbol].append({
+                                'timestamp': current_time,
+                                'type': 'long' if spread < -2.0 else 'short',
+                                'spread': spread
+                            })
+                        elif abs(spread) < 0.5:  # Exit threshold
+                            results['exit_signals'][symbol].append({
+                                'timestamp': current_time,
+                                'type': 'close',
+                                'spread': spread
+                            })
+                            
+            # Update positions based on signals
+            for symbol in data.keys():
+                if results['entry_signals'][symbol] and results['entry_signals'][symbol][-1]['timestamp'] == current_time:
+                    signal = results['entry_signals'][symbol][-1]
+                    position_size = initial_capital * max_position_size
+                    
+                    if signal['type'] == 'long':
+                        results['positions'][symbol] = position_size
+                        results['trades'].append({
+                            'timestamp': current_time,
+                            'symbol': symbol,
+                            'type': 'open',
+                            'direction': 'long',
+                            'price': data[symbol].loc[current_time, 'close'],
+                            'size': position_size,
+                            'spread': signal['spread']
+                        })
+                    else:
+                        results['positions'][symbol] = -position_size
+                        results['trades'].append({
+                            'timestamp': current_time,
+                            'symbol': symbol,
+                            'type': 'open',
+                            'direction': 'short',
+                            'price': data[symbol].loc[current_time, 'close'],
+                            'size': -position_size,
+                            'spread': signal['spread']
+                        })
+                        
+                elif results['exit_signals'][symbol] and results['exit_signals'][symbol][-1]['timestamp'] == current_time:
+                    if results['positions'][symbol] != 0:
+                        results['trades'].append({
+                            'timestamp': current_time,
+                            'symbol': symbol,
+                            'type': 'close',
+                            'price': data[symbol].loc[current_time, 'close'],
+                            'size': results['positions'][symbol],
+                            'spread': results['exit_signals'][symbol][-1]['spread']
+                        })
+                        results['positions'][symbol] = 0.0
+                        
             # Calculate portfolio return
-            portfolio_return = sum(returns.values()) / len(returns)
+            portfolio_return = 0.0
+            for symbol, position in results['positions'].items():
+                if position != 0 and current_time in data[symbol].index:
+                    price_change = (data[symbol].loc[current_time, 'close'] / 
+                                  data[symbol].loc[previous_time, 'close'] - 1)
+                    portfolio_return += price_change * (position / initial_capital)
+                    
             results['returns'].append(portfolio_return)
             
             # Update capital
@@ -244,7 +613,8 @@ def backtest_strategy(data: dict,
                             'symbol': symbol,
                             'type': 'close',
                             'price': data[symbol].loc[current_time, 'close'],
-                            'size': results['positions'][symbol]
+                            'size': results['positions'][symbol],
+                            'reason': 'stop_loss' if portfolio_return <= -stop_loss else 'take_profit'
                         })
                         results['positions'][symbol] = 0.0
                         
@@ -265,31 +635,34 @@ def main():
     # Load environment variables
     load_dotenv()
     
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    logger = logging.getLogger(__name__)
-    
     # Configuration
-    symbols = [
-        'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'TRUMPUSDT',
-        'LINKUSDT', 'NEARUSDT', 'WIFUSDT', 'AVAXUSDT', '1000SHIBUSDT',
-        'DOGEUSDT', '1000PEPEUSDT', 'WLDUSDT'
-    ]
-    timeframe = '15m'
-    data_dir = 'data'
+    config = {
+        'symbols': [
+            'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT',
+            'LINKUSDT', 'NEARUSDT', 'WIFUSDT', 'AVAXUSDT', '1000SHIBUSDT',
+            'DOGEUSDT', '1000PEPEUSDT', 'WLDUSDT'
+        ],
+        'timeframe': '15m',
+        'data_dir': 'data',
+        'initial_capital': 10000.0,
+        'max_position_size': 0.1,
+        'stop_loss': 0.02,
+        'take_profit': 0.03
+    }
+    
+    # Initialize results manager
+    results_manager = BacktestResults()
+    results_manager.add_config(config)
     
     # Load data
     logger.info("Loading data...")
-    data = load_data_from_csv(symbols, timeframe, data_dir)
+    data = load_data_from_csv(config['symbols'], config['timeframe'], config['data_dir'])
     
     if not data:
         logger.error("No data loaded. Exiting.")
         return
         
-    # Split data into train, test, and validation sets
+    # Split data
     logger.info("Splitting data...")
     train_data, test_data, val_data = split_data(data)
     
@@ -297,66 +670,21 @@ def main():
         logger.error("Data splitting failed. Exiting.")
         return
         
-    # Initialize results list
-    results = []
-    
-    # Training period
-    logger.info("\nRunning training period backtest...")
-    train_results = backtest_strategy(train_data)
-    train_results['period'] = 'train'
-    results.append(train_results)
-    
-    # Testing period
-    logger.info("\nRunning testing period backtest...")
-    test_results = backtest_strategy(test_data)
-    test_results['period'] = 'test'
-    results.append(test_results)
-    
-    # Validation period
-    logger.info("\nRunning validation period backtest...")
-    val_results = backtest_strategy(val_data)
-    val_results['period'] = 'val'
-    results.append(val_results)
-    
-    # Display results
-    logger.info("\nBacktest Results Summary:")
-    logger.info("=" * 50)
-    
-    for result in results:
-        logger.info(f"\n{result['period'].upper()} Period:")
-        logger.info(f"Initial Capital: ${result['capital'][0]:,.2f}")
-        logger.info(f"Final Capital: ${result['capital'][-1]:,.2f}")
-        logger.info(f"Total Return: {result['returns'][-1] * 100:.2f}%")
-        logger.info(f"Sharpe Ratio: {result['sharpe_ratio']:.2f}")
-        logger.info(f"Max Drawdown: {result['max_drawdown'] * 100:.2f}%")
-        logger.info(f"Number of Trades: {len(result['trades'])}")
+    # Run backtests
+    for period, period_data in [('train', train_data), ('test', test_data), ('val', val_data)]:
+        logger.info(f"\nRunning {period} period backtest...")
+        result = backtest_strategy(
+            period_data,
+            initial_capital=config['initial_capital'],
+            max_position_size=config['max_position_size'],
+            stop_loss=config['stop_loss'],
+            take_profit=config['take_profit']
+        )
+        results_manager.add_result(result, period)
         
-        # Calculate win rate
-        if result['trades']:
-            winning_trades = sum(1 for trade in result['trades'] if trade['type'] == 'close' and trade['size'] > 0)
-            win_rate = winning_trades / len(result['trades'])
-            logger.info(f"Win Rate: {win_rate:.2%}")
-            
-    # Plot results
-    try:
-        import matplotlib.pyplot as plt
-        
-        plt.figure(figsize=(12, 6))
-        for result in results:
-            plt.plot(result['capital'], label=result['period'].upper())
-            
-        plt.title('Portfolio Value Over Time')
-        plt.xlabel('Time')
-        plt.ylabel('Portfolio Value ($)')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig('backtest_results.png')
-        plt.close()
-        
-        logger.info("\nResults plot saved as 'backtest_results.png'")
-        
-    except Exception as e:
-        logger.error(f"Error plotting results: {str(e)}")
-        
+    # Save and display results
+    results_manager.plot_results()
+    results_manager.save_summary()
+    
 if __name__ == "__main__":
     main() 
