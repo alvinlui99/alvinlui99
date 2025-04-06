@@ -3,20 +3,18 @@ import sys
 import logging
 from datetime import datetime, timedelta
 import pandas as pd
-from binance.um_futures import UMFutures
-from dotenv import load_dotenv
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import json
+from dotenv import load_dotenv
 
 # Add project root to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(project_root)
 
-from src.strategy.statistical_arbitrage import StatisticalArbitrageStrategy
-from src.strategy.backtest import Backtest
-from src.data.market_data import MarketData
+from src.strategy.stat_arb.v1 import StatisticalArbitrageStrategyV1
+from src.strategy.stat_arb.v2 import StatisticalArbitrageStrategyV2
 
 # Configure logging
 logging.basicConfig(
@@ -24,6 +22,224 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+def load_data_from_csv(symbols: list, timeframe: str, data_dir: str) -> dict:
+    """
+    Load historical data from CSV files.
+    
+    Args:
+        symbols: List of trading symbols
+        timeframe: Data timeframe
+        data_dir: Directory containing CSV files
+        
+    Returns:
+        dict: Dictionary of DataFrames for each symbol
+    """
+    data = {}
+    for symbol in symbols:
+        try:
+            # Find the most recent CSV file for this symbol and timeframe
+            csv_files = [f for f in os.listdir(data_dir) 
+                        if f.startswith(f"{symbol}_{timeframe}_") and f.endswith('.csv')]
+            if not csv_files:
+                logger.warning(f"No CSV files found for {symbol} {timeframe}")
+                continue
+                
+            # Sort by date and get the most recent
+            csv_files.sort()
+            latest_file = csv_files[-1]
+            
+            # Load data
+            df = pd.read_csv(os.path.join(data_dir, latest_file))
+            
+            # Convert column names to lowercase
+            df.columns = [col.lower() for col in df.columns]
+            
+            # Print actual columns for debugging
+            logger.info(f"Columns in {latest_file}: {df.columns.tolist()}")
+            
+            # Convert timestamp to datetime and set as index
+            df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
+            df.set_index('open_time', inplace=True)
+            
+            # Check required columns
+            required_columns = ['open', 'high', 'low', 'close', 'volume']
+            if not all(col in df.columns for col in required_columns):
+                logger.error(f"Missing required columns in {latest_file}")
+                logger.error(f"Required columns: {required_columns}")
+                logger.error(f"Available columns: {df.columns.tolist()}")
+                continue
+                
+            # Convert numeric columns
+            for col in required_columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+            # Drop rows with NaN values
+            df.dropna(inplace=True)
+            
+            # Sort index
+            df.sort_index(inplace=True)
+            
+            # Validate date range - only check if data is too old
+            if df.index[0].year < 2020:
+                logger.error(f"Data too old for {symbol}: {df.index[0]} to {df.index[-1]}")
+                continue
+                
+            data[symbol] = df
+            logger.info(f"Loaded {len(df)} rows for {symbol} from {latest_file}")
+            logger.info(f"Date range: {df.index[0]} to {df.index[-1]}")
+            
+        except Exception as e:
+            logger.error(f"Error loading data for {symbol}: {str(e)}")
+            logger.error(f"Exception details: {str(e.__class__.__name__)}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+    if not data:
+        logger.error("No data was successfully loaded. Please check the CSV files and their column names.")
+        raise ValueError("No data was successfully loaded. Please check the CSV files and their column names.")
+            
+    return data
+
+def split_data(data: dict) -> tuple:
+    """
+    Split data into training, testing, and validation sets.
+    
+    Args:
+        data: Dictionary of DataFrames for each symbol
+        
+    Returns:
+        tuple: (train_data, test_data, val_data)
+    """
+    # Find common date range
+    start_date = max(df.index[0] for df in data.values())
+    end_date = min(df.index[-1] for df in data.values())
+    
+    # Split into three equal periods
+    total_days = (end_date - start_date).days
+    train_end = start_date + timedelta(days=total_days // 3)
+    test_end = train_end + timedelta(days=total_days // 3)
+    
+    # Split data
+    train_data = {}
+    test_data = {}
+    val_data = {}
+    
+    for symbol, df in data.items():
+        train_data[symbol] = df[start_date:train_end]
+        test_data[symbol] = df[train_end:test_end]
+        val_data[symbol] = df[test_end:end_date]
+        
+    return train_data, test_data, val_data
+
+def backtest_strategy(data: dict, 
+                     strategy_version: str = 'v1',
+                     initial_capital: float = 10000.0,
+                     max_position_size: float = 0.1,
+                     stop_loss: float = 0.02,
+                     take_profit: float = 0.03) -> dict:
+    """
+    Backtest the statistical arbitrage strategy.
+    
+    Args:
+        data: Dictionary of DataFrames for each symbol
+        strategy_version: Strategy version to use ('v1' or 'v2')
+        initial_capital: Initial capital for backtesting
+        max_position_size: Maximum position size as fraction of capital
+        stop_loss: Stop loss percentage
+        take_profit: Take profit percentage
+        
+    Returns:
+        dict: Backtest results
+    """
+    # Initialize strategy
+    if strategy_version == 'v1':
+        strategy = StatisticalArbitrageStrategyV1(
+            initial_capital=initial_capital,
+            max_position_size=max_position_size,
+            stop_loss=stop_loss,
+            take_profit=take_profit
+        )
+    else:
+        strategy = StatisticalArbitrageStrategyV2(
+            initial_capital=initial_capital,
+            max_position_size=max_position_size,
+            base_stop_loss=stop_loss,
+            base_take_profit=take_profit
+        )
+        
+    # Find common timestamps across all pairs
+    common_timestamps = None
+    for symbol, df in data.items():
+        if common_timestamps is None:
+            common_timestamps = set(df.index)
+        else:
+            common_timestamps = common_timestamps.intersection(set(df.index))
+            
+    if not common_timestamps:
+        logger.error("No common timestamps found across all pairs")
+        logger.error("Available date ranges:")
+        for symbol, df in data.items():
+            logger.error(f"{symbol}: {df.index[0]} to {df.index[-1]}")
+        raise ValueError("No common timestamps found across all pairs")
+        
+    # Convert to sorted list
+    common_timestamps = sorted(list(common_timestamps))
+    logger.info(f"Found {len(common_timestamps)} common timestamps")
+    logger.info(f"Date range: {common_timestamps[0]} to {common_timestamps[-1]}")
+    
+    # Run backtest
+    for timestamp in common_timestamps:
+        signals = strategy.process_tick(data, timestamp)
+        
+        # Execute trades
+        for symbol, signal in signals.items():
+            if signal['type'] == 'close':
+                # Close position
+                strategy.positions[symbol] = 0.0
+                strategy.trades.append({
+                    'timestamp': timestamp,
+                    'symbol': symbol,
+                    'type': 'close',
+                    'price': data[symbol].loc[timestamp, 'close'],
+                    'size': signal['size'],
+                    'spread': signal.get('spread', 0.0)
+                })
+            else:
+                # Open position
+                strategy.positions[symbol] = signal['size']
+                strategy.trades.append({
+                    'timestamp': timestamp,
+                    'symbol': symbol,
+                    'type': 'open',
+                    'direction': signal['type'],
+                    'price': data[symbol].loc[timestamp, 'close'],
+                    'size': signal['size'],
+                    'spread': signal.get('spread', 0.0)
+                })
+                
+    # Calculate performance metrics
+    results = {
+        'capital': strategy.capital,
+        'positions': strategy.positions,
+        'trades': strategy.trades,
+        'returns': strategy.returns,
+        'sharpe_ratio': 0.0,
+        'max_drawdown': 0.0,
+        'pair_returns': strategy.pair_returns,
+        'pair_positions': strategy.pair_positions,
+        'spreads': strategy.spreads,
+        'entry_signals': strategy.entry_signals,
+        'exit_signals': strategy.exit_signals
+    }
+    
+    if results['returns']:
+        returns_series = pd.Series(results['returns'])
+        results['sharpe_ratio'] = returns_series.mean() / returns_series.std() * np.sqrt(252)
+        results['max_drawdown'] = (returns_series.cumsum().expanding().max() - 
+                                 returns_series.cumsum()).max()
+                                 
+    return results
 
 class BacktestResults:
     def __init__(self, run_id: str = None):
@@ -288,7 +504,7 @@ class BacktestResults:
                     plt.grid(True)
                     plt.savefig(self.plots_dir / 'spread_analysis.png')
                     plt.close()
-
+                    
     def save_summary(self):
         """Save a summary of all results."""
         summary = []
@@ -316,327 +532,13 @@ class BacktestResults:
             logger.info(f"Max Consecutive Wins: {metrics['max_consecutive_wins']}")
             logger.info(f"Max Consecutive Losses: {metrics['max_consecutive_losses']}")
 
-def load_data_from_csv(symbols: list, timeframe: str, data_dir: str) -> dict:
-    """
-    Load historical data from CSV files.
-    
-    Args:
-        symbols: List of trading symbols
-        timeframe: Data timeframe
-        data_dir: Directory containing CSV files
-        
-    Returns:
-        dict: Dictionary of DataFrames for each symbol
-    """
-    data = {}
-    for symbol in symbols:
-        try:
-            # Find the most recent CSV file for this symbol and timeframe
-            csv_files = [f for f in os.listdir(data_dir) 
-                        if f.startswith(f"{symbol}_{timeframe}_") and f.endswith('.csv')]
-            if not csv_files:
-                logger.warning(f"No CSV files found for {symbol} {timeframe}")
-                continue
-                
-            # Sort by date and get the most recent
-            csv_files.sort()
-            latest_file = csv_files[-1]
-            
-            # Load data
-            df = pd.read_csv(os.path.join(data_dir, latest_file))
-            
-            # Convert column names to lowercase
-            df.columns = [col.lower() for col in df.columns]
-            
-            # Print actual columns for debugging
-            logger.info(f"Columns in {latest_file}: {df.columns.tolist()}")
-            
-            # Convert timestamp to datetime and set as index
-            df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
-            df.set_index('open_time', inplace=True)
-            
-            # Check required columns
-            required_columns = ['open', 'high', 'low', 'close', 'volume']
-            if not all(col in df.columns for col in required_columns):
-                logger.error(f"Missing required columns in {latest_file}")
-                logger.error(f"Required columns: {required_columns}")
-                logger.error(f"Available columns: {df.columns.tolist()}")
-                continue
-                
-            # Convert numeric columns
-            for col in required_columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                
-            # Drop rows with NaN values
-            df.dropna(inplace=True)
-            
-            # Sort index
-            df.sort_index(inplace=True)
-            
-            # Validate date range - only check if data is too old
-            if df.index[0].year < 2020:
-                logger.error(f"Data too old for {symbol}: {df.index[0]} to {df.index[-1]}")
-                continue
-                
-            data[symbol] = df
-            logger.info(f"Loaded {len(df)} rows for {symbol} from {latest_file}")
-            logger.info(f"Date range: {df.index[0]} to {df.index[-1]}")
-            
-        except Exception as e:
-            logger.error(f"Error loading data for {symbol}: {str(e)}")
-            logger.error(f"Exception details: {str(e.__class__.__name__)}: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            
-    if not data:
-        logger.error("No data was successfully loaded. Please check the CSV files and their column names.")
-        raise ValueError("No data was successfully loaded. Please check the CSV files and their column names.")
-            
-    return data
-
-def split_data(data: dict) -> tuple:
-    """
-    Split data into train, test, and validation sets.
-    
-    Args:
-        data: Dictionary of DataFrames for each symbol
-        
-    Returns:
-        tuple: (train_data, test_data, val_data)
-    """
-    # Find common date range across all symbols
-    start_dates = []
-    end_dates = []
-    
-    for symbol, df in data.items():
-        start_dates.append(df.index[0])
-        end_dates.append(df.index[-1])
-        
-    common_start = max(start_dates)
-    common_end = min(end_dates)
-    
-    logger.info(f"Common date range: {common_start} to {common_end}")
-    
-    if common_start >= common_end:
-        logger.error("No valid date range found")
-        return None, None, None
-        
-    # Calculate split points
-    total_days = (common_end - common_start).days
-    train_days = int(total_days * 0.6)
-    test_days = int(total_days * 0.2)
-    
-    train_end = common_start + timedelta(days=train_days)
-    test_end = train_end + timedelta(days=test_days)
-    
-    logger.info(f"Training period: {common_start} to {train_end}")
-    logger.info(f"Testing period: {train_end} to {test_end}")
-    logger.info(f"Validation period: {test_end} to {common_end}")
-    
-    # Split data
-    train_data = {}
-    test_data = {}
-    val_data = {}
-    
-    for symbol, df in data.items():
-        train_data[symbol] = df[(df.index >= common_start) & (df.index < train_end)]
-        test_data[symbol] = df[(df.index >= train_end) & (df.index < test_end)]
-        val_data[symbol] = df[(df.index >= test_end) & (df.index <= common_end)]
-        
-        # Log split sizes
-        logger.info(f"\n{symbol} split sizes:")
-        logger.info(f"Training: {len(train_data[symbol])} rows")
-        logger.info(f"Testing: {len(test_data[symbol])} rows")
-        logger.info(f"Validation: {len(val_data[symbol])} rows")
-        
-    return train_data, test_data, val_data
-
-def backtest_strategy(data: dict, 
-                     initial_capital: float = 10000.0,
-                     max_position_size: float = 0.1,
-                     stop_loss: float = 0.02,
-                     take_profit: float = 0.03) -> dict:
-    """
-    Backtest the statistical arbitrage strategy.
-    
-    Args:
-        data: Dictionary of DataFrames for each symbol
-        initial_capital: Initial capital for backtesting
-        max_position_size: Maximum position size as fraction of capital
-        stop_loss: Stop loss percentage
-        take_profit: Take profit percentage
-        
-    Returns:
-        dict: Backtest results
-    """
-    # Find common timestamps across all pairs
-    common_timestamps = None
-    for symbol, df in data.items():
-        if common_timestamps is None:
-            common_timestamps = set(df.index)
-        else:
-            common_timestamps = common_timestamps.intersection(set(df.index))
-            
-    if not common_timestamps:
-        logger.error("No common timestamps found across all pairs")
-        logger.error("Available date ranges:")
-        for symbol, df in data.items():
-            logger.error(f"{symbol}: {df.index[0]} to {df.index[-1]}")
-        raise ValueError("No common timestamps found across all pairs")
-        
-    # Convert to sorted list
-    common_timestamps = sorted(list(common_timestamps))
-    logger.info(f"Found {len(common_timestamps)} common timestamps")
-    logger.info(f"Date range: {common_timestamps[0]} to {common_timestamps[-1]}")
-    
-    # Initialize results
-    results = {
-        'capital': [initial_capital],
-        'positions': {},
-        'trades': [],
-        'returns': [],
-        'sharpe_ratio': 0.0,
-        'max_drawdown': 0.0,
-        'pair_returns': {},  # Track returns for each pair
-        'pair_positions': {},  # Track positions for each pair
-        'spreads': {},  # Track spreads for each pair
-        'entry_signals': {},  # Track entry signals
-        'exit_signals': {}  # Track exit signals
-    }
-    
-    # Initialize positions and tracking
-    for symbol in data.keys():
-        results['positions'][symbol] = 0.0
-        results['pair_returns'][symbol] = []
-        results['pair_positions'][symbol] = []
-        results['spreads'][symbol] = []
-        results['entry_signals'][symbol] = []
-        results['exit_signals'][symbol] = []
-        
-    # Calculate spreads and signals
-    for i in range(1, len(common_timestamps)):
-        current_time = common_timestamps[i]
-        previous_time = common_timestamps[i-1]
-        
-        try:
-            # Calculate returns and spreads for each pair
-            for symbol, df in data.items():
-                if current_time in df.index and previous_time in df.index:
-                    # Calculate returns
-                    returns = (df.loc[current_time, 'close'] / 
-                             df.loc[previous_time, 'close'] - 1)
-                    results['pair_returns'][symbol].append(returns)
-                    
-                    # Calculate spread (using z-score)
-                    lookback = 20  # Adjust as needed
-                    if len(results['pair_returns'][symbol]) >= lookback:
-                        recent_returns = results['pair_returns'][symbol][-lookback:]
-                        spread = (returns - np.mean(recent_returns)) / np.std(recent_returns)
-                        results['spreads'][symbol].append(spread)
-                        
-                        # Generate signals
-                        if abs(spread) > 2.0:  # Entry threshold
-                            results['entry_signals'][symbol].append({
-                                'timestamp': current_time,
-                                'type': 'long' if spread < -2.0 else 'short',
-                                'spread': spread
-                            })
-                        elif abs(spread) < 0.5:  # Exit threshold
-                            results['exit_signals'][symbol].append({
-                                'timestamp': current_time,
-                                'type': 'close',
-                                'spread': spread
-                            })
-                            
-            # Update positions based on signals
-            for symbol in data.keys():
-                if results['entry_signals'][symbol] and results['entry_signals'][symbol][-1]['timestamp'] == current_time:
-                    signal = results['entry_signals'][symbol][-1]
-                    position_size = initial_capital * max_position_size
-                    
-                    if signal['type'] == 'long':
-                        results['positions'][symbol] = position_size
-                        results['trades'].append({
-                            'timestamp': current_time,
-                            'symbol': symbol,
-                            'type': 'open',
-                            'direction': 'long',
-                            'price': data[symbol].loc[current_time, 'close'],
-                            'size': position_size,
-                            'spread': signal['spread']
-                        })
-                    else:
-                        results['positions'][symbol] = -position_size
-                        results['trades'].append({
-                            'timestamp': current_time,
-                            'symbol': symbol,
-                            'type': 'open',
-                            'direction': 'short',
-                            'price': data[symbol].loc[current_time, 'close'],
-                            'size': -position_size,
-                            'spread': signal['spread']
-                        })
-                        
-                elif results['exit_signals'][symbol] and results['exit_signals'][symbol][-1]['timestamp'] == current_time:
-                    if results['positions'][symbol] != 0:
-                        results['trades'].append({
-                            'timestamp': current_time,
-                            'symbol': symbol,
-                            'type': 'close',
-                            'price': data[symbol].loc[current_time, 'close'],
-                            'size': results['positions'][symbol],
-                            'spread': results['exit_signals'][symbol][-1]['spread']
-                        })
-                        results['positions'][symbol] = 0.0
-                        
-            # Calculate portfolio return
-            portfolio_return = 0.0
-            for symbol, position in results['positions'].items():
-                if position != 0 and current_time in data[symbol].index:
-                    price_change = (data[symbol].loc[current_time, 'close'] / 
-                                  data[symbol].loc[previous_time, 'close'] - 1)
-                    portfolio_return += price_change * (position / initial_capital)
-                    
-            results['returns'].append(portfolio_return)
-            
-            # Update capital
-            current_capital = results['capital'][-1] * (1 + portfolio_return)
-            results['capital'].append(current_capital)
-            
-            # Check for stop loss or take profit
-            if portfolio_return <= -stop_loss or portfolio_return >= take_profit:
-                # Close all positions
-                for symbol in results['positions']:
-                    if results['positions'][symbol] != 0:
-                        results['trades'].append({
-                            'timestamp': current_time,
-                            'symbol': symbol,
-                            'type': 'close',
-                            'price': data[symbol].loc[current_time, 'close'],
-                            'size': results['positions'][symbol],
-                            'reason': 'stop_loss' if portfolio_return <= -stop_loss else 'take_profit'
-                        })
-                        results['positions'][symbol] = 0.0
-                        
-        except Exception as e:
-            logger.error(f"Error in backtest loop at {current_time}: {str(e)}")
-            continue
-            
-    # Calculate performance metrics
-    if results['returns']:
-        returns_series = pd.Series(results['returns'])
-        results['sharpe_ratio'] = returns_series.mean() / returns_series.std() * np.sqrt(252)
-        results['max_drawdown'] = (returns_series.cumsum().expanding().max() - 
-                                 returns_series.cumsum()).max()
-                                 
-    return results
-
 def main():
     # Load environment variables
     load_dotenv()
     
     # Configuration
     config = {
+        'strategy_version': 'v2',  # or 'v1' for original strategy
         'symbols': [
             'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT',
             'LINKUSDT', 'NEARUSDT', 'WIFUSDT', 'AVAXUSDT', '1000SHIBUSDT',
@@ -675,6 +577,7 @@ def main():
         logger.info(f"\nRunning {period} period backtest...")
         result = backtest_strategy(
             period_data,
+            strategy_version=config['strategy_version'],
             initial_capital=config['initial_capital'],
             max_position_size=config['max_position_size'],
             stop_loss=config['stop_loss'],

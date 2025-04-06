@@ -200,78 +200,85 @@ This software is for educational purposes only. Use at your own risk. The author
 
 # Statistical Arbitrage Trading Strategy
 
-## Overview
-This project implements a statistical arbitrage trading strategy for cryptocurrency futures on Binance. The strategy identifies and exploits temporary price inefficiencies between correlated trading pairs.
+This project implements a statistical arbitrage trading strategy for cryptocurrency markets using mean reversion principles.
 
-## Trading Pairs
-We focus on the following major cryptocurrency pairs for statistical arbitrage:
+## Strategy Versions
 
-### Core Trading Pairs
-- BTCUSDT (Bitcoin)
-- ETHUSDT (Ethereum)
-- BNBUSDT (Binance Coin)
-- SOLUSDT (Solana)
+### Version 1 (Basic)
+- Fixed z-score thresholds for entry/exit
+- Simple position sizing
+- Basic risk management
+- Location: `src/strategy/stat_arb/v1/`
 
-### Altcoin Pairs
-- LINKUSDT (Chainlink)
-- NEARUSDT (NEAR Protocol)
-- WIFUSDT (WIF)
-- AVAXUSDT (Avalanche)
-- 1000SHIBUSDT (Shiba Inu)
-- DOGEUSDT (Dogecoin)
-- 1000PEPEUSDT (Pepe)
-- WLDUSDT (Worldcoin)
+### Version 2 (Enhanced)
+- Dynamic z-score thresholds based on volatility
+- Adaptive position sizing based on spread confidence
+- Enhanced risk management with trailing stops
+- Pair correlation filtering
+- Volatility-based entry/exit timing
+- Location: `src/strategy/stat_arb/v2/`
 
-### Selection Criteria
-- High liquidity and trading volume
-- Established market presence
-- Sufficient historical data
-- Strong correlation with major pairs
+## Key Features
 
-## Strategy Components
-1. **Data Collection**
-   - 15-minute candlestick data
-   - 3 months of historical data
-   - Real-time price updates
+### Data Management
+- Historical data loading from CSV files
+- Data validation and preprocessing
+- Time series synchronization across pairs
 
-2. **Pair Selection**
-   - Correlation analysis
-   - Cointegration testing
-   - Volatility assessment
+### Strategy Components
+- Mean reversion signal generation
+- Dynamic position sizing
+- Risk management framework
+- Performance tracking and analysis
 
-3. **Signal Generation**
-   - Z-score calculation
-   - Mean reversion detection
-   - Entry/exit signals
+### Backtesting
+- Multi-period backtesting (train/test/val)
+- Detailed performance metrics
+- Trade analysis and visualization
+- Results comparison across versions
 
-4. **Risk Management**
-   - Position sizing
-   - Stop-loss orders
-   - Take-profit targets
+## Usage
 
-## Backtesting
-- Training period: First 2 months
-- Testing period: Last month
-- Performance metrics:
-  - Sharpe ratio
-  - Maximum drawdown
-  - Win rate
-  - Profit factor
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-## Requirements
-- Python 3.8+
-- Binance API access
-- Required Python packages (see requirements.txt)
+2. Run backtest:
+```bash
+python src/scripts/run_stat_arb_backtest.py
+```
 
-## Setup
-1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Set up environment variables (see .env.example)
-4. Run data collection: `python src/scripts/download_binance_data.py`
-5. Run backtest: `python src/scripts/run_stat_arb_backtest.py`
+3. View results:
+- Results are saved in `results/YYYYMMDD_HHMMSS/`
+- Includes plots, metrics, and trade records
+- Compare performance across strategy versions
 
-## Documentation
-See the `docs` directory for detailed documentation:
-- `statistical_arbitrage_strategy.md`: Strategy implementation details
-- `API.md`: API integration documentation
-- `design_notes.md`: System architecture and design decisions 
+## Strategy Improvements
+
+### Version 2 Enhancements
+1. **Dynamic Thresholds**
+   - Adjusts entry/exit thresholds based on volatility
+   - More aggressive in high volatility, conservative in low volatility
+
+2. **Adaptive Position Sizing**
+   - Position size based on spread confidence
+   - Larger positions for stronger signals
+   - Risk-adjusted sizing
+
+3. **Enhanced Risk Management**
+   - Trailing stops based on volatility
+   - Dynamic take profit levels
+   - Correlation-based pair filtering
+
+4. **Performance Analysis**
+   - Detailed trade records
+   - Spread analysis
+   - Volatility regime tracking
+
+## Future Improvements
+1. Machine learning for signal generation
+2. Portfolio optimization
+3. Real-time market data integration
+4. Risk parity position sizing
+5. Multi-timeframe analysis 

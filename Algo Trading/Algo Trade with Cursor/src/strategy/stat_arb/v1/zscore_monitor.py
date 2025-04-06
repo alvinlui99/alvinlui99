@@ -1,46 +1,46 @@
+"""
+Z-score monitor for statistical arbitrage strategy.
+
+This module provides functionality for monitoring z-scores and generating trading signals.
+"""
+
+from typing import Dict, List, Tuple, NamedTuple, Optional
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
-from dataclasses import dataclass
+from datetime import datetime
 import logging
 from binance.um_futures import UMFutures
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@dataclass
-class ZScoreSignal:
-    """Data class to hold Z-score signal information."""
+class ZScoreSignal(NamedTuple):
+    """Trading signal based on z-score."""
     pair: Tuple[str, str]
+    signal_type: str  # 'ENTRY_LONG', 'ENTRY_SHORT', 'EXIT'
     zscore: float
-    spread: float
-    mean: float
-    std: float
-    timestamp: pd.Timestamp
-    signal_type: str  # 'ENTRY_LONG', 'ENTRY_SHORT', 'EXIT', 'NONE'
+    timestamp: datetime
 
 class ZScoreMonitor:
-    def __init__(
-        self,
-        client: UMFutures,
-        pairs: List[Tuple[str, str]],
-        lookback_periods: int = 100,  # Number of periods for Z-score calculation
-        entry_threshold: float = 2.0,  # Z-score threshold for entry
-        exit_threshold: float = 0.5,   # Z-score threshold for exit
-        stop_loss_threshold: float = 3.0,  # Z-score threshold for stop loss
-        timeframe: str = '15m'
-    ):
+    def __init__(self,
+                 client: UMFutures,
+                 pairs: List[tuple],
+                 lookback_periods: int = 100,
+                 entry_threshold: float = 2.0,
+                 exit_threshold: float = 0.5,
+                 stop_loss_threshold: float = 3.0,
+                 timeframe: str = '15m'):
         """
-        Initialize the Z-score monitoring system.
+        Initialize z-score monitor.
         
         Args:
-            client: Binance Futures client
-            pairs: List of (symbol1, symbol2) pairs to monitor
-            lookback_periods: Number of periods to use for Z-score calculation
-            entry_threshold: Z-score threshold for entry signals
-            exit_threshold: Z-score threshold for exit signals
+            client: Binance Futures API client
+            pairs: List of trading pairs to monitor
+            lookback_periods: Number of periods for z-score calculation
+            entry_threshold: Z-score threshold for entry
+            exit_threshold: Z-score threshold for exit
             stop_loss_threshold: Z-score threshold for stop loss
-            timeframe: Trading timeframe
+            timeframe: Timeframe for analysis
         """
         self.client = client
         self.pairs = pairs
@@ -49,6 +49,11 @@ class ZScoreMonitor:
         self.exit_threshold = exit_threshold
         self.stop_loss_threshold = stop_loss_threshold
         self.timeframe = timeframe
+        
+        # Initialize tracking variables
+        self.spreads: Dict[Tuple[str, str], List[float]] = {}
+        self.zscores: Dict[Tuple[str, str], List[float]] = {}
+        self.signals: List[ZScoreSignal] = []
         
         # Initialize data storage
         self.spread_data: Dict[Tuple[str, str], pd.DataFrame] = {}
@@ -177,11 +182,8 @@ class ZScoreMonitor:
             self.current_signals[pair] = ZScoreSignal(
                 pair=pair,
                 zscore=zscore,
-                spread=spread,
-                mean=mean,
-                std=std,
-                timestamp=pd.Timestamp.now(),
-                signal_type=signal_type
+                signal_type=signal_type,
+                timestamp=datetime.now()
             )
         except Exception as e:
             logger.error(f"Error updating signal for {symbol1}-{symbol2}: {str(e)}")
@@ -225,8 +227,42 @@ class ZScoreMonitor:
             logger.error(f"Traceback: {traceback.format_exc()}")
     
     def get_signals(self) -> List[ZScoreSignal]:
-        """Get current trading signals for all pairs."""
-        return list(self.current_signals.values())
+        """
+        Get trading signals based on z-scores.
+        
+        Returns:
+            List of trading signals
+        """
+        self.signals = []
+        
+        for pair in self.pairs:
+            if pair in self.zscores and self.zscores[pair]:
+                zscore = self.zscores[pair][-1]
+                
+                # Generate signals based on z-score
+                if zscore <= -self.entry_threshold:
+                    self.signals.append(ZScoreSignal(
+                        pair=pair,
+                        signal_type='ENTRY_LONG',
+                        zscore=zscore,
+                        timestamp=datetime.now()
+                    ))
+                elif zscore >= self.entry_threshold:
+                    self.signals.append(ZScoreSignal(
+                        pair=pair,
+                        signal_type='ENTRY_SHORT',
+                        zscore=zscore,
+                        timestamp=datetime.now()
+                    ))
+                elif abs(zscore) <= self.exit_threshold:
+                    self.signals.append(ZScoreSignal(
+                        pair=pair,
+                        signal_type='EXIT',
+                        zscore=zscore,
+                        timestamp=datetime.now()
+                    ))
+                    
+        return self.signals
     
     def get_pair_status(self, symbol1: str, symbol2: str) -> Optional[Dict]:
         """
@@ -246,9 +282,6 @@ class ZScoreMonitor:
         signal = self.current_signals[pair]
         return {
             'zscore': signal.zscore,
-            'spread': signal.spread,
-            'mean': signal.mean,
-            'std': signal.std,
             'signal_type': signal.signal_type,
             'timestamp': signal.timestamp
         }

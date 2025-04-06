@@ -1,3 +1,12 @@
+"""
+Version 1 of the Statistical Arbitrage Strategy
+
+This version implements the basic mean reversion strategy with:
+- Fixed z-score thresholds for entry/exit
+- Simple position sizing
+- Basic risk management
+"""
+
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple
@@ -10,7 +19,7 @@ from .position_sizer import PositionSizer
 
 logger = logging.getLogger(__name__)
 
-class StatisticalArbitrageStrategy(BaseStrategy):
+class StatisticalArbitrageStrategyV1(BaseStrategy):
     def __init__(self,
                  client,
                  pairs: List[tuple],
