@@ -27,69 +27,68 @@ class Backtest:
         self.trades: List[Dict] = []
         self.equity_curve: List[float] = []
         
-    def run(self, data: Dict[str, pd.DataFrame]) -> Dict:
+    def run(self, data: dict) -> dict:
         """
-        Run backtest on historical data.
+        Run the backtest on historical data.
         
         Args:
-            data (Dict[str, pd.DataFrame]): Historical data for each trading pair
+            data: Dictionary of DataFrames for each symbol
             
         Returns:
-            Dict: Backtest results
+            dict: Backtest results
         """
+        # Initialize positions and trades
         self.positions = {}
         self.trades = []
-        self.equity_curve = [self.initial_capital]
-        current_capital = self.initial_capital
+        self.equity_curve = []
         
-        # Ensure all dataframes have the same index
+        # Calculate indicators for each symbol
+        for symbol, df in data.items():
+            try:
+                data[symbol] = self.strategy.calculate_indicators(df)
+            except Exception as e:
+                logger.error(f"Error calculating indicators for {symbol}: {str(e)}")
+                continue
+        
+        # Get common index across all symbols
         common_index = None
         for symbol, df in data.items():
-            # Calculate indicators for each symbol
-            data[symbol] = self.strategy.calculate_indicators(df)
-            
             if common_index is None:
                 common_index = df.index
             else:
                 common_index = common_index.intersection(df.index)
         
-        # Log number of data points
+        if common_index is None or len(common_index) == 0:
+            logger.error("No common data points found across symbols")
+            return {
+                'initial_capital': self.initial_capital,
+                'final_capital': self.initial_capital,
+                'total_pnl': 0.0,
+                'return': 0.0,
+                'sharpe_ratio': 0.0,
+                'max_drawdown': 0.0,
+                'win_rate': 0.0,
+                'num_trades': 0
+            }
+        
         logger.info(f"Running backtest with {len(common_index)} data points")
         
-        # Run backtest for each timestamp
-        for i, timestamp in enumerate(common_index):
-            # Skip the first few data points to allow indicators to initialize
-            if i < 30:
-                continue
-                
-            # Get data for current timestamp
+        # Run backtest for each time step
+        for timestamp in common_index:
             current_data = {}
             for symbol, df in data.items():
-                current_data[symbol] = df.loc[:timestamp]
+                current_data[symbol] = df.loc[timestamp:timestamp]
             
-            # Update positions and calculate PnL
-            current_capital = self._update_positions(current_data, timestamp)
-            
-            # Generate signals for current timestamp
+            # Generate signals and execute trades
             signals = self.strategy.generate_signals(current_data)
             
             # Execute trades based on signals
-            self._execute_trades(signals, current_data, timestamp)
+            for symbol, signal in signals.items():
+                if signal != 0:  # Non-zero signal indicates a trade
+                    self._execute_trade(symbol, signal, current_data[symbol])
             
-            # Record equity
-            self.equity_curve.append(current_capital)
-            
-            # Log portfolio status every day (24 periods for 1h timeframe)
-            if i % 24 == 0:
-                logger.info(f"Portfolio Status at {timestamp}:")
-                logger.info(f"  Capital: {current_capital:.2f} USDT")
-                for symbol, pos in self.positions.items():
-                    if pos['size'] != 0:
-                        current_price = current_data[symbol].iloc[-1]['Close']
-                        unrealized_pnl = (current_price - pos['entry_price']) * pos['size']
-                        if pos['side'] == 'SELL':
-                            unrealized_pnl = -unrealized_pnl
-                        logger.info(f"  {symbol}: {pos['size']:.3f} @ {pos['entry_price']:.2f} ({pos['side']}) - PnL: {unrealized_pnl:.2f} USDT")
+            # Update equity curve
+            self._update_equity_curve(current_data)
         
         # Calculate performance metrics
         results = self._calculate_performance_metrics()
@@ -111,8 +110,8 @@ class Backtest:
         for symbol, position in list(self.positions.items()):
             if position['size'] != 0 and symbol in data:
                 # Get the price using the correct column name
-                if 'Close' in data[symbol].columns:
-                    current_price = data[symbol].loc[timestamp, 'Close']
+                if 'close' in data[symbol].columns:
+                    current_price = data[symbol].loc[timestamp, 'close']
                 else:
                     logger.error(f"Cannot find price column for {symbol}")
                     continue
@@ -160,82 +159,121 @@ class Backtest:
         """
         current_capital = self.equity_curve[-1]
         
-        for symbol, signal in signals.items():
-            logger.info(f"\nProcessing signal for {symbol} at {timestamp}")
+        for pair_key, signal in signals.items():
+            logger.info(f"\nProcessing signal for pair {pair_key} at {timestamp}")
             logger.info(f"Signal action: {signal['action']}")
             
-            if symbol not in data or not self.strategy.validate_signal(signal):
-                logger.info(f"Skipping {symbol}: Invalid signal or missing data")
-                continue
-                
-            # Get the price using the correct column name
-            if 'Close' in data[symbol].columns:
-                current_price = data[symbol].loc[timestamp, 'Close']
-            else:
-                logger.error(f"Cannot find price column for {symbol}")
+            # Extract symbols from pair key
+            symbol1, symbol2 = signal['symbol1'], signal['symbol2']
+            
+            # Validate data availability
+            if symbol1 not in data or symbol2 not in data:
+                logger.info(f"Skipping {pair_key}: Missing data")
                 continue
             
-            # Calculate position size
-            position_size = self.strategy.calculate_position_size(symbol, signal, current_capital)
-            if position_size == 0:
-                logger.info(f"Skipping {symbol}: Position size is 0")
+            # Validate signal
+            if not self.strategy.validate_signal(signal):
+                logger.info(f"Skipping {pair_key}: Invalid signal")
                 continue
-                
-            current_position = self.positions.get(symbol, {}).get('size', 0)
-            logger.info(f"Current position for {symbol}: {current_position}")
             
-            # Handle position changes
+            # Get current prices
+            price1 = signal['price1']
+            price2 = signal['price2']
+            
+            # Calculate position sizes for both symbols
+            size1 = self.strategy.calculate_position_size(symbol1, signal, current_capital/2)  # Split capital between pairs
+            size2 = self.strategy.calculate_position_size(symbol2, signal, current_capital/2)
+            
+            if size1 == 0 or size2 == 0:
+                logger.info(f"Skipping {pair_key}: Zero position size")
+                continue
+            
+            # Calculate total cost including commission
+            total_cost = (size1 * price1 + size2 * price2) * (1 + self.commission)
+            
+            if total_cost > current_capital:
+                logger.info(f"Skipping {pair_key}: Insufficient capital (need {total_cost:.2f}, have {current_capital:.2f})")
+                continue
+            
+            # Calculate stop loss and take profit levels
+            stop_loss_distance = signal['std'] * 2  # 2 standard deviations
+            take_profit_distance = signal['std'] * 3  # 3 standard deviations
+            
             if signal['action'] == 'BUY':
-                # Close any existing short position first
-                if current_position < 0:
-                    pnl = (self.positions[symbol]['entry_price'] - current_price) * abs(current_position)
-                    current_capital += pnl - (abs(current_position) * current_price * self.commission)
-                    self._record_trade(symbol, 'CLOSE', current_position, current_price, pnl, timestamp)
-                    logger.info(f"Closed short position for {symbol}: PnL = {pnl:.2f}")
+                # Long symbol1, short symbol2
+                # Close existing positions if any
+                for symbol, pos_size in [(symbol1, size1), (symbol2, -size2)]:
+                    current_position = self.positions.get(symbol, {}).get('size', 0)
+                    if current_position != 0:
+                        current_price = data[symbol].loc[timestamp, 'close']
+                        pnl = (current_price - self.positions[symbol]['entry_price']) * current_position
+                        if self.positions[symbol]['side'] == 'SELL':
+                            pnl = -pnl
+                        current_capital += pnl - (abs(current_position) * current_price * self.commission)
+                        self._record_trade(symbol, 'CLOSE', current_position, current_price, pnl, timestamp)
+                        logger.info(f"Closed position for {symbol}: PnL = {pnl:.2f}")
                 
-                # Open long position
-                cost = position_size * current_price * (1 + self.commission)
-                if cost <= current_capital:
-                    # Adjust position size to account for commission
-                    adjusted_size = position_size / (1 + self.commission)
-                    self.positions[symbol] = {
-                        'size': adjusted_size,
-                        'side': 'BUY',
-                        'entry_price': current_price,
-                        'stop_loss': signal['stop_loss'],
-                        'take_profit': signal['take_profit']
-                    }
-                    current_capital -= cost
-                    self._record_trade(symbol, 'BUY', adjusted_size, current_price, -cost, timestamp)
-                    logger.info(f"Opened long position for {symbol}: Size = {adjusted_size:.3f}, Cost = {cost:.2f}")
-                else:
-                    logger.info(f"Skipping {symbol}: Insufficient capital for trade")
-                    
+                # Open new positions
+                self.positions[symbol1] = {
+                    'size': size1,
+                    'side': 'BUY',
+                    'entry_price': price1,
+                    'stop_loss': price1 - stop_loss_distance,
+                    'take_profit': price1 + take_profit_distance
+                }
+                self._record_trade(symbol1, 'BUY', size1, price1, 0, timestamp)
+                
+                self.positions[symbol2] = {
+                    'size': -size2,
+                    'side': 'SELL',
+                    'entry_price': price2,
+                    'stop_loss': price2 + stop_loss_distance,
+                    'take_profit': price2 - take_profit_distance
+                }
+                self._record_trade(symbol2, 'SELL', size2, price2, 0, timestamp)
+                
+                logger.info(f"Opened long {size1:.6f} {symbol1} @ {price1:.2f}")
+                logger.info(f"Opened short {size2:.6f} {symbol2} @ {price2:.2f}")
+                
             elif signal['action'] == 'SELL':
-                # Close any existing long position first
-                if current_position > 0:
-                    pnl = (current_price - self.positions[symbol]['entry_price']) * current_position
-                    current_capital += pnl - (current_position * current_price * self.commission)
-                    self._record_trade(symbol, 'CLOSE', current_position, current_price, pnl, timestamp)
-                    logger.info(f"Closed long position for {symbol}: PnL = {pnl:.2f}")
+                # Short symbol1, long symbol2
+                # Close existing positions if any
+                for symbol, pos_size in [(symbol1, -size1), (symbol2, size2)]:
+                    current_position = self.positions.get(symbol, {}).get('size', 0)
+                    if current_position != 0:
+                        current_price = data[symbol].loc[timestamp, 'close']
+                        pnl = (current_price - self.positions[symbol]['entry_price']) * current_position
+                        if self.positions[symbol]['side'] == 'SELL':
+                            pnl = -pnl
+                        current_capital += pnl - (abs(current_position) * current_price * self.commission)
+                        self._record_trade(symbol, 'CLOSE', current_position, current_price, pnl, timestamp)
+                        logger.info(f"Closed position for {symbol}: PnL = {pnl:.2f}")
                 
-                # Open short position
-                cost = position_size * current_price * (1 + self.commission)
-                if cost <= current_capital:
-                    # Adjust position size to account for commission
-                    adjusted_size = position_size / (1 + self.commission)
-                    self.positions[symbol] = {
-                        'size': -adjusted_size,
-                        'side': 'SELL',
-                        'entry_price': current_price,
-                        'stop_loss': signal['stop_loss'],
-                        'take_profit': signal['take_profit']
-                    }
-                    current_capital -= cost
-                    self._record_trade(symbol, 'SELL', -adjusted_size, current_price, -cost, timestamp)
-                    logger.info(f"Opened short position for {symbol}: Size = {adjusted_size:.3f}, Cost = {cost:.2f}")
-                else:
-                    logger.info(f"Skipping {symbol}: Insufficient capital for trade")
+                # Open new positions
+                self.positions[symbol1] = {
+                    'size': -size1,
+                    'side': 'SELL',
+                    'entry_price': price1,
+                    'stop_loss': price1 + stop_loss_distance,
+                    'take_profit': price1 - take_profit_distance
+                }
+                self._record_trade(symbol1, 'SELL', size1, price1, 0, timestamp)
+                
+                self.positions[symbol2] = {
+                    'size': size2,
+                    'side': 'BUY',
+                    'entry_price': price2,
+                    'stop_loss': price2 - stop_loss_distance,
+                    'take_profit': price2 + take_profit_distance
+                }
+                self._record_trade(symbol2, 'BUY', size2, price2, 0, timestamp)
+                
+                logger.info(f"Opened short {size1:.6f} {symbol1} @ {price1:.2f}")
+                logger.info(f"Opened long {size2:.6f} {symbol2} @ {price2:.2f}")
+            
+            # Update capital
+            current_capital -= total_cost
+            self.equity_curve[-1] = current_capital
     
     def _record_trade(self, symbol: str, action: str, size: float, price: float, pnl: float, timestamp: datetime) -> None:
         """

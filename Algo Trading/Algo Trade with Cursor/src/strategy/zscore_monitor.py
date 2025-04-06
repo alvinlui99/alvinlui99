@@ -78,22 +78,26 @@ class ZScoreMonitor:
                 
                 # Convert to DataFrames
                 df1 = pd.DataFrame(klines1, columns=[
-                    'Open time', 'Open', 'High', 'Low', 'Close', 'Volume',
-                    'Close time', 'Quote asset volume', 'Number of trades',
-                    'Taker buy base asset volume', 'Taker buy quote asset volume', 'Ignore'
+                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                    'close_time', 'quote_volume', 'trades',
+                    'taker_buy_base', 'taker_buy_quote', 'ignore'
                 ])
                 df2 = pd.DataFrame(klines2, columns=[
-                    'Open time', 'Open', 'High', 'Low', 'Close', 'Volume',
-                    'Close time', 'Quote asset volume', 'Number of trades',
-                    'Taker buy base asset volume', 'Taker buy quote asset volume', 'Ignore'
+                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                    'close_time', 'quote_volume', 'trades',
+                    'taker_buy_base', 'taker_buy_quote', 'ignore'
                 ])
                 
                 # Convert types
-                df1['Close'] = df1['Close'].astype(float)
-                df2['Close'] = df2['Close'].astype(float)
+                df1['close'] = pd.to_numeric(df1['close'], errors='coerce')
+                df2['close'] = pd.to_numeric(df2['close'], errors='coerce')
+                
+                # Drop any NaN values
+                df1.dropna(inplace=True)
+                df2.dropna(inplace=True)
                 
                 # Calculate spread
-                spread = df1['Close'] - df2['Close']
+                spread = df1['close'] - df2['close']
                 
                 # Store spread data
                 self.spread_data[(symbol1, symbol2)] = spread
@@ -102,23 +106,40 @@ class ZScoreMonitor:
                 self._update_zscore(symbol1, symbol2)
                 
                 logger.info(f"Loaded historical data for {symbol1}-{symbol2}")
+                logger.info(f"Spread mean: {spread.mean():.2f}, std: {spread.std():.2f}")
+                logger.info(f"Current Z-score: {self.zscore_data[(symbol1, symbol2)].iloc[-1]:.2f}")
             except Exception as e:
                 logger.error(f"Error loading historical data for {symbol1}-{symbol2}: {str(e)}")
+                logger.error(f"Exception details: {str(e.__class__.__name__)}: {str(e)}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
     
     def _update_zscore(self, symbol1: str, symbol2: str) -> None:
         """Update Z-score for a pair of symbols."""
-        spread = self.spread_data[(symbol1, symbol2)]
-        mean = spread.mean()
-        std = spread.std()
-        
-        # Calculate Z-score
-        zscore = (spread - mean) / std
-        
-        # Store Z-score data
-        self.zscore_data[(symbol1, symbol2)] = zscore
-        
-        # Update current signal
-        self._update_signal(symbol1, symbol2, zscore.iloc[-1], spread.iloc[-1], mean, std)
+        try:
+            spread = self.spread_data[(symbol1, symbol2)]
+            if len(spread) < self.lookback_periods:
+                logger.warning(f"Insufficient data for {symbol1}-{symbol2}: {len(spread)} < {self.lookback_periods}")
+                return
+            
+            mean = spread.rolling(window=self.lookback_periods).mean()
+            std = spread.rolling(window=self.lookback_periods).std()
+            
+            # Calculate Z-score
+            zscore = (spread - mean) / std
+            
+            # Store Z-score data
+            self.zscore_data[(symbol1, symbol2)] = zscore
+            
+            # Update current signal
+            self._update_signal(symbol1, symbol2, zscore.iloc[-1], spread.iloc[-1], mean.iloc[-1], std.iloc[-1])
+            
+            logger.debug(f"Updated Z-score for {symbol1}-{symbol2}: {zscore.iloc[-1]:.2f}")
+        except Exception as e:
+            logger.error(f"Error updating Z-score for {symbol1}-{symbol2}: {str(e)}")
+            logger.error(f"Exception details: {str(e.__class__.__name__)}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
     
     def _update_signal(
         self,
@@ -130,32 +151,43 @@ class ZScoreMonitor:
         std: float
     ) -> None:
         """Update trading signal based on Z-score."""
-        pair = (symbol1, symbol2)
-        current_signal = self.current_signals.get(pair)
-        
-        # Determine signal type
-        if abs(zscore) > self.stop_loss_threshold:
-            signal_type = 'EXIT'  # Stop loss
-        elif abs(zscore) > self.entry_threshold:
-            if zscore > 0:
-                signal_type = 'ENTRY_SHORT'  # Short symbol1, long symbol2
+        try:
+            pair = (symbol1, symbol2)
+            current_signal = self.current_signals.get(pair)
+            
+            # Determine signal type
+            if abs(zscore) > self.stop_loss_threshold:
+                signal_type = 'EXIT'  # Stop loss
+                logger.info(f"Stop loss signal for {symbol1}-{symbol2}: |{zscore:.2f}| > {self.stop_loss_threshold}")
+            elif abs(zscore) > self.entry_threshold:
+                if zscore > 0:
+                    signal_type = 'ENTRY_SHORT'  # Short symbol1, long symbol2
+                    logger.info(f"Short entry signal for {symbol1}-{symbol2}: {zscore:.2f} > {self.entry_threshold}")
+                else:
+                    signal_type = 'ENTRY_LONG'  # Long symbol1, short symbol2
+                    logger.info(f"Long entry signal for {symbol1}-{symbol2}: {zscore:.2f} < -{self.entry_threshold}")
+            elif abs(zscore) < self.exit_threshold and current_signal and current_signal.signal_type != 'NONE':
+                signal_type = 'EXIT'  # Take profit
+                logger.info(f"Take profit signal for {symbol1}-{symbol2}: |{zscore:.2f}| < {self.exit_threshold}")
             else:
-                signal_type = 'ENTRY_LONG'  # Long symbol1, short symbol2
-        elif abs(zscore) < self.exit_threshold and current_signal and current_signal.signal_type != 'NONE':
-            signal_type = 'EXIT'  # Take profit
-        else:
-            signal_type = 'NONE'
-        
-        # Create new signal
-        self.current_signals[pair] = ZScoreSignal(
-            pair=pair,
-            zscore=zscore,
-            spread=spread,
-            mean=mean,
-            std=std,
-            timestamp=pd.Timestamp.now(),
-            signal_type=signal_type
-        )
+                signal_type = 'NONE'
+                logger.debug(f"No signal for {symbol1}-{symbol2}: {zscore:.2f}")
+            
+            # Create new signal
+            self.current_signals[pair] = ZScoreSignal(
+                pair=pair,
+                zscore=zscore,
+                spread=spread,
+                mean=mean,
+                std=std,
+                timestamp=pd.Timestamp.now(),
+                signal_type=signal_type
+            )
+        except Exception as e:
+            logger.error(f"Error updating signal for {symbol1}-{symbol2}: {str(e)}")
+            logger.error(f"Exception details: {str(e.__class__.__name__)}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
     
     def update_prices(self, symbol1: str, symbol2: str, price1: float, price2: float) -> None:
         """
@@ -167,22 +199,30 @@ class ZScoreMonitor:
             price1: Current price of first symbol
             price2: Current price of second symbol
         """
-        pair = (symbol1, symbol2)
-        if pair not in self.spread_data:
-            logger.warning(f"No historical data for pair {symbol1}-{symbol2}")
-            return
-        
-        # Calculate new spread
-        new_spread = price1 - price2
-        
-        # Update spread data
-        self.spread_data[pair] = pd.concat([
-            self.spread_data[pair].iloc[1:],
-            pd.Series([new_spread])
-        ])
-        
-        # Update Z-score
-        self._update_zscore(symbol1, symbol2)
+        try:
+            pair = (symbol1, symbol2)
+            if pair not in self.spread_data:
+                logger.warning(f"No historical data for pair {symbol1}-{symbol2}")
+                return
+            
+            # Calculate new spread
+            new_spread = price1 - price2
+            
+            # Update spread data
+            self.spread_data[pair] = pd.concat([
+                self.spread_data[pair].iloc[1:],
+                pd.Series([new_spread])
+            ])
+            
+            # Update Z-score
+            self._update_zscore(symbol1, symbol2)
+            
+            logger.debug(f"Updated prices for {symbol1}-{symbol2}: {price1:.2f}, {price2:.2f}")
+        except Exception as e:
+            logger.error(f"Error updating prices for {symbol1}-{symbol2}: {str(e)}")
+            logger.error(f"Exception details: {str(e.__class__.__name__)}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
     
     def get_signals(self) -> List[ZScoreSignal]:
         """Get current trading signals for all pairs."""

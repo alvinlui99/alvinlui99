@@ -5,12 +5,13 @@ import logging
 from datetime import datetime, timedelta
 import numpy as np
 from .data_cache import DataCache
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class MarketData:
-    def __init__(self, client: UMFutures, symbols: List[str], start_date: str, end_date: str, timeframe: str = '1h', use_cache: bool = True):
+    def __init__(self, client: UMFutures, symbols: List[str], start_date: str, end_date: str, timeframe: str = '1h', use_cache: bool = True, use_csv: bool = False, csv_dir: str = 'data'):
         """
         Initialize market data collector.
         
@@ -21,6 +22,8 @@ class MarketData:
             end_date (str): End date in YYYY-MM-DD format
             timeframe (str): Timeframe (e.g., '1h', '4h', '1d')
             use_cache (bool): Whether to use data cache
+            use_csv (bool): Whether to use CSV files instead of API
+            csv_dir (str): Directory containing CSV files
         """
         self.client = client
         self.symbols = symbols
@@ -28,6 +31,8 @@ class MarketData:
         self.end_date = end_date
         self.timeframe = timeframe
         self.use_cache = use_cache
+        self.use_csv = use_csv
+        self.csv_dir = csv_dir
         
         # Initialize data cache
         self.cache = DataCache() if use_cache else None
@@ -42,6 +47,22 @@ class MarketData:
         historical_data = {}
         
         for symbol in self.symbols:
+            if self.use_csv:
+                # Try to load from CSV file
+                csv_path = os.path.join(self.csv_dir, f"{symbol}_{self.timeframe}.csv")
+                if os.path.exists(csv_path):
+                    logger.info(f"Loading data for {symbol} from CSV file: {csv_path}")
+                    try:
+                        data = pd.read_csv(csv_path)
+                        data['timestamp'] = pd.to_datetime(data['timestamp'])
+                        data.set_index('timestamp', inplace=True)
+                        historical_data[symbol] = data
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error loading CSV for {symbol}: {str(e)}")
+                else:
+                    logger.warning(f"CSV file not found for {symbol}: {csv_path}")
+            
             if self.use_cache and self.cache.is_cached(symbol, self.timeframe, self.start_date, self.end_date):
                 # Load from cache if available
                 data = self.cache.load_from_cache(symbol, self.timeframe, self.start_date, self.end_date)
@@ -104,14 +125,11 @@ class MarketData:
                 # Set index
                 data.set_index('timestamp', inplace=True)
                 
-                # Rename columns to match strategy expectations
-                data.rename(columns={
-                    'open': 'Open',
-                    'high': 'High',
-                    'low': 'Low',
-                    'close': 'Close',
-                    'volume': 'Volume'
-                }, inplace=True)
+                # Save to CSV if use_csv is True
+                if self.use_csv:
+                    csv_path = os.path.join(self.csv_dir, f"{symbol}_{self.timeframe}.csv")
+                    data.to_csv(csv_path)
+                    logger.info(f"Saved data for {symbol} to CSV: {csv_path}")
                 
                 # Save to cache if enabled
                 if self.use_cache:

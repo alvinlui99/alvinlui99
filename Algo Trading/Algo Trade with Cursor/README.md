@@ -9,6 +9,8 @@ A robust algorithmic trading system that combines technical analysis, statistica
   - Efficient data preprocessing and storage
   - Support for multiple trading pairs and timeframes
   - Real-time data streaming capabilities
+  - CSV data storage and retrieval
+  - Consistent column naming across API and CSV data
 
 - **Trading Strategies**
   - MACD-based strategy with RSI confirmation
@@ -29,6 +31,38 @@ A robust algorithmic trading system that combines technical analysis, statistica
   - Transaction cost modeling
   - Risk-adjusted return analysis
   - Trade history and equity curve tracking
+
+## Data Format
+
+### API Response and CSV Column Names
+
+The system uses consistent column names across both API responses and CSV files:
+
+```python
+[
+    'timestamp',      # Unix timestamp in milliseconds
+    'open',          # Opening price
+    'high',          # Highest price
+    'low',           # Lowest price
+    'close',         # Closing price
+    'volume',        # Trading volume
+    'close_time',    # Close timestamp
+    'quote_volume',  # Quote asset volume
+    'trades',        # Number of trades
+    'taker_buy_base', # Taker buy base asset volume
+    'taker_buy_quote', # Taker buy quote asset volume
+    'ignore'         # Ignore field
+]
+```
+
+### CSV File Naming Convention
+
+CSV files are stored in the `data` directory with the following naming convention:
+```
+{symbol}_{timeframe}_{date}.csv
+```
+
+Example: `BTCUSDT_15m_2024-07-17.csv`
 
 ## Project Structure
 
@@ -86,6 +120,29 @@ BINANCE_API_SECRET=your_api_secret
 
 ## Usage
 
+### Data Management
+
+The system supports both API data fetching and CSV file storage:
+
+```python
+from src.data.market_data import MarketData
+
+# Initialize with CSV support
+market_data = MarketData(
+    client=binance_client,
+    use_csv=True,  # Enable CSV file storage/retrieval
+    csv_dir='data'  # Directory for CSV files
+)
+
+# Fetch historical data (will save to CSV if use_csv=True)
+data = market_data.fetch_historical_data(
+    symbol='BTCUSDT',
+    timeframe='15m',
+    start_time='2024-07-01',
+    end_time='2024-07-17'
+)
+```
+
 ### Running Tests
 
 The project includes a comprehensive test suite to validate all components:
@@ -103,88 +160,27 @@ pytest --cov=src tests/
 
 ### Backtesting
 
-```python
-from src.strategy.macd_strategy import MACDStrategy
-from src.strategy.backtest import Backtest
-from src.data.market_data import MarketData
+To run a backtest:
 
-# Initialize components
-strategy = MACDStrategy(
-    trading_pairs=['BTCUSDT', 'ETHUSDT'],
-    timeframe='1h',
-    risk_per_trade=0.02
-)
-backtest = Backtest(strategy=strategy, initial_capital=10000)
+```bash
+# Run MACD strategy backtest
+python src/scripts/run_macd_backtest.py
 
-# Run backtest
-results = backtest.run(market_data)
+# Run statistical arbitrage backtest
+python src/scripts/run_stat_arb_backtest.py
 ```
 
-### Portfolio Optimization
+## Error Handling and Logging
 
-```python
-from src.portfolio.portfolio_optimizer import PortfolioOptimizer
+The system implements comprehensive error handling and logging:
 
-# Initialize optimizer
-optimizer = PortfolioOptimizer(
-    symbols=['BTCUSDT', 'ETHUSDT'],
-    returns=returns_data,
-    risk_free_rate=0.02
-)
-
-# Get optimal weights
-weights, return_, risk = optimizer.minimum_variance_optimization()
-```
-
-### Statistical Arbitrage
-
-```python
-from src.strategy.statistical_arbitrage import StatisticalArbitrageStrategy
-from src.strategy.zscore_monitor import ZScoreMonitor
-from src.strategy.position_sizer import PositionSizer
-
-# Initialize components
-strategy = StatisticalArbitrageStrategy(
-    pairs=[('LINKUSDT', 'NEARUSDT'), ('WIFUSDT', 'TRUMPUSDT')],
-    timeframe='15m',
-    lookback_periods=100
-)
-monitor = ZScoreMonitor(
-    client=binance_client,
-    pairs=strategy.pairs,
-    lookback_periods=100
-)
-sizer = PositionSizer(
-    initial_capital=10000,
-    max_position_size=0.2,
-    min_confidence=0.4
-)
-
-# Run backtest
-results = backtest.run(market_data)
-```
-
-## Risk Management
-
-The system implements several risk management features:
-
-- Position sizing based on account risk per trade
-- Maximum position size limits per asset
-- Portfolio-level drawdown monitoring
-- Dynamic stop-loss and take-profit levels
-- Commission and slippage modeling
-
-## Performance Metrics
-
-The backtesting framework calculates various performance metrics:
-
-- Total and annual returns
-- Sharpe ratio
-- Maximum drawdown
-- Win rate and profit factor
-- Average win/loss
-- Total commission paid
-- Trade duration analysis
+- All API calls and data processing operations are wrapped in try-except blocks
+- Detailed error messages include exception class names and tracebacks
+- Logging levels:
+  - INFO: General system status and important events
+  - DEBUG: Detailed operation information
+  - WARNING: Potential issues that don't stop execution
+  - ERROR: Critical issues that may affect system operation
 
 ## Contributing
 
@@ -200,4 +196,82 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Disclaimer
 
-This software is for educational purposes only. Use at your own risk. The authors are not responsible for any financial losses incurred through the use of this software. 
+This software is for educational purposes only. Use at your own risk. The authors are not responsible for any financial losses incurred through the use of this software.
+
+# Statistical Arbitrage Trading Strategy
+
+## Overview
+This project implements a statistical arbitrage trading strategy for cryptocurrency futures on Binance. The strategy identifies and exploits temporary price inefficiencies between correlated trading pairs.
+
+## Trading Pairs
+We focus on the following major cryptocurrency pairs for statistical arbitrage:
+
+### Core Trading Pairs
+- BTCUSDT (Bitcoin)
+- ETHUSDT (Ethereum)
+- BNBUSDT (Binance Coin)
+- SOLUSDT (Solana)
+
+### Altcoin Pairs
+- LINKUSDT (Chainlink)
+- NEARUSDT (NEAR Protocol)
+- WIFUSDT (WIF)
+- AVAXUSDT (Avalanche)
+- 1000SHIBUSDT (Shiba Inu)
+- DOGEUSDT (Dogecoin)
+- 1000PEPEUSDT (Pepe)
+- WLDUSDT (Worldcoin)
+
+### Selection Criteria
+- High liquidity and trading volume
+- Established market presence
+- Sufficient historical data
+- Strong correlation with major pairs
+
+## Strategy Components
+1. **Data Collection**
+   - 15-minute candlestick data
+   - 3 months of historical data
+   - Real-time price updates
+
+2. **Pair Selection**
+   - Correlation analysis
+   - Cointegration testing
+   - Volatility assessment
+
+3. **Signal Generation**
+   - Z-score calculation
+   - Mean reversion detection
+   - Entry/exit signals
+
+4. **Risk Management**
+   - Position sizing
+   - Stop-loss orders
+   - Take-profit targets
+
+## Backtesting
+- Training period: First 2 months
+- Testing period: Last month
+- Performance metrics:
+  - Sharpe ratio
+  - Maximum drawdown
+  - Win rate
+  - Profit factor
+
+## Requirements
+- Python 3.8+
+- Binance API access
+- Required Python packages (see requirements.txt)
+
+## Setup
+1. Clone the repository
+2. Install dependencies: `pip install -r requirements.txt`
+3. Set up environment variables (see .env.example)
+4. Run data collection: `python src/scripts/download_binance_data.py`
+5. Run backtest: `python src/scripts/run_stat_arb_backtest.py`
+
+## Documentation
+See the `docs` directory for detailed documentation:
+- `statistical_arbitrage_strategy.md`: Strategy implementation details
+- `API.md`: API integration documentation
+- `design_notes.md`: System architecture and design decisions 
