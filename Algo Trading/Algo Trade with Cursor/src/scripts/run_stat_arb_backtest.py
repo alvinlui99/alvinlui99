@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import json
 from dotenv import load_dotenv
+import csv
 
 # Add project root to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -375,6 +376,7 @@ class BacktestResults:
             logger.info(f"  Final Capital: ${metrics['final_capital']:,.2f}")
             logger.info(f"  Total Return: {metrics['total_return_pct']:.2f}%")
             logger.info(f"  Total PnL: ${metrics['total_pnl']:,.2f}")
+            logger.info(f"  Total Commission: ${metrics['total_commission']:,.2f}")
             
             logger.info(f"\nTrade Statistics:")
             logger.info(f"  Number of Trades: {metrics['num_trades']}")
@@ -518,40 +520,51 @@ def backtest_strategy(data: dict,
                      max_position_size: float = 0.1,
                      stop_loss: float = 0.02,
                      take_profit: float = 0.03,
-                     commission: float = 0.0004,  # Add commission parameter
+                     commission: float = 0.0004,
                      results_manager: BacktestResults = None) -> dict:
     """
-    Backtest the statistical arbitrage strategy.
-    
-    Args:
-        data: Dictionary of DataFrames for each symbol
-        strategy_version: Strategy version to use ('v1' or 'v2')
-        initial_capital: Initial capital for backtesting
-        max_position_size: Maximum position size as fraction of capital
-        stop_loss: Stop loss percentage
-        take_profit: Take profit percentage
-        commission: Commission rate per trade (default: 0.04%)
-        results_manager: BacktestResults instance for saving results
-        
-    Returns:
-        dict: Backtest results
+    Run backtest for statistical arbitrage strategy.
     """
+    # Create capital tracking CSV
+    capital_tracking_file = Path("results/capital_tracking.csv")
+    capital_tracking_file.parent.mkdir(exist_ok=True)
+    
+    with open(capital_tracking_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['timestamp', 'capital', 'pnl', 'commission', 'trade_type', 'symbol1', 'symbol2', 'price1', 'price2', 'size1', 'size2'])
+    
+    def write_capital_update(timestamp, capital, pnl, commission, trade_type=None, symbol1=None, symbol2=None, price1=None, price2=None, size1=None, size2=None):
+        with open(capital_tracking_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([timestamp, capital, pnl, commission, trade_type, symbol1, symbol2, price1, price2, size1, size2])
+    
     # Initialize strategy
     if strategy_version == 'v1':
         strategy = StatisticalArbitrageStrategyV1(
+            client=None,  # Not needed for backtesting
+            pairs=[],  # Will be populated from data
+            lookback_periods=100,
+            entry_threshold=2.0,
+            exit_threshold=0.5,
+            stop_loss_threshold=stop_loss,
+            timeframe='4h',
             initial_capital=initial_capital,
             max_position_size=max_position_size,
-            stop_loss=stop_loss,
-            take_profit=take_profit
+            max_leverage=2.0,
+            min_confidence=0.6,
+            volatility_threshold=0.02,
+            coint_pvalue_threshold=0.05
         )
-    else:
+    else:  # v2
         strategy = StatisticalArbitrageStrategyV2(
             initial_capital=initial_capital,
             max_position_size=max_position_size,
             base_stop_loss=stop_loss,
-            base_take_profit=take_profit
+            base_take_profit=take_profit,
+            min_correlation=0.7,
+            volatility_lookback=20
         )
-        
+    
     # Find common timestamps across all pairs
     common_timestamps = None
     for symbol, df in data.items():
@@ -562,35 +575,32 @@ def backtest_strategy(data: dict,
             
     if not common_timestamps:
         logger.error("No common timestamps found across all pairs")
-        logger.error("Available date ranges:")
-        for symbol, df in data.items():
-            logger.error(f"{symbol}: {df.index[0]} to {df.index[-1]}")
         raise ValueError("No common timestamps found across all pairs")
         
     # Convert to sorted list
     common_timestamps = sorted(list(common_timestamps))
-    logger.info(f"Found {len(common_timestamps)} common timestamps")
-    logger.info(f"Date range: {common_timestamps[0]} to {common_timestamps[-1]}")
     
-    # Track active pairs
+    # Track active pairs and recorded trades
     active_pairs = {}  # (symbol1, symbol2) -> {'entry_prices': (price1, price2), 'sizes': (size1, size2)}
+    recorded_trades = set()  # Track unique trades to prevent duplicates
     
     # Initialize results tracking
     timestamps = []
-    capital = []
+    capital = [initial_capital]  # Initialize with initial capital
     trades = []
     spreads = {}
     prices = {}
     entry_signals = {}
     exit_signals = {}
     returns = []
-    
-    # Initialize tracking data
     tracking_data = []
+    total_commission = 0.0  # Track total commissions for this period only
     
-    # Initialize capital
-    current_capital = initial_capital
-    capital.append(current_capital)
+    # Add initial logging
+    logger.info(f"\nStarting backtest with initial capital: ${initial_capital:,.2f}")
+    logger.info(f"Commission rate: {commission:.4%}")
+    logger.info(f"Period start time: {common_timestamps[0]}")
+    logger.info(f"Period end time: {common_timestamps[-1]}")
     
     # Run backtest
     for timestamp in common_timestamps:
@@ -600,17 +610,22 @@ def backtest_strategy(data: dict,
         # Initialize tracking for this timestamp
         timestamp_data = {
             'timestamp': timestamp,
-            'capital': current_capital,
+            'capital': capital[-1],  # Use last capital value
             'total_pnl': 0.0,
+            'total_commission': total_commission,  # Start with accumulated commission
             'active_positions': len(active_pairs),
             'spreads': {},
             'prices': {}
         }
         
+        # Log start of timestamp
+        logger.info(f"\nProcessing timestamp: {timestamp}")
+        logger.info(f"Starting capital: ${capital[-1]:,.2f}")
+        logger.info(f"Accumulated commission so far: ${total_commission:,.2f}")
+        
         # Group signals by pair
         pair_signals = {}
         for symbol, signal in signals.items():
-            # Find the pair this symbol belongs to
             for pair in strategy.pairs:
                 if symbol in pair:
                     other_symbol = pair[0] if pair[1] == symbol else pair[1]
@@ -666,52 +681,71 @@ def backtest_strategy(data: dict,
                     # Calculate commission
                     commission1 = price1 * size1 * commission
                     commission2 = price2 * size2 * commission
-                    total_commission = commission1 + commission2
+                    trade_commission = commission1 + commission2
+                    
+                    # Update total commission
+                    total_commission += trade_commission
+                    timestamp_data['total_commission'] = total_commission
                     
                     # Update tracking data
                     timestamp_data['total_pnl'] += total_pnl
-                    timestamp_data['total_commission'] = total_commission
-                    timestamp_data['trades'] = {
-                        'type': 'close',
-                        'pair': f"{symbol1}_{symbol2}",
-                        'pnl1': pnl1,
-                        'pnl2': pnl2,
-                        'total_pnl': total_pnl,
-                        'commission1': commission1,
-                        'commission2': commission2,
-                        'total_commission': total_commission
-                    }
                     
-                    # Calculate return
-                    if current_capital > 0:
-                        returns.append((total_pnl - total_commission) / current_capital)
-                    else:
-                        returns.append(0.0)
+                    # Write capital update for closing trade
+                    write_capital_update(
+                        timestamp=timestamp,
+                        capital=capital[-1] + total_pnl - trade_commission,
+                        pnl=total_pnl,
+                        commission=trade_commission,
+                        trade_type='close',
+                        symbol1=symbol1,
+                        symbol2=symbol2,
+                        price1=price1,
+                        price2=price2,
+                        size1=size1,
+                        size2=size2
+                    )
                     
-                    # Update capital
-                    current_capital += total_pnl - total_commission
+                    # Log trade details
+                    logger.info(f"\nClosing position for {symbol1} and {symbol2}:")
+                    logger.info(f"Entry prices: {entry_price1:.2f}, {entry_price2:.2f}")
+                    logger.info(f"Exit prices: {price1:.2f}, {price2:.2f}")
+                    logger.info(f"Position sizes: {size1:.8f}, {size2:.8f}")
+                    logger.info(f"PnL: ${total_pnl:,.2f} (${pnl1:,.2f} + ${pnl2:,.2f})")
+                    logger.info(f"Commission: ${trade_commission:,.2f} (${commission1:,.2f} + ${commission2:,.2f})")
+                    logger.info(f"Accumulated commission: ${total_commission:,.2f}")
                     
-                    # Record trades
-                    trades.append({
-                        'timestamp': timestamp,
-                        'symbol': symbol1,
-                        'type': 'close',
-                        'price': price1,
-                        'size': size1,
-                        'pnl': pnl1,
-                        'commission': commission1,
-                        'spread': spread
-                    })
-                    trades.append({
-                        'timestamp': timestamp,
-                        'symbol': symbol2,
-                        'type': 'close',
-                        'price': price2,
-                        'size': size2,
-                        'pnl': pnl2,
-                        'commission': commission2,
-                        'spread': spread
-                    })
+                    # Create trade keys to check for duplicates
+                    trade_key1 = (timestamp, symbol1, 'close')
+                    trade_key2 = (timestamp, symbol2, 'close')
+                    
+                    # Only record trades if they haven't been recorded before
+                    if trade_key1 not in recorded_trades:
+                        trades.append({
+                            'timestamp': timestamp,
+                            'symbol': symbol1,
+                            'type': 'close',
+                            'entry_price': entry_price1,
+                            'exit_price': price1,
+                            'size': size1,
+                            'pnl': pnl1,
+                            'commission': commission1,
+                            'spread': spread
+                        })
+                        recorded_trades.add(trade_key1)
+                    
+                    if trade_key2 not in recorded_trades:
+                        trades.append({
+                            'timestamp': timestamp,
+                            'symbol': symbol2,
+                            'type': 'close',
+                            'entry_price': entry_price2,
+                            'exit_price': price2,
+                            'size': size2,
+                            'pnl': pnl2,
+                            'commission': commission2,
+                            'spread': spread
+                        })
+                        recorded_trades.add(trade_key2)
                     
                     # Store exit signals
                     if symbol1 not in exit_signals:
@@ -735,44 +769,66 @@ def backtest_strategy(data: dict,
                 # Calculate commission
                 commission1 = price1 * size1 * commission
                 commission2 = price2 * size2 * commission
-                total_commission = commission1 + commission2
+                trade_commission = commission1 + commission2
                 
-                # Update tracking data
-                timestamp_data['trades'] = {
-                    'type': 'open',
-                    'pair': f"{symbol1}_{symbol2}",
-                    'direction1': pair_signal[symbol1]['type'],
-                    'direction2': pair_signal[symbol2]['type'],
-                    'size1': size1,
-                    'size2': size2,
-                    'commission1': commission1,
-                    'commission2': commission2,
-                    'total_commission': total_commission
-                }
+                # Update total commission
+                total_commission += trade_commission
+                timestamp_data['total_commission'] = total_commission
                 
-                # Record trades
-                trades.append({
-                    'timestamp': timestamp,
-                    'symbol': symbol1,
-                    'type': 'open',
-                    'direction': pair_signal[symbol1]['type'],
-                    'price': price1,
-                    'size': size1,
-                    'pnl': 0.0,
-                    'commission': commission1,
-                    'spread': spread
-                })
-                trades.append({
-                    'timestamp': timestamp,
-                    'symbol': symbol2,
-                    'type': 'open',
-                    'direction': pair_signal[symbol2]['type'],
-                    'price': price2,
-                    'size': size2,
-                    'pnl': 0.0,
-                    'commission': commission2,
-                    'spread': spread
-                })
+                # Write capital update for opening trade
+                write_capital_update(
+                    timestamp=timestamp,
+                    capital=capital[-1] - trade_commission,
+                    pnl=0.0,
+                    commission=trade_commission,
+                    trade_type='open',
+                    symbol1=symbol1,
+                    symbol2=symbol2,
+                    price1=price1,
+                    price2=price2,
+                    size1=size1,
+                    size2=size2
+                )
+                
+                # Log trade details
+                logger.info(f"\nOpening position for {symbol1} and {symbol2}:")
+                logger.info(f"Entry prices: {price1:.2f}, {price2:.2f}")
+                logger.info(f"Position sizes: {size1:.8f}, {size2:.8f}")
+                logger.info(f"Commission: ${trade_commission:,.2f} (${commission1:,.2f} + ${commission2:,.2f})")
+                logger.info(f"Accumulated commission: ${total_commission:,.2f}")
+                
+                # Create trade keys to check for duplicates
+                trade_key1 = (timestamp, symbol1, 'open')
+                trade_key2 = (timestamp, symbol2, 'open')
+                
+                # Only record trades if they haven't been recorded before
+                if trade_key1 not in recorded_trades:
+                    trades.append({
+                        'timestamp': timestamp,
+                        'symbol': symbol1,
+                        'type': 'open',
+                        'direction': pair_signal[symbol1]['type'],
+                        'entry_price': price1,
+                        'size': size1,
+                        'pnl': 0.0,
+                        'commission': commission1,
+                        'spread': spread
+                    })
+                    recorded_trades.add(trade_key1)
+                
+                if trade_key2 not in recorded_trades:
+                    trades.append({
+                        'timestamp': timestamp,
+                        'symbol': symbol2,
+                        'type': 'open',
+                        'direction': pair_signal[symbol2]['type'],
+                        'entry_price': price2,
+                        'size': size2,
+                        'pnl': 0.0,
+                        'commission': commission2,
+                        'spread': spread
+                    })
+                    recorded_trades.add(trade_key2)
                 
                 # Store entry signals
                 if symbol1 not in entry_signals:
@@ -787,9 +843,59 @@ def backtest_strategy(data: dict,
                     'entry_prices': (price1, price2),
                     'sizes': (size1, size2)
                 }
-                
-        # Update capital curve
+        
+        # Update capital once per timestamp
+        current_timestamp_trades = [trade for trade in trades if trade['timestamp'] == timestamp]  # Get only current timestamp's trades
+        current_pnl = sum(trade['pnl'] for trade in current_timestamp_trades)  # Only current timestamp's PnL
+        current_commission = sum(trade['commission'] for trade in current_timestamp_trades)  # Only current timestamp's commission
+        current_capital = capital[-1] + current_pnl - current_commission  # Update from previous capital
         capital.append(current_capital)
+        timestamp_data['capital'] = current_capital
+        
+        # Write capital update for timestamp summary
+        write_capital_update(
+            timestamp=timestamp,
+            capital=current_capital,
+            pnl=current_pnl,
+            commission=current_commission,
+            trade_type='summary'
+        )
+        
+        # Log detailed capital calculation
+        logger.info(f"\nDetailed Capital Calculation for {timestamp}:")
+        logger.info(f"Previous capital: ${capital[-2]:,.2f}")
+        logger.info(f"Current timestamp PnL: ${current_pnl:,.2f}")
+        logger.info(f"Current timestamp commission: ${current_commission:,.2f}")
+        logger.info(f"Calculated capital: ${current_capital:,.2f}")
+        
+        # Log trade-by-trade breakdown
+        logger.info("\nTrade-by-trade breakdown for current timestamp:")
+        for trade in current_timestamp_trades:
+            logger.info(f"Trade: {trade['symbol']} {trade['type']} {trade['direction'] if 'direction' in trade else ''}")
+            logger.info(f"  PnL: ${trade['pnl']:,.2f}")
+            logger.info(f"  Commission: ${trade['commission']:,.2f}")
+        
+        # Log end of timestamp summary
+        logger.info(f"\nTimestamp {timestamp} summary:")
+        logger.info(f"Total PnL this timestamp: ${current_pnl:,.2f}")
+        logger.info(f"Total commission this timestamp: ${current_commission:,.2f}")
+        logger.info(f"Ending capital: ${current_capital:,.2f}")
+        
+        # Validate capital calculation
+        expected_capital = capital[-2] + current_pnl - current_commission
+        if abs(current_capital - expected_capital) > 0.01:  # Allow for small floating point differences
+            logger.warning(f"Capital calculation mismatch!")
+            logger.warning(f"Expected capital: ${expected_capital:,.2f}")
+            logger.warning(f"Actual capital: ${current_capital:,.2f}")
+            logger.warning(f"Difference: ${abs(current_capital - expected_capital):,.2f}")
+            
+            # Log detailed breakdown of the discrepancy
+            logger.warning("\nDetailed discrepancy breakdown:")
+            logger.warning(f"Previous capital: ${capital[-2]:,.2f}")
+            logger.warning(f"Current timestamp PnL: ${current_pnl:,.2f}")
+            logger.warning(f"Current timestamp commission: ${current_commission:,.2f}")
+            logger.warning(f"Expected: ${expected_capital:,.2f}")
+            logger.warning(f"Actual: ${current_capital:,.2f}")
         
         # Add tracking data for this timestamp
         tracking_data.append(timestamp_data)
@@ -806,87 +912,42 @@ def backtest_strategy(data: dict,
         'prices': prices,
         'entry_signals': entry_signals,
         'exit_signals': exit_signals,
-        'tracking_data': tracking_data
+        'tracking_data': tracking_data,
+        'total_commission': total_commission
     }
     
-    if results['returns']:
-        returns_series = pd.Series(results['returns'])
-        results['sharpe_ratio'] = returns_series.mean() / returns_series.std() * np.sqrt(252)
-        results['max_drawdown'] = (returns_series.cumsum().expanding().max() - 
-                                 returns_series.cumsum()).max()
-                                 
-    # Save tracking data and create plots if results_manager is provided
-    if results_manager:
-        # Save tracking data to CSV
-        tracking_df = pd.DataFrame(tracking_data)
-        tracking_df.to_csv(results_manager.metrics_dir / 'tracking.csv', index=False)
-        
-        # Create plots from tracking data
-        plt.figure(figsize=(12, 6))
-        plt.plot(tracking_df['timestamp'], tracking_df['capital'], label='Capital')
-        plt.title('Capital Curve')
-        plt.xlabel('Time')
-        plt.ylabel('Capital')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(results_manager.plots_dir / 'capital_curve.png')
-        plt.close()
-        
-        # Plot PnL
-        plt.figure(figsize=(12, 6))
-        plt.plot(tracking_df['timestamp'], tracking_df['total_pnl'].cumsum(), label='Cumulative PnL')
-        plt.title('Cumulative PnL')
-        plt.xlabel('Time')
-        plt.ylabel('PnL')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(results_manager.plots_dir / 'cumulative_pnl.png')
-        plt.close()
-        
-        # Plot active positions
-        plt.figure(figsize=(12, 6))
-        plt.plot(tracking_df['timestamp'], tracking_df['active_positions'], label='Active Positions')
-        plt.title('Active Positions Over Time')
-        plt.xlabel('Time')
-        plt.ylabel('Number of Positions')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(results_manager.plots_dir / 'active_positions.png')
-        plt.close()
-        
-        # Plot spreads for each pair
-        spread_columns = [col for col in tracking_df.columns if 'spread' in col]
-        if spread_columns:
-            plt.figure(figsize=(12, 6))
-            for col in spread_columns:
-                # Convert to numeric and handle NaN values
-                spread_data = pd.to_numeric(tracking_df[col], errors='coerce')
-                if not spread_data.isna().all():  # Only plot if there's valid data
-                    plt.plot(tracking_df['timestamp'], spread_data, label=col.replace('_spread', ''))
-            plt.title('Spreads Over Time')
-            plt.xlabel('Time')
-            plt.ylabel('Spread')
-            plt.legend()
-            plt.grid(True)
-            plt.savefig(results_manager.plots_dir / 'spreads.png')
-            plt.close()
-            
-        # Plot prices for each symbol
-        price_columns = [col for col in tracking_df.columns if 'price' in col]
-        if price_columns:
-            plt.figure(figsize=(12, 6))
-            for col in price_columns:
-                # Convert to numeric and handle NaN values
-                price_data = pd.to_numeric(tracking_df[col], errors='coerce')
-                if not price_data.isna().all():  # Only plot if there's valid data
-                    plt.plot(tracking_df['timestamp'], price_data, label=col.replace('_price', ''))
-            plt.title('Prices Over Time')
-            plt.xlabel('Time')
-            plt.ylabel('Price')
-            plt.legend()
-            plt.grid(True)
-            plt.savefig(results_manager.plots_dir / 'prices.png')
-            plt.close()
+    # Log final summary with detailed breakdown
+    final_pnl = sum(trade['pnl'] for trade in trades)
+    final_commission = total_commission
+    
+    logger.info("\nBacktest complete - Final Summary:")
+    logger.info(f"Initial capital: ${initial_capital:,.2f}")
+    logger.info(f"Total PnL: ${final_pnl:,.2f}")
+    logger.info(f"Total commission: ${final_commission:,.2f}")
+    logger.info(f"Expected final capital: ${initial_capital + final_pnl - final_commission:,.2f}")
+    logger.info(f"Actual final capital: ${capital[-1]:,.2f}")
+    logger.info(f"Number of trades: {len(trades)}")
+    
+    # Validate final calculations
+    total_pnl = sum(trade['pnl'] for trade in trades)
+    total_commission_from_trades = sum(trade['commission'] for trade in trades)
+    expected_final_capital = initial_capital + total_pnl - total_commission
+    
+    logger.info("\nValidation Summary:")
+    logger.info(f"Total PnL from trades: ${total_pnl:,.2f}")
+    logger.info(f"Total commission from trades: ${total_commission_from_trades:,.2f}")
+    logger.info(f"Expected final capital: ${expected_final_capital:,.2f}")
+    logger.info(f"Actual final capital: ${capital[-1]:,.2f}")
+    
+    if abs(expected_final_capital - capital[-1]) > 0.01:
+        logger.warning("Final capital calculation mismatch!")
+        logger.warning(f"Difference: ${abs(expected_final_capital - capital[-1]):,.2f}")
+    
+    if abs(total_commission - total_commission_from_trades) > 0.01:
+        logger.warning("Commission calculation mismatch!")
+        logger.warning(f"Running total commission: ${total_commission:,.2f}")
+        logger.warning(f"Sum of trade commissions: ${total_commission_from_trades:,.2f}")
+        logger.warning(f"Difference: ${abs(total_commission - total_commission_from_trades):,.2f}")
     
     return results
 
@@ -909,8 +970,8 @@ def main():
         'stop_loss': 0.02,
         'take_profit': 0.03,
         'commission': 0.0004,  # 0.04% commission per trade
-        # 'test_duration_hours': 24
-        'test_duration_hours': None  # Remove time limit for complete test
+        'test_duration_hours': 800
+        # 'test_duration_hours': None  # Remove time limit for complete test
     }
     
     # Initialize results manager

@@ -1,0 +1,25 @@
+{
+    "strategy_version": "v2",
+    "symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "BNBUSDT",
+        "SOLUSDT",
+        "LINKUSDT",
+        "NEARUSDT",
+        "WIFUSDT",
+        "AVAXUSDT",
+        "1000SHIBUSDT",
+        "DOGEUSDT",
+        "1000PEPEUSDT",
+        "WLDUSDT"
+    ],
+    "timeframe": "4h",
+    "data_dir": "data",
+    "initial_capital": 10000.0,
+    "max_position_size": 0.1,
+    "stop_loss": 0.02,
+    "take_profit": 0.03,
+    "commission": 0.0004,
+    "test_duration_hours": 240
+}
