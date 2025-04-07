@@ -156,10 +156,7 @@ class StatisticalArbitrageStrategyV2:
                     if len(self.volatility[symbol]) > self.volatility_lookback:
                         self.volatility[symbol] = self.volatility[symbol][-self.volatility_lookback:]
                         if symbol in ["1000SHIBUSDT", "DOGEUSDT"]:
-                            logger.info(f"Truncated volatility history to {self.volatility_lookback} periods")
-                            logger.info(f"Volatility history (last 5): {self.volatility[symbol][-5:]}")
-                            logger.info(f"History length: {len(self.volatility[symbol])}")
-                            logger.info(f"Data timestamps: {data.index[-self.volatility_lookback:].tolist()}")
+                            logger.info(f"Volatility history length: {len(self.volatility[symbol])}")
 
     def initialize_pairs(self, data: Dict[str, pd.DataFrame]) -> None:
         """
@@ -281,9 +278,6 @@ class StatisticalArbitrageStrategyV2:
                         logger.info(f"Previous prices: {prev_price1:.8f} vs {prev_price2:.8f}")
                         logger.info(f"Price changes: {(price1 - prev_price1):.8f} vs {(price2 - prev_price2):.8f}")
                         logger.info(f"Price returns: {((price1 - prev_price1) / prev_price1):.8f} vs {((price2 - prev_price2) / prev_price2):.8f}")
-                        logger.info(f"Data timestamps: {data[symbol1].index[current_idx1-5:current_idx1+1].tolist()}")
-                        logger.info(f"Price history 1: {data[symbol1]['close'].iloc[current_idx1-5:current_idx1+1].tolist()}")
-                        logger.info(f"Price history 2: {data[symbol2]['close'].iloc[current_idx2-5:current_idx2+1].tolist()}")
                     
                     # Calculate returns
                     ret1 = (price1 - prev_price1) / prev_price1
@@ -333,7 +327,7 @@ class StatisticalArbitrageStrategyV2:
                         spread_series = pd.Series(self.spreads[(symbol1, symbol2)])
                         
                         # Skip if we don't have enough valid data points
-                        valid_points = len(spread_series.dropna())
+                        valid_points = spread_series.count()
                         if valid_points < self.volatility_lookback:
                             logger.debug(f"Skipping {symbol1}-{symbol2}: Insufficient valid data points ({valid_points} < {self.volatility_lookback})")
                             skipped_pairs += 1
@@ -369,11 +363,9 @@ class StatisticalArbitrageStrategyV2:
                             # Add detailed volatility logging
                             if symbol1 == "1000SHIBUSDT" and symbol2 == "DOGEUSDT":
                                 logger.info(f"\nDetailed volatility stats for {symbol1}-{symbol2}:")
-                                logger.info(f"Volatility history {symbol1}: {self.volatility[symbol1]}")
-                                logger.info(f"Volatility history {symbol2}: {self.volatility[symbol2]}")
                                 logger.info(f"Recent volatility {symbol1}: {vol1:.8f}")
                                 logger.info(f"Recent volatility {symbol2}: {vol2:.8f}")
-                                logger.info(f"Volatility ratio calculation: min({vol1:.8f}, {vol2:.8f}) / max({vol1:.8f}, {vol2:.8f})")
+                                logger.info(f"Volatility ratio: {min(vol1, vol2) / max(vol1, vol2) if max(vol1, vol2) > 0 else 0:.4f}")
                             
                             vol_ratio = min(vol1, vol2) / max(vol1, vol2) if max(vol1, vol2) > 0 else 0
                             
@@ -383,15 +375,9 @@ class StatisticalArbitrageStrategyV2:
                                 logger.info(f"Current spread: {spread:.8f}")
                                 logger.info(f"Spread mean: {spread_mean:.8f}")
                                 logger.info(f"Spread std: {spread_std:.8f}")
-                                logger.info(f"Min spread: {spread_series.min():.8f}")
-                                logger.info(f"Max spread: {spread_series.max():.8f}")
-                                logger.info(f"Number of points: {len(spread_series)}")
-                                logger.info(f"Valid points: {valid_points}")
-                                logger.info(f"Spread history: {self.spreads[(symbol1, symbol2)]}")
                                 logger.info(f"Entry threshold: {entry_threshold:.4f}")
                                 logger.info(f"Exit threshold: {exit_threshold:.4f}")
                                 logger.info(f"Z-score: {zscore:.4f}")
-                                logger.info(f"Volatility ratio: {vol_ratio:.4f}")
                             
                             # Skip if z-score is invalid
                             if pd.isna(zscore):

@@ -354,157 +354,57 @@ class BacktestResults:
         return max_streak
         
     def plot_results(self):
-        """Create and save various performance plots."""
-        # Portfolio value over time
-        plt.figure(figsize=(12, 6))
+        """Plot backtest results."""
         for result in self.results:
-            plt.plot(result['capital'], label=result['period'].upper())
-        plt.title('Portfolio Value Over Time')
-        plt.xlabel('Time')
-        plt.ylabel('Portfolio Value ($)')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(self.plots_dir / 'portfolio_value.png')
-        plt.close()
-        
-        # Returns distribution
-        plt.figure(figsize=(12, 6))
-        for result in self.results:
-            returns = pd.Series(result['returns'])
-            plt.hist(returns, bins=50, alpha=0.5, label=result['period'].upper())
-        plt.title('Returns Distribution')
-        plt.xlabel('Return')
-        plt.ylabel('Frequency')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(self.plots_dir / 'returns_distribution.png')
-        plt.close()
-        
-        # Drawdown plot
-        plt.figure(figsize=(12, 6))
-        for result in self.results:
-            capital = pd.Series(result['capital'])
-            drawdown = (capital.expanding().max() - capital) / capital.expanding().max()
-            plt.plot(drawdown, label=result['period'].upper())
-        plt.title('Drawdown Over Time')
-        plt.xlabel('Time')
-        plt.ylabel('Drawdown')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(self.plots_dir / 'drawdown.png')
-        plt.close()
-        
-        # Spread analysis plots
-        for result in self.results:
-            for symbol in result['spreads']:
-                if result['spreads'][symbol]:
-                    # Spread over time
-                    plt.figure(figsize=(12, 6))
-                    plt.plot(result['spreads'][symbol])
-                    plt.title(f'{symbol} Spread Over Time')
-                    plt.xlabel('Time')
-                    plt.ylabel('Spread (Z-score)')
-                    plt.grid(True)
-                    plt.savefig(self.plots_dir / f'{symbol}_spread.png')
-                    plt.close()
-                    
-                    # Entry/exit points
-                    plt.figure(figsize=(12, 6))
-                    plt.plot(result['spreads'][symbol], label='Spread')
-                    
-                    # Plot entry points
-                    entry_times = [signal['timestamp'] for signal in result['entry_signals'][symbol]]
-                    entry_spreads = [signal['spread'] for signal in result['entry_signals'][symbol]]
-                    plt.scatter(entry_times, entry_spreads, color='green', label='Entry')
-                    
-                    # Plot exit points
-                    exit_times = [signal['timestamp'] for signal in result['exit_signals'][symbol]]
-                    exit_spreads = [signal['spread'] for signal in result['exit_signals'][symbol]]
-                    plt.scatter(exit_times, exit_spreads, color='red', label='Exit')
-                    
-                    plt.title(f'{symbol} Spread with Entry/Exit Points')
-                    plt.xlabel('Time')
-                    plt.ylabel('Spread (Z-score)')
-                    plt.legend()
-                    plt.grid(True)
-                    plt.savefig(self.plots_dir / f'{symbol}_signals.png')
-                    plt.close()
-                    
-        # Trade analysis plots
-        for result in self.results:
-            if result['trades']:
-                trades_df = pd.DataFrame(result['trades'])
-                
-                # Trade returns distribution
-                plt.figure(figsize=(12, 6))
-                trade_returns = trades_df[trades_df['type'] == 'close']['size']
-                plt.hist(trade_returns, bins=50)
-                plt.title('Trade Returns Distribution')
-                plt.xlabel('Return ($)')
-                plt.ylabel('Frequency')
+            # Plot capital curve
+            plt.figure(figsize=(12, 6))
+            if 'timestamps' in result and 'capital' in result:
+                plt.plot(result['timestamps'], result['capital'])
+                plt.title('Capital Curve')
+                plt.xlabel('Time')
+                plt.ylabel('Capital')
                 plt.grid(True)
-                plt.savefig(self.plots_dir / 'trade_returns.png')
+                plt.savefig(os.path.join(self.results_dir, 'capital_curve.png'))
                 plt.close()
-                
-                # Trade duration analysis
-                plt.figure(figsize=(12, 6))
-                trade_durations = []
-                for i in range(0, len(trades_df), 2):
-                    if i + 1 < len(trades_df):
-                        duration = (trades_df.iloc[i+1]['timestamp'] - 
-                                  trades_df.iloc[i]['timestamp']).total_seconds() / 3600
-                        trade_durations.append(duration)
-                plt.hist(trade_durations, bins=50)
-                plt.title('Trade Duration Distribution')
-                plt.xlabel('Duration (hours)')
-                plt.ylabel('Frequency')
-                plt.grid(True)
-                plt.savefig(self.plots_dir / 'trade_durations.png')
-                plt.close()
-                
-                # Trade entry/exit spread analysis
-                plt.figure(figsize=(12, 6))
-                # Match entry and exit trades
-                entry_trades = trades_df[trades_df['type'] == 'open']
-                exit_trades = trades_df[trades_df['type'] == 'close']
-                
-                # Create a dictionary to match entry and exit trades
-                trade_pairs = {}
-                for _, entry in entry_trades.iterrows():
-                    symbol = entry['symbol']
-                    if symbol not in trade_pairs:
-                        trade_pairs[symbol] = []
-                    trade_pairs[symbol].append({
-                        'entry': entry,
-                        'exit': None
-                    })
-                
-                for _, exit in exit_trades.iterrows():
-                    symbol = exit['symbol']
-                    if symbol in trade_pairs and trade_pairs[symbol]:
-                        for pair in trade_pairs[symbol]:
-                            if pair['exit'] is None:
-                                pair['exit'] = exit
-                                break
-                
-                # Plot matched entry/exit spreads
-                entry_spreads = []
-                exit_spreads = []
-                for symbol, pairs in trade_pairs.items():
-                    for pair in pairs:
-                        if pair['entry'] is not None and pair['exit'] is not None:
-                            entry_spreads.append(pair['entry']['spread'])
-                            exit_spreads.append(pair['exit']['spread'])
-                
-                if entry_spreads and exit_spreads:
-                    plt.scatter(entry_spreads, exit_spreads)
-                    plt.title('Entry vs Exit Spreads')
-                    plt.xlabel('Entry Spread')
-                    plt.ylabel('Exit Spread')
-                    plt.grid(True)
-                    plt.savefig(self.plots_dir / 'spread_analysis.png')
-                    plt.close()
-                    
+            else:
+                logger.warning("Missing timestamps or capital data for plotting")
+            
+            # Plot trade signals
+            if 'entry_signals' in result and 'prices' in result:
+                for symbol in result['entry_signals']:
+                    if isinstance(symbol, tuple):  # Handle pair symbols
+                        symbol_str = f"{symbol[0]}-{symbol[1]}"
+                    else:
+                        symbol_str = symbol
+                        
+                    plt.figure(figsize=(12, 6))
+                    if symbol in result['prices']:
+                        plt.plot(result['timestamps'], result['prices'][symbol], label='Price')
+                        
+                        # Plot entry signals
+                        if symbol in result['entry_signals']:
+                            entry_times = [signal['timestamp'] for signal in result['entry_signals'][symbol]]
+                            entry_prices = [result['prices'][symbol][result['timestamps'].index(t)] for t in entry_times]
+                            plt.scatter(entry_times, entry_prices, color='green', label='Entry', marker='^')
+                        
+                        # Plot exit signals
+                        if symbol in result['exit_signals']:
+                            exit_times = [signal['timestamp'] for signal in result['exit_signals'][symbol]]
+                            exit_prices = [result['prices'][symbol][result['timestamps'].index(t)] for t in exit_times]
+                            plt.scatter(exit_times, exit_prices, color='red', label='Exit', marker='v')
+                        
+                        plt.title(f'Trade Signals for {symbol_str}')
+                        plt.xlabel('Time')
+                        plt.ylabel('Price')
+                        plt.legend()
+                        plt.grid(True)
+                        plt.savefig(os.path.join(self.results_dir, f'trade_signals_{symbol_str}.png'))
+                        plt.close()
+                    else:
+                        logger.warning(f"Missing price data for {symbol_str}")
+            else:
+                logger.warning("Missing entry_signals or prices data for plotting")
+
     def save_summary(self):
         """Save a summary of all results."""
         summary = []
