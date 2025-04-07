@@ -11,7 +11,7 @@ class Backtest:
     def __init__(self,
                  strategy: BaseStrategy,
                  initial_capital: float = 10000,
-                 commission: float = 0.0004):
+                 commission: float = 0.0000):
         """
         Initialize backtesting framework.
         
