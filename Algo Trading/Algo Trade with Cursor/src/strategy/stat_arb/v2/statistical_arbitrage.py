@@ -95,7 +95,7 @@ class StatisticalArbitrageStrategyV2:
         
     def calculate_position_size(self, symbol1: str, symbol2: str, zscore: float) -> float:
         """
-        Calculate adaptive position size based on spread confidence.
+        Calculate adaptive position size based on spread confidence and asset prices.
         
         Args:
             symbol1: First trading symbol
@@ -103,47 +103,43 @@ class StatisticalArbitrageStrategyV2:
             zscore: Current z-score of the spread
             
         Returns:
-            Position size as fraction of capital
+            Position size in base currency (USDT)
         """
         pair = (symbol1, symbol2)
         if pair not in self.spreads or len(self.spreads[pair]) < self.volatility_lookback:
             return 0.0  # Return 0 if we don't have enough data
             
         # Calculate spread confidence based on z-score
-        # Use a more responsive confidence curve
         confidence = min(1.0, abs(zscore) / 2.0)  # Changed to 2.0 for more responsiveness
         confidence = confidence ** 1.5  # Less aggressive squaring
         
-        # Adjust position size based on volatility
+        # Calculate base position value in USDT
+        base_position_value = self.capital[-1] * self.max_position_size * confidence
+        
+        # Adjust position value based on volatility
         if symbol1 in self.volatility and symbol2 in self.volatility:
             vol1 = np.mean(self.volatility[symbol1][-self.volatility_lookback:])
             vol2 = np.mean(self.volatility[symbol2][-self.volatility_lookback:])
             vol_ratio = min(vol1, vol2) / max(vol1, vol2)
             # Use a less severe volatility adjustment
-            confidence *= (0.5 + 0.5 * vol_ratio)  # Linear interpolation between 0.5 and 1.0
+            base_position_value *= (0.5 + 0.5 * vol_ratio)  # Linear interpolation between 0.5 and 1.0
             
-        # Calculate base position size
-        base_size = self.max_position_size * confidence
+        # Set reasonable minimum and maximum position values
+        min_position_value = self.capital[-1] * 0.01  # 1% of capital
+        max_position_value = self.capital[-1] * 0.05  # 5% of capital
         
-        # Set reasonable minimum and maximum
-        min_position_size = 0.01  # 1% of capital (reduced from 2%)
-        max_position_size = 0.05  # 5% of capital
-        
-        # Ensure position size is within bounds
-        position_size = max(min(base_size, max_position_size), min_position_size)
-        
-        # Round to 4 decimal places to avoid tiny positions
-        position_size = round(position_size, 4)
+        # Ensure position value is within bounds
+        position_value = max(min(base_position_value, max_position_value), min_position_value)
         
         # Add detailed logging
         logger.info(f"Position size calculation for {symbol1}-{symbol2}:")
         logger.info(f"Z-score: {zscore:.4f}")
         logger.info(f"Confidence: {confidence:.4f}")
         logger.info(f"Volatility ratio: {vol_ratio:.4f}")
-        logger.info(f"Base size: {base_size:.4f}")
-        logger.info(f"Final position size: {position_size:.4f}")
+        logger.info(f"Base position value: ${base_position_value:.2f}")
+        logger.info(f"Final position value: ${position_value:.2f}")
             
-        return position_size
+        return position_value
         
     def update_volatility(self, symbol: str, data: pd.DataFrame) -> None:
         """

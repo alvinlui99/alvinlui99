@@ -43,6 +43,7 @@ class BacktestResults:
         
         self.results = []
         self.config = {}
+        self.capital_updates = []  # Store capital updates
         
     def add_config(self, config: dict):
         """Add configuration parameters for this backtest run."""
@@ -376,7 +377,6 @@ class BacktestResults:
             logger.info(f"  Final Capital: ${metrics['final_capital']:,.2f}")
             logger.info(f"  Total Return: {metrics['total_return_pct']:.2f}%")
             logger.info(f"  Total PnL: ${metrics['total_pnl']:,.2f}")
-            logger.info(f"  Total Commission: ${metrics['total_commission']:,.2f}")
             
             logger.info(f"\nTrade Statistics:")
             logger.info(f"  Number of Trades: {metrics['num_trades']}")
@@ -404,6 +404,18 @@ class BacktestResults:
             logger.info(f"  Daily Win Rate: {metrics['daily_win_rate']:.2%}")
             
             logger.info("\n" + "=" * 80)
+
+    def add_capital_update(self, update_data: dict):
+        """Add a capital update to the results.
+        
+        Args:
+            update_data: Dictionary containing capital update information
+        """
+        self.capital_updates.append(update_data)
+        
+        # Save capital updates to CSV after each update
+        capital_updates_df = pd.DataFrame(self.capital_updates)
+        capital_updates_df.to_csv(self.results_dir / "capital_updates.csv", index=False)
 
 def load_data_from_csv(symbols: list, timeframe: str, data_dir: str, test_duration_hours: int = None) -> dict:
     """
@@ -525,9 +537,12 @@ def backtest_strategy(data: dict,
     """
     Run backtest for statistical arbitrage strategy.
     """
-    # Create capital tracking CSV
-    capital_tracking_file = Path("results/capital_tracking.csv")
-    capital_tracking_file.parent.mkdir(exist_ok=True)
+    # Create capital tracking file in the results manager's directory
+    if results_manager:
+        capital_tracking_file = results_manager.results_dir / "capital_tracking.csv"
+    else:
+        capital_tracking_file = Path("results/capital_tracking.csv")
+        capital_tracking_file.parent.mkdir(exist_ok=True)
     
     with open(capital_tracking_file, 'w', newline='') as f:
         writer = csv.writer(f)
@@ -537,6 +552,24 @@ def backtest_strategy(data: dict,
         with open(capital_tracking_file, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([timestamp, capital, pnl, commission, trade_type, symbol1, symbol2, price1, price2, size1, size2])
+            
+        # Also store in results manager if available
+        if results_manager:
+            trade_data = {
+                'timestamp': timestamp,
+                'capital': capital,
+                'pnl': pnl,
+                'commission': commission,
+                'trade_type': trade_type,
+                'symbol1': symbol1,
+                'symbol2': symbol2,
+                'price1': price1,
+                'price2': price2,
+                'size1': size1,
+                'size2': size2
+            }
+            if trade_type == 'summary':
+                results_manager.add_capital_update(trade_data)
     
     # Initialize strategy
     if strategy_version == 'v1':
@@ -607,16 +640,19 @@ def backtest_strategy(data: dict,
         timestamps.append(timestamp)
         signals = strategy.process_tick(data, timestamp)
         
-        # Initialize tracking for this timestamp
+        # Initialize timestamp data
         timestamp_data = {
-            'timestamp': timestamp,
-            'capital': capital[-1],  # Use last capital value
+            'capital': capital[-1],
             'total_pnl': 0.0,
-            'total_commission': total_commission,  # Start with accumulated commission
+            'timestamp_commission': 0.0,  # Rename to be clear this is just current timestamp's commission
             'active_positions': len(active_pairs),
             'spreads': {},
-            'prices': {}
+            'prices': {},
+            'trades': []
         }
+
+        # Track timestamp's total commission separately
+        timestamp_commission = 0.0
         
         # Log start of timestamp
         logger.info(f"\nProcessing timestamp: {timestamp}")
@@ -685,7 +721,8 @@ def backtest_strategy(data: dict,
                     
                     # Update total commission
                     total_commission += trade_commission
-                    timestamp_data['total_commission'] = total_commission
+                    timestamp_commission += trade_commission  # Add to timestamp's commission
+                    timestamp_data['timestamp_commission'] = timestamp_commission  # Store with clearer name
                     
                     # Update tracking data
                     timestamp_data['total_pnl'] += total_pnl
@@ -712,7 +749,7 @@ def backtest_strategy(data: dict,
                     logger.info(f"Position sizes: {size1:.8f}, {size2:.8f}")
                     logger.info(f"PnL: ${total_pnl:,.2f} (${pnl1:,.2f} + ${pnl2:,.2f})")
                     logger.info(f"Commission: ${trade_commission:,.2f} (${commission1:,.2f} + ${commission2:,.2f})")
-                    logger.info(f"Accumulated commission: ${total_commission:,.2f}")
+                    logger.info(f"Accumulated commission: ${timestamp_commission:,.2f}")
                     
                     # Create trade keys to check for duplicates
                     trade_key1 = (timestamp, symbol1, 'close')
@@ -728,7 +765,7 @@ def backtest_strategy(data: dict,
                             'exit_price': price1,
                             'size': size1,
                             'pnl': pnl1,
-                            'commission': commission1,
+                            'commission': trade_commission,  # Store total commission for both sides
                             'spread': spread
                         })
                         recorded_trades.add(trade_key1)
@@ -742,7 +779,7 @@ def backtest_strategy(data: dict,
                             'exit_price': price2,
                             'size': size2,
                             'pnl': pnl2,
-                            'commission': commission2,
+                            'commission': trade_commission,  # Store total commission for both sides
                             'spread': spread
                         })
                         recorded_trades.add(trade_key2)
@@ -763,8 +800,20 @@ def backtest_strategy(data: dict,
                 price2 = data[symbol2].loc[timestamp, 'close']
                 
                 # Calculate position sizes
-                size1 = pair_signal[symbol1]['size']
-                size2 = pair_signal[symbol2]['size']
+                position_value = pair_signal[symbol1]['size']  # This is now in USDT
+                size1 = position_value / price1  # Convert to quantity for symbol1
+                size2 = position_value / price2  # Convert to quantity for symbol2
+                
+                # Round to appropriate decimal places based on symbol
+                if '1000' in symbol1:  # For tokens like 1000PEPE, 1000SHIB
+                    size1 = round(size1, 0)  # Round to whole numbers
+                else:
+                    size1 = round(size1, 3)  # Round to 3 decimal places for other tokens
+                    
+                if '1000' in symbol2:
+                    size2 = round(size2, 0)
+                else:
+                    size2 = round(size2, 3)
                 
                 # Calculate commission
                 commission1 = price1 * size1 * commission
@@ -773,14 +822,15 @@ def backtest_strategy(data: dict,
                 
                 # Update total commission
                 total_commission += trade_commission
-                timestamp_data['total_commission'] = total_commission
+                timestamp_commission += trade_commission  # Add to timestamp's commission
+                timestamp_data['timestamp_commission'] = timestamp_commission  # Store with clearer name
                 
                 # Write capital update for opening trade
                 write_capital_update(
                     timestamp=timestamp,
                     capital=capital[-1] - trade_commission,
                     pnl=0.0,
-                    commission=trade_commission,
+                    commission=trade_commission,  # Store total commission for both sides
                     trade_type='open',
                     symbol1=symbol1,
                     symbol2=symbol2,
@@ -795,7 +845,7 @@ def backtest_strategy(data: dict,
                 logger.info(f"Entry prices: {price1:.2f}, {price2:.2f}")
                 logger.info(f"Position sizes: {size1:.8f}, {size2:.8f}")
                 logger.info(f"Commission: ${trade_commission:,.2f} (${commission1:,.2f} + ${commission2:,.2f})")
-                logger.info(f"Accumulated commission: ${total_commission:,.2f}")
+                logger.info(f"Accumulated commission: ${timestamp_commission:,.2f}")
                 
                 # Create trade keys to check for duplicates
                 trade_key1 = (timestamp, symbol1, 'open')
@@ -811,7 +861,7 @@ def backtest_strategy(data: dict,
                         'entry_price': price1,
                         'size': size1,
                         'pnl': 0.0,
-                        'commission': commission1,
+                        'commission': trade_commission,  # Store total commission for both sides
                         'spread': spread
                     })
                     recorded_trades.add(trade_key1)
@@ -825,7 +875,7 @@ def backtest_strategy(data: dict,
                         'entry_price': price2,
                         'size': size2,
                         'pnl': 0.0,
-                        'commission': commission2,
+                        'commission': trade_commission,  # Store total commission for both sides
                         'spread': spread
                     })
                     recorded_trades.add(trade_key2)
@@ -847,17 +897,18 @@ def backtest_strategy(data: dict,
         # Update capital once per timestamp
         current_timestamp_trades = [trade for trade in trades if trade['timestamp'] == timestamp]  # Get only current timestamp's trades
         current_pnl = sum(trade['pnl'] for trade in current_timestamp_trades)  # Only current timestamp's PnL
-        current_commission = sum(trade['commission'] for trade in current_timestamp_trades)  # Only current timestamp's commission
-        current_capital = capital[-1] + current_pnl - current_commission  # Update from previous capital
+        
+        # Use timestamp_commission for consistency instead of recalculating
+        current_capital = capital[-1] + current_pnl - timestamp_commission  # Use timestamp's commission
         capital.append(current_capital)
         timestamp_data['capital'] = current_capital
         
-        # Write capital update for timestamp summary
+        # Write summary for timestamp
         write_capital_update(
             timestamp=timestamp,
             capital=current_capital,
             pnl=current_pnl,
-            commission=current_commission,
+            commission=timestamp_commission,  # Use timestamp's total commission
             trade_type='summary'
         )
         
@@ -865,7 +916,7 @@ def backtest_strategy(data: dict,
         logger.info(f"\nDetailed Capital Calculation for {timestamp}:")
         logger.info(f"Previous capital: ${capital[-2]:,.2f}")
         logger.info(f"Current timestamp PnL: ${current_pnl:,.2f}")
-        logger.info(f"Current timestamp commission: ${current_commission:,.2f}")
+        logger.info(f"Current timestamp commission: ${timestamp_commission:,.2f}")  # Use timestamp_commission
         logger.info(f"Calculated capital: ${current_capital:,.2f}")
         
         # Log trade-by-trade breakdown
@@ -878,11 +929,11 @@ def backtest_strategy(data: dict,
         # Log end of timestamp summary
         logger.info(f"\nTimestamp {timestamp} summary:")
         logger.info(f"Total PnL this timestamp: ${current_pnl:,.2f}")
-        logger.info(f"Total commission this timestamp: ${current_commission:,.2f}")
+        logger.info(f"Total commission this timestamp: ${timestamp_commission:,.2f}")  # Use timestamp_commission
         logger.info(f"Ending capital: ${current_capital:,.2f}")
         
         # Validate capital calculation
-        expected_capital = capital[-2] + current_pnl - current_commission
+        expected_capital = capital[-2] + current_pnl - timestamp_commission  # Use timestamp_commission
         if abs(current_capital - expected_capital) > 0.01:  # Allow for small floating point differences
             logger.warning(f"Capital calculation mismatch!")
             logger.warning(f"Expected capital: ${expected_capital:,.2f}")
@@ -893,7 +944,7 @@ def backtest_strategy(data: dict,
             logger.warning("\nDetailed discrepancy breakdown:")
             logger.warning(f"Previous capital: ${capital[-2]:,.2f}")
             logger.warning(f"Current timestamp PnL: ${current_pnl:,.2f}")
-            logger.warning(f"Current timestamp commission: ${current_commission:,.2f}")
+            logger.warning(f"Current timestamp commission: ${timestamp_commission:,.2f}")
             logger.warning(f"Expected: ${expected_capital:,.2f}")
             logger.warning(f"Actual: ${current_capital:,.2f}")
         
@@ -901,6 +952,29 @@ def backtest_strategy(data: dict,
         tracking_data.append(timestamp_data)
         
     # Calculate performance metrics
+    total_pnl = sum(trade['pnl'] for trade in trades)
+    total_commission = sum(trade['commission'] for trade in trades)  # Use sum of trade commissions
+    
+    logger.info("\nBacktest complete - Final Summary:")
+    logger.info(f"Initial capital: ${initial_capital:,.2f}")
+    logger.info(f"Total PnL: ${total_pnl:,.2f}")
+    logger.info(f"Total commission: ${total_commission:,.2f}")
+    logger.info(f"Final capital: ${capital[-1]:,.2f}")
+    logger.info(f"Number of trades: {len(trades)}")
+    
+    # Validate final calculations
+    expected_final_capital = initial_capital + total_pnl - total_commission
+    
+    logger.info("\nValidation Summary:")
+    logger.info(f"Total PnL from trades: ${total_pnl:,.2f}")
+    logger.info(f"Total commission from trades: ${total_commission:,.2f}")
+    logger.info(f"Expected final capital: ${expected_final_capital:,.2f}")
+    logger.info(f"Actual final capital: ${capital[-1]:,.2f}")
+    
+    if abs(expected_final_capital - capital[-1]) > 0.01:
+        logger.warning("Final capital calculation mismatch!")
+        logger.warning(f"Difference: ${abs(expected_final_capital - capital[-1]):,.2f}")
+    
     results = {
         'timestamps': timestamps,
         'capital': capital,
@@ -913,41 +987,8 @@ def backtest_strategy(data: dict,
         'entry_signals': entry_signals,
         'exit_signals': exit_signals,
         'tracking_data': tracking_data,
-        'total_commission': total_commission
+        'total_commission': total_commission  # Use the correct total commission
     }
-    
-    # Log final summary with detailed breakdown
-    final_pnl = sum(trade['pnl'] for trade in trades)
-    final_commission = total_commission
-    
-    logger.info("\nBacktest complete - Final Summary:")
-    logger.info(f"Initial capital: ${initial_capital:,.2f}")
-    logger.info(f"Total PnL: ${final_pnl:,.2f}")
-    logger.info(f"Total commission: ${final_commission:,.2f}")
-    logger.info(f"Expected final capital: ${initial_capital + final_pnl - final_commission:,.2f}")
-    logger.info(f"Actual final capital: ${capital[-1]:,.2f}")
-    logger.info(f"Number of trades: {len(trades)}")
-    
-    # Validate final calculations
-    total_pnl = sum(trade['pnl'] for trade in trades)
-    total_commission_from_trades = sum(trade['commission'] for trade in trades)
-    expected_final_capital = initial_capital + total_pnl - total_commission
-    
-    logger.info("\nValidation Summary:")
-    logger.info(f"Total PnL from trades: ${total_pnl:,.2f}")
-    logger.info(f"Total commission from trades: ${total_commission_from_trades:,.2f}")
-    logger.info(f"Expected final capital: ${expected_final_capital:,.2f}")
-    logger.info(f"Actual final capital: ${capital[-1]:,.2f}")
-    
-    if abs(expected_final_capital - capital[-1]) > 0.01:
-        logger.warning("Final capital calculation mismatch!")
-        logger.warning(f"Difference: ${abs(expected_final_capital - capital[-1]):,.2f}")
-    
-    if abs(total_commission - total_commission_from_trades) > 0.01:
-        logger.warning("Commission calculation mismatch!")
-        logger.warning(f"Running total commission: ${total_commission:,.2f}")
-        logger.warning(f"Sum of trade commissions: ${total_commission_from_trades:,.2f}")
-        logger.warning(f"Difference: ${abs(total_commission - total_commission_from_trades):,.2f}")
     
     return results
 
@@ -970,8 +1011,8 @@ def main():
         'stop_loss': 0.02,
         'take_profit': 0.03,
         'commission': 0.0004,  # 0.04% commission per trade
-        'test_duration_hours': 800
-        # 'test_duration_hours': None  # Remove time limit for complete test
+        # 'test_duration_hours': 800
+        'test_duration_hours': None  # Remove time limit for complete test
     }
     
     # Initialize results manager
