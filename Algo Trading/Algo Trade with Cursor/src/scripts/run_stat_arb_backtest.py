@@ -148,6 +148,7 @@ class BacktestResults:
         
         # Calculate PnL metrics
         total_pnl = trades_df['pnl'].sum()
+        total_commission = trades_df['commission'].sum() if 'commission' in trades_df.columns else 0
         winning_trades = trades_df[trades_df['pnl'] > 0]
         losing_trades = trades_df[trades_df['pnl'] < 0]
         
@@ -190,6 +191,9 @@ class BacktestResults:
             'final_capital': result['capital'][-1],
             'total_return_pct': (result['capital'][-1] / result['capital'][0] - 1) * 100,
             'total_pnl': total_pnl,
+            'total_commission': total_commission,
+            'net_pnl': total_pnl - total_commission,
+            'commission_ratio': total_commission / total_pnl if total_pnl != 0 else 0,
             'num_trades': len(trades_df) // 2,  # Divide by 2 since each trade has open and close
             'num_winning_trades': len(winning_trades),
             'num_losing_trades': len(losing_trades),
@@ -224,6 +228,9 @@ class BacktestResults:
             'final_capital': result['capital'][-1],
             'total_return_pct': 0,
             'total_pnl': 0,
+            'total_commission': 0,
+            'net_pnl': 0,
+            'commission_ratio': 0,
             'num_trades': 0,
             'num_winning_trades': 0,
             'num_losing_trades': 0,
@@ -511,6 +518,7 @@ def backtest_strategy(data: dict,
                      max_position_size: float = 0.1,
                      stop_loss: float = 0.02,
                      take_profit: float = 0.03,
+                     commission: float = 0.0004,  # Add commission parameter
                      results_manager: BacktestResults = None) -> dict:
     """
     Backtest the statistical arbitrage strategy.
@@ -522,6 +530,7 @@ def backtest_strategy(data: dict,
         max_position_size: Maximum position size as fraction of capital
         stop_loss: Stop loss percentage
         take_profit: Take profit percentage
+        commission: Commission rate per trade (default: 0.04%)
         results_manager: BacktestResults instance for saving results
         
     Returns:
@@ -654,24 +663,33 @@ def backtest_strategy(data: dict,
                     pnl2 = (price2 - entry_price2) * size2
                     total_pnl = pnl1 + pnl2
                     
+                    # Calculate commission
+                    commission1 = price1 * size1 * commission
+                    commission2 = price2 * size2 * commission
+                    total_commission = commission1 + commission2
+                    
                     # Update tracking data
                     timestamp_data['total_pnl'] += total_pnl
+                    timestamp_data['total_commission'] = total_commission
                     timestamp_data['trades'] = {
                         'type': 'close',
                         'pair': f"{symbol1}_{symbol2}",
                         'pnl1': pnl1,
                         'pnl2': pnl2,
-                        'total_pnl': total_pnl
+                        'total_pnl': total_pnl,
+                        'commission1': commission1,
+                        'commission2': commission2,
+                        'total_commission': total_commission
                     }
                     
                     # Calculate return
                     if current_capital > 0:
-                        returns.append(total_pnl / current_capital)
+                        returns.append((total_pnl - total_commission) / current_capital)
                     else:
                         returns.append(0.0)
                     
                     # Update capital
-                    current_capital += total_pnl
+                    current_capital += total_pnl - total_commission
                     
                     # Record trades
                     trades.append({
@@ -681,6 +699,7 @@ def backtest_strategy(data: dict,
                         'price': price1,
                         'size': size1,
                         'pnl': pnl1,
+                        'commission': commission1,
                         'spread': spread
                     })
                     trades.append({
@@ -690,6 +709,7 @@ def backtest_strategy(data: dict,
                         'price': price2,
                         'size': size2,
                         'pnl': pnl2,
+                        'commission': commission2,
                         'spread': spread
                     })
                     
@@ -712,6 +732,11 @@ def backtest_strategy(data: dict,
                 size1 = pair_signal[symbol1]['size']
                 size2 = pair_signal[symbol2]['size']
                 
+                # Calculate commission
+                commission1 = price1 * size1 * commission
+                commission2 = price2 * size2 * commission
+                total_commission = commission1 + commission2
+                
                 # Update tracking data
                 timestamp_data['trades'] = {
                     'type': 'open',
@@ -719,7 +744,10 @@ def backtest_strategy(data: dict,
                     'direction1': pair_signal[symbol1]['type'],
                     'direction2': pair_signal[symbol2]['type'],
                     'size1': size1,
-                    'size2': size2
+                    'size2': size2,
+                    'commission1': commission1,
+                    'commission2': commission2,
+                    'total_commission': total_commission
                 }
                 
                 # Record trades
@@ -731,6 +759,7 @@ def backtest_strategy(data: dict,
                     'price': price1,
                     'size': size1,
                     'pnl': 0.0,
+                    'commission': commission1,
                     'spread': spread
                 })
                 trades.append({
@@ -741,6 +770,7 @@ def backtest_strategy(data: dict,
                     'price': price2,
                     'size': size2,
                     'pnl': 0.0,
+                    'commission': commission2,
                     'spread': spread
                 })
                 
@@ -878,6 +908,7 @@ def main():
         'max_position_size': 0.1,
         'stop_loss': 0.02,
         'take_profit': 0.03,
+        'commission': 0.0004,  # 0.04% commission per trade
         # 'test_duration_hours': 24
         'test_duration_hours': None  # Remove time limit for complete test
     }
@@ -935,6 +966,7 @@ def main():
             max_position_size=config['max_position_size'],
             stop_loss=config['stop_loss'],
             take_profit=config['take_profit'],
+            commission=config['commission'],
             results_manager=results_manager
         )
         
