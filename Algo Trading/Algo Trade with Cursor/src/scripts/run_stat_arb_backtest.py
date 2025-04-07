@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def load_data_from_csv(symbols: list, timeframe: str, data_dir: str) -> dict:
+def load_data_from_csv(symbols: list, timeframe: str, data_dir: str, test_duration_hours: int = None) -> dict:
     """
     Load historical data from CSV files.
     
@@ -31,6 +31,10 @@ def load_data_from_csv(symbols: list, timeframe: str, data_dir: str) -> dict:
         symbols: List of trading symbols
         timeframe: Data timeframe
         data_dir: Directory containing CSV files
+        test_duration_hours: Optional duration in hours to limit the test period.
+                            If specified, only the most recent N hours of data will be used.
+                            This is useful for quick testing and debugging.
+                            Example: test_duration_hours=1 will use only the last hour of data.
         
     Returns:
         dict: Dictionary of DataFrames for each symbol
@@ -55,19 +59,22 @@ def load_data_from_csv(symbols: list, timeframe: str, data_dir: str) -> dict:
             # Convert column names to lowercase
             df.columns = [col.lower() for col in df.columns]
             
-            # Print actual columns for debugging
-            logger.info(f"Columns in {latest_file}: {df.columns.tolist()}")
-            
             # Convert timestamp to datetime and set as index
             df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
             df.set_index('open_time', inplace=True)
+            
+            # If test duration is specified, limit the data
+            if test_duration_hours is not None:
+                end_time = df.index[-1]
+                start_time = end_time - pd.Timedelta(hours=test_duration_hours)
+                df = df[start_time:end_time]
+                logger.info(f"Limited data for {symbol} to last {test_duration_hours} hours")
+                logger.info(f"Test period: {start_time} to {end_time}")
             
             # Check required columns
             required_columns = ['open', 'high', 'low', 'close', 'volume']
             if not all(col in df.columns for col in required_columns):
                 logger.error(f"Missing required columns in {latest_file}")
-                logger.error(f"Required columns: {required_columns}")
-                logger.error(f"Available columns: {df.columns.tolist()}")
                 continue
                 
             # Convert numeric columns
@@ -80,20 +87,13 @@ def load_data_from_csv(symbols: list, timeframe: str, data_dir: str) -> dict:
             # Sort index
             df.sort_index(inplace=True)
             
-            # Validate date range - only check if data is too old
-            if df.index[0].year < 2020:
-                logger.error(f"Data too old for {symbol}: {df.index[0]} to {df.index[-1]}")
-                continue
-                
             data[symbol] = df
             logger.info(f"Loaded {len(df)} rows for {symbol} from {latest_file}")
             logger.info(f"Date range: {df.index[0]} to {df.index[-1]}")
             
         except Exception as e:
             logger.error(f"Error loading data for {symbol}: {str(e)}")
-            logger.error(f"Exception details: {str(e.__class__.__name__)}: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            continue
             
     if not data:
         logger.error("No data was successfully loaded. Please check the CSV files and their column names.")
@@ -188,49 +188,175 @@ def backtest_strategy(data: dict,
     logger.info(f"Found {len(common_timestamps)} common timestamps")
     logger.info(f"Date range: {common_timestamps[0]} to {common_timestamps[-1]}")
     
+    # Track active pairs
+    active_pairs = {}  # (symbol1, symbol2) -> {'entry_prices': (price1, price2), 'sizes': (size1, size2)}
+    
+    # Initialize results tracking
+    timestamps = []
+    capital = []
+    trades = []
+    spreads = {}
+    prices = {}
+    entry_signals = {}
+    exit_signals = {}
+    returns = []
+    
+    # Initialize capital
+    current_capital = initial_capital
+    capital.append(current_capital)
+    
     # Run backtest
     for timestamp in common_timestamps:
+        timestamps.append(timestamp)
         signals = strategy.process_tick(data, timestamp)
         
-        # Execute trades
+        # Group signals by pair
+        pair_signals = {}
         for symbol, signal in signals.items():
-            if signal['type'] == 'close':
+            # Find the pair this symbol belongs to
+            for pair in strategy.pairs:
+                if symbol in pair:
+                    other_symbol = pair[0] if pair[1] == symbol else pair[1]
+                    if other_symbol in signals:
+                        pair_key = tuple(sorted(pair))
+                        if pair_key not in pair_signals:
+                            pair_signals[pair_key] = {}
+                        pair_signals[pair_key][symbol] = signal
+                        pair_signals[pair_key][other_symbol] = signals[other_symbol]
+                        break
+        
+        # Execute trades for each pair
+        for pair_key, pair_signal in pair_signals.items():
+            symbol1, symbol2 = pair_key
+            
+            # Store prices for plotting
+            if symbol1 not in prices:
+                prices[symbol1] = []
+            if symbol2 not in prices:
+                prices[symbol2] = []
+            prices[symbol1].append(data[symbol1].loc[timestamp, 'close'])
+            prices[symbol2].append(data[symbol2].loc[timestamp, 'close'])
+            
+            # Store spreads for plotting
+            if pair_key not in spreads:
+                spreads[pair_key] = []
+            spreads[pair_key].append(pair_signal[symbol1].get('spread', 0.0))
+            
+            if pair_signal[symbol1]['type'] == 'close' and pair_signal[symbol2]['type'] == 'close':
                 # Close position
-                strategy.positions[symbol] = 0.0
-                strategy.trades.append({
-                    'timestamp': timestamp,
-                    'symbol': symbol,
-                    'type': 'close',
-                    'price': data[symbol].loc[timestamp, 'close'],
-                    'size': signal['size'],
-                    'spread': signal.get('spread', 0.0)
-                })
+                if pair_key in active_pairs:
+                    # Get current prices
+                    price1 = data[symbol1].loc[timestamp, 'close']
+                    price2 = data[symbol2].loc[timestamp, 'close']
+                    
+                    # Get entry prices and sizes
+                    entry_price1, entry_price2 = active_pairs[pair_key]['entry_prices']
+                    size1, size2 = active_pairs[pair_key]['sizes']
+                    
+                    # Calculate PnL for both sides
+                    pnl1 = (price1 - entry_price1) * size1
+                    pnl2 = (price2 - entry_price2) * size2
+                    total_pnl = pnl1 + pnl2
+                    
+                    # Calculate return
+                    if current_capital > 0:
+                        returns.append(total_pnl / current_capital)
+                    else:
+                        returns.append(0.0)
+                    
+                    # Update capital
+                    current_capital += total_pnl
+                    
+                    # Record trades
+                    trades.append({
+                        'timestamp': timestamp,
+                        'symbol': symbol1,
+                        'type': 'close',
+                        'price': price1,
+                        'size': size1,
+                        'pnl': pnl1,
+                        'spread': pair_signal[symbol1].get('spread', 0.0)
+                    })
+                    trades.append({
+                        'timestamp': timestamp,
+                        'symbol': symbol2,
+                        'type': 'close',
+                        'price': price2,
+                        'size': size2,
+                        'pnl': pnl2,
+                        'spread': pair_signal[symbol2].get('spread', 0.0)
+                    })
+                    
+                    # Store exit signals
+                    if symbol1 not in exit_signals:
+                        exit_signals[symbol1] = []
+                    if symbol2 not in exit_signals:
+                        exit_signals[symbol2] = []
+                    exit_signals[symbol1].append({'timestamp': timestamp, 'price': price1})
+                    exit_signals[symbol2].append({'timestamp': timestamp, 'price': price2})
+                    
+                    # Clear position
+                    del active_pairs[pair_key]
             else:
                 # Open position
-                strategy.positions[symbol] = signal['size']
-                strategy.trades.append({
+                price1 = data[symbol1].loc[timestamp, 'close']
+                price2 = data[symbol2].loc[timestamp, 'close']
+                
+                # Calculate position sizes
+                size1 = pair_signal[symbol1]['size']
+                size2 = pair_signal[symbol2]['size']
+                
+                # Record trades
+                trades.append({
                     'timestamp': timestamp,
-                    'symbol': symbol,
+                    'symbol': symbol1,
                     'type': 'open',
-                    'direction': signal['type'],
-                    'price': data[symbol].loc[timestamp, 'close'],
-                    'size': signal['size'],
-                    'spread': signal.get('spread', 0.0)
+                    'direction': pair_signal[symbol1]['type'],
+                    'price': price1,
+                    'size': size1,
+                    'pnl': 0.0,
+                    'spread': pair_signal[symbol1].get('spread', 0.0)
+                })
+                trades.append({
+                    'timestamp': timestamp,
+                    'symbol': symbol2,
+                    'type': 'open',
+                    'direction': pair_signal[symbol2]['type'],
+                    'price': price2,
+                    'size': size2,
+                    'pnl': 0.0,
+                    'spread': pair_signal[symbol2].get('spread', 0.0)
                 })
                 
+                # Store entry signals
+                if symbol1 not in entry_signals:
+                    entry_signals[symbol1] = []
+                if symbol2 not in entry_signals:
+                    entry_signals[symbol2] = []
+                entry_signals[symbol1].append({'timestamp': timestamp, 'price': price1})
+                entry_signals[symbol2].append({'timestamp': timestamp, 'price': price2})
+                
+                # Store position
+                active_pairs[pair_key] = {
+                    'entry_prices': (price1, price2),
+                    'sizes': (size1, size2)
+                }
+                
+        # Update capital curve
+        capital.append(current_capital)
+        
     # Calculate performance metrics
     results = {
-        'capital': strategy.capital,
-        'positions': strategy.positions,
-        'trades': strategy.trades,
-        'returns': strategy.returns,
+        'timestamps': timestamps,
+        'capital': capital,
+        'trades': trades,
+        'returns': returns,
         'sharpe_ratio': 0.0,
         'max_drawdown': 0.0,
-        'pair_returns': strategy.pair_returns,
-        'pair_positions': strategy.pair_positions,
-        'spreads': strategy.spreads,
-        'entry_signals': strategy.entry_signals,
-        'exit_signals': strategy.exit_signals
+        'spreads': spreads,
+        'prices': prices,
+        'entry_signals': entry_signals,
+        'exit_signals': exit_signals
     }
     
     if results['returns']:
@@ -353,16 +479,99 @@ class BacktestResults:
                 current_streak = 0
         return max_streak
         
+    def analyze_trades(self):
+        """Analyze trade results and generate plots."""
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        
+        # Load all trade files
+        trades = {}
+        for period in ['train', 'test', 'val']:
+            trades_file = self.trades_dir / f"{period}_trades.csv"
+            if trades_file.exists():
+                trades[period] = pd.read_csv(trades_file)
+                logger.info(f"Loaded {len(trades[period])} trades from {period} period")
+        
+        if not trades:
+            logger.error("No trade files found")
+            return
+            
+        # Create plots directory if it doesn't exist
+        plots_dir = self.results_dir / "plots"
+        plots_dir.mkdir(exist_ok=True)
+        
+        # Plot capital curve
+        plt.figure(figsize=(12, 6))
+        for period, df in trades.items():
+            if 'timestamp' in df.columns and 'capital' in df.columns:
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                plt.plot(df['timestamp'], df['capital'], label=period.upper())
+        plt.title('Capital Curve')
+        plt.xlabel('Time')
+        plt.ylabel('Capital')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(plots_dir / 'capital_curve.png')
+        plt.close()
+        
+        # Plot trade returns distribution
+        plt.figure(figsize=(12, 6))
+        for period, df in trades.items():
+            if 'return' in df.columns:
+                plt.hist(df['return'], bins=50, alpha=0.5, label=period.upper())
+        plt.title('Trade Returns Distribution')
+        plt.xlabel('Return')
+        plt.ylabel('Frequency')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(plots_dir / 'returns_distribution.png')
+        plt.close()
+        
+        # Plot drawdown
+        plt.figure(figsize=(12, 6))
+        for period, df in trades.items():
+            if 'capital' in df.columns:
+                capital = pd.Series(df['capital'])
+                drawdown = (capital.expanding().max() - capital) / capital.expanding().max()
+                plt.plot(df['timestamp'], drawdown, label=period.upper())
+        plt.title('Drawdown Over Time')
+        plt.xlabel('Time')
+        plt.ylabel('Drawdown')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(plots_dir / 'drawdown.png')
+        plt.close()
+        
+        # Calculate and print key metrics
+        logger.info("\nTrade Analysis Summary:")
+        logger.info("=" * 50)
+        for period, df in trades.items():
+            if 'return' in df.columns and 'capital' in df.columns:
+                total_return = (df['capital'].iloc[-1] / df['capital'].iloc[0] - 1) * 100
+                sharpe_ratio = df['return'].mean() / df['return'].std() * np.sqrt(252)
+                max_drawdown = (df['capital'].expanding().max() - df['capital']) / df['capital'].expanding().max()
+                max_drawdown = max_drawdown.max() * 100
+                
+                logger.info(f"\n{period.upper()} Period:")
+                logger.info(f"Total Return: {total_return:.2f}%")
+                logger.info(f"Sharpe Ratio: {sharpe_ratio:.2f}")
+                logger.info(f"Max Drawdown: {max_drawdown:.2f}%")
+                logger.info(f"Number of Trades: {len(df)}")
+                logger.info(f"Average Return: {df['return'].mean() * 100:.2f}%")
+                logger.info(f"Win Rate: {(df['return'] > 0).mean() * 100:.2f}%")
+                
     def plot_results(self):
         """Plot backtest results."""
+        self.analyze_trades()  # Use the new analysis function
         for result in self.results:
             # Plot capital curve
             plt.figure(figsize=(12, 6))
             if 'timestamps' in result and 'capital' in result:
-                plt.plot(result['timestamps'], result['capital'])
+                plt.plot(result['timestamps'], result['capital'], label='Capital')
                 plt.title('Capital Curve')
                 plt.xlabel('Time')
                 plt.ylabel('Capital')
+                plt.legend()
                 plt.grid(True)
                 plt.savefig(os.path.join(self.results_dir, 'capital_curve.png'))
                 plt.close()
@@ -404,6 +613,45 @@ class BacktestResults:
                         logger.warning(f"Missing price data for {symbol_str}")
             else:
                 logger.warning("Missing entry_signals or prices data for plotting")
+                
+            # Plot spreads
+            if 'spreads' in result:
+                for pair, spread_data in result['spreads'].items():
+                    plt.figure(figsize=(12, 6))
+                    plt.plot(result['timestamps'], spread_data, label='Spread')
+                    plt.title(f'Spread for {pair[0]}-{pair[1]}')
+                    plt.xlabel('Time')
+                    plt.ylabel('Spread')
+                    plt.legend()
+                    plt.grid(True)
+                    plt.savefig(os.path.join(self.results_dir, f'spread_{pair[0]}_{pair[1]}.png'))
+                    plt.close()
+                    
+            # Plot returns
+            if 'returns' in result:
+                plt.figure(figsize=(12, 6))
+                plt.plot(result['timestamps'], result['returns'], label='Returns')
+                plt.title('Returns Over Time')
+                plt.xlabel('Time')
+                plt.ylabel('Returns')
+                plt.legend()
+                plt.grid(True)
+                plt.savefig(os.path.join(self.results_dir, 'returns.png'))
+                plt.close()
+                
+            # Plot drawdown
+            if 'capital' in result:
+                capital_series = pd.Series(result['capital'])
+                drawdown = (capital_series.expanding().max() - capital_series) / capital_series.expanding().max()
+                plt.figure(figsize=(12, 6))
+                plt.plot(result['timestamps'], drawdown, label='Drawdown')
+                plt.title('Drawdown Over Time')
+                plt.xlabel('Time')
+                plt.ylabel('Drawdown')
+                plt.legend()
+                plt.grid(True)
+                plt.savefig(os.path.join(self.results_dir, 'drawdown.png'))
+                plt.close()
 
     def save_summary(self):
         """Save a summary of all results."""
@@ -449,7 +697,8 @@ def main():
         'initial_capital': 10000.0,
         'max_position_size': 0.1,
         'stop_loss': 0.02,
-        'take_profit': 0.03
+        'take_profit': 0.03,
+        'test_duration_hours': 24  # Increased to 24 hours to ensure enough data for signal generation
     }
     
     # Initialize results manager
@@ -458,19 +707,42 @@ def main():
     
     # Load data
     logger.info("Loading data...")
-    data = load_data_from_csv(config['symbols'], config['timeframe'], config['data_dir'])
+    data = load_data_from_csv(
+        config['symbols'], 
+        config['timeframe'], 
+        config['data_dir'],
+        test_duration_hours=config['test_duration_hours']
+    )
     
     if not data:
         logger.error("No data loaded. Exiting.")
         return
         
+    # Log data statistics
+    logger.info("\nData Statistics:")
+    for symbol, df in data.items():
+        logger.info(f"\n{symbol}:")
+        logger.info(f"Number of data points: {len(df)}")
+        logger.info(f"Date range: {df.index[0]} to {df.index[-1]}")
+        logger.info(f"Price range: {df['close'].min():.8f} to {df['close'].max():.8f}")
+        logger.info(f"Average price: {df['close'].mean():.8f}")
+        logger.info(f"Price volatility: {df['close'].std():.8f}")
+        
     # Split data
-    logger.info("Splitting data...")
+    logger.info("\nSplitting data...")
     train_data, test_data, val_data = split_data(data)
     
     if not train_data or not test_data or not val_data:
         logger.error("Data splitting failed. Exiting.")
         return
+        
+    # Log split statistics
+    logger.info("\nSplit Statistics:")
+    for period, period_data in [('train', train_data), ('test', test_data), ('val', val_data)]:
+        logger.info(f"\n{period.upper()} Period:")
+        for symbol, df in period_data.items():
+            logger.info(f"{symbol}: {len(df)} data points")
+            logger.info(f"Date range: {df.index[0]} to {df.index[-1]}")
         
     # Run backtests
     for period, period_data in [('train', train_data), ('test', test_data), ('val', val_data)]:

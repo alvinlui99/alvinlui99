@@ -107,19 +107,43 @@ class StatisticalArbitrageStrategyV2:
         """
         pair = (symbol1, symbol2)
         if pair not in self.spreads or len(self.spreads[pair]) < self.volatility_lookback:
-            return self.max_position_size
+            return 0.0  # Return 0 if we don't have enough data
             
         # Calculate spread confidence based on z-score
-        confidence = min(1.0, abs(zscore) / 3.0)  # Cap at 1.0
+        # Use a more responsive confidence curve
+        confidence = min(1.0, abs(zscore) / 2.0)  # Changed to 2.0 for more responsiveness
+        confidence = confidence ** 1.5  # Less aggressive squaring
         
         # Adjust position size based on volatility
         if symbol1 in self.volatility and symbol2 in self.volatility:
             vol1 = np.mean(self.volatility[symbol1][-self.volatility_lookback:])
             vol2 = np.mean(self.volatility[symbol2][-self.volatility_lookback:])
             vol_ratio = min(vol1, vol2) / max(vol1, vol2)
-            confidence *= vol_ratio
+            # Use a less severe volatility adjustment
+            confidence *= (0.5 + 0.5 * vol_ratio)  # Linear interpolation between 0.5 and 1.0
             
-        return self.max_position_size * confidence
+        # Calculate base position size
+        base_size = self.max_position_size * confidence
+        
+        # Set reasonable minimum and maximum
+        min_position_size = 0.01  # 1% of capital (reduced from 2%)
+        max_position_size = 0.05  # 5% of capital
+        
+        # Ensure position size is within bounds
+        position_size = max(min(base_size, max_position_size), min_position_size)
+        
+        # Round to 4 decimal places to avoid tiny positions
+        position_size = round(position_size, 4)
+        
+        # Add detailed logging
+        logger.info(f"Position size calculation for {symbol1}-{symbol2}:")
+        logger.info(f"Z-score: {zscore:.4f}")
+        logger.info(f"Confidence: {confidence:.4f}")
+        logger.info(f"Volatility ratio: {vol_ratio:.4f}")
+        logger.info(f"Base size: {base_size:.4f}")
+        logger.info(f"Final position size: {position_size:.4f}")
+            
+        return position_size
         
     def update_volatility(self, symbol: str, data: pd.DataFrame) -> None:
         """
@@ -237,11 +261,7 @@ class StatisticalArbitrageStrategyV2:
             # Update volatility for each symbol
             for symbol in self.symbols:
                 if symbol in data and not data[symbol].empty:
-                    # Get the most recent volatility_lookback periods of data
-                    current_idx = data[symbol].index.get_loc(timestamp)
-                    start_idx = max(0, current_idx - self.volatility_lookback + 1)
-                    recent_data = data[symbol].iloc[start_idx:current_idx + 1]
-                    self.update_volatility(symbol, recent_data)
+                    self.update_volatility(symbol, data[symbol])
             
             # Increment periods processed
             self.periods_processed += 1
@@ -396,6 +416,12 @@ class StatisticalArbitrageStrategyV2:
                                 # Calculate position size
                                 position_size = self.calculate_position_size(symbol1, symbol2, zscore)
                                 
+                                # Add debug logging for trade execution
+                                logger.info(f"\nTrade execution for {symbol1}-{symbol2}:")
+                                logger.info(f"Z-score: {zscore:.4f}")
+                                logger.info(f"Position size: {position_size:.4f}")
+                                logger.info(f"Current capital: {self.capital[-1]:.2f}")
+                                
                                 if zscore > 0:
                                     # Short symbol1, long symbol2
                                     signals[symbol1] = {
@@ -424,6 +450,11 @@ class StatisticalArbitrageStrategyV2:
                                         'zscore': zscore,
                                         'threshold': entry_threshold
                                     }
+                                
+                                # Log trade details
+                                logger.info(f"Trade signals generated:")
+                                logger.info(f"{symbol1}: {signals[symbol1]}")
+                                logger.info(f"{symbol2}: {signals[symbol2]}")
                             elif abs(zscore) < exit_threshold:
                                 # Exit signal
                                 signals[symbol1] = {

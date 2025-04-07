@@ -204,3 +204,65 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Thanks to the open-source community for various technical indicators and optimization algorithms
 - Special thanks to contributors and maintainers of key dependencies 
+
+## Quick Testing Feature
+
+The system includes a quick testing feature that allows you to run shorter backtests for debugging and development purposes. This is controlled by the `test_duration_hours` parameter in the configuration.
+
+### Usage
+
+```python
+config = {
+    # ... other config parameters ...
+    'test_duration_hours': 1  # Test duration in hours
+}
+```
+
+### Options
+
+- `1`: Last hour of data (default for quick testing)
+- `0.5`: Last 30 minutes
+- `2`: Last 2 hours
+- `None`: Full backtest (use for production runs)
+
+### Benefits
+
+1. **Faster Development**
+   - Quick feedback on strategy changes
+   - Reduced waiting time for backtest results
+   - Easier debugging of specific issues
+
+2. **Resource Efficiency**
+   - Lower memory usage
+   - Faster execution
+   - Reduced disk I/O
+
+3. **Focused Testing**
+   - Test specific market conditions
+   - Verify recent strategy behavior
+   - Validate capital changes
+
+### Example
+
+```python
+# Quick test with 1 hour of data
+config = {
+    'test_duration_hours': 1,
+    'symbols': ['BTCUSDT', 'ETHUSDT'],
+    'timeframe': '15m'
+}
+
+# Full backtest
+config = {
+    'test_duration_hours': None,  # Use all available data
+    'symbols': ['BTCUSDT', 'ETHUSDT'],
+    'timeframe': '15m'
+}
+```
+
+### Notes
+
+- Use quick testing during development and debugging
+- Always run full backtests before deploying to production
+- Results from quick tests may not be representative of full backtest performance
+- Consider market conditions when interpreting quick test results 
