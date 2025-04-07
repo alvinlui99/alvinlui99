@@ -24,7 +24,7 @@ def download_klines(symbol: str, interval: str, start_time: int, end_time: int, 
     
     Args:
         symbol: Trading symbol
-        interval: Time interval (e.g., '15m')
+        interval: Time interval (e.g., '4h')
         start_time: Start time in milliseconds
         end_time: End time in milliseconds
         client: Binance client
@@ -92,7 +92,7 @@ def main():
         'LINKUSDT', 'NEARUSDT', 'WIFUSDT', 'AVAXUSDT', '1000SHIBUSDT',
         'DOGEUSDT', '1000PEPEUSDT', 'WLDUSDT'
     ]
-    interval = '15m'
+    interval = '4h'
     data_dir = 'data'
     
     # Create data directory if it doesn't exist
@@ -103,7 +103,7 @@ def main():
     
     # Calculate time range (3 months)
     end_time = int(datetime.now().timestamp() * 1000)
-    start_time = int((datetime.now() - timedelta(days=90)).timestamp() * 1000)
+    start_time = int((datetime.now() - timedelta(days=360)).timestamp() * 1000)
     
     logger.info(f"Downloading data from {datetime.fromtimestamp(start_time/1000)} to {datetime.fromtimestamp(end_time/1000)}")
     

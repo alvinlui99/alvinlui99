@@ -20,7 +20,7 @@ graph TD
 ## Strategy Components
 
 ### 1. Data Collection and Preprocessing
-- **Timeframe**: 15-minute intervals
+- **Timeframe**: 1-hour intervals (changed from 15-minute intervals)
 - **Initial Asset Selection**: Top 10 liquid crypto pairs by volume
 - **Data Requirements**:
   - Historical price data (minimum 6 months)
@@ -28,6 +28,20 @@ graph TD
   - Order book snapshots
   - Market depth information
 - **Current Status**: ✅ Implemented and tested
+
+### Timeframe Change (20250407)
+- Changed from 15-minute to 1-hour timeframe to:
+  - Reduce trading frequency
+  - Lower commission costs
+  - Improve signal quality
+  - Reduce noise in price movements
+  - Better align with market cycles
+- Expected impact:
+  - Fewer trades per day
+  - Lower commission costs
+  - More stable signals
+  - Longer trade durations
+  - Better risk management
 
 ### 2. Pair Selection Process
 1. **Liquidity Screening**:
@@ -241,4 +255,87 @@ results = backtest_strategy(data, **config)
 3. **Validation**
    - Quick tests should be validated with full backtests
    - Consider market conditions during test period
-   - Check for data quality and consistency 
+   - Check for data quality and consistency
+
+## Backtest Results Analysis (20250407_200339)
+
+### Performance Overview
+- All periods show negative total returns despite positive PnL:
+  - Train: -4.18% (PnL: $4,471.50)
+  - Test: -0.73% (PnL: $4,355.07)
+  - Val: -12.97% (PnL: $3,368.58)
+- High trading frequency causing significant commission costs
+- Strategy shows potential but needs optimization
+
+### Key Issues Identified
+1. **Trading Frequency**
+   - Extremely high number of trades (17,000+ per period)
+   - Very high trades per day (1,100+)
+   - 15-minute timeframe might be too short
+   - Commission costs are eroding profits
+
+2. **Risk Management**
+   - Extreme drawdowns (up to infinite in test/val periods)
+   - Very long drawdown durations (9,000+ days)
+   - Position sizing might be too aggressive
+   - Stop loss (2%) and take profit (3%) levels might be too tight
+
+3. **Trade Quality**
+   - Low win rates (7.80% - 8.13%)
+   - High number of consecutive losses (up to 454)
+   - Long average trade durations (223-237 hours)
+   - Positive profit factors (1.35-1.44) suggest potential
+
+### Improvement Tasks
+
+#### 1. Timeframe and Trading Frequency
+- [ ] Move to longer timeframe (1h or 4h)
+- [ ] Add minimum time between trades
+- [ ] Implement trade frequency limits
+- [ ] Add minimum spread requirements
+- [ ] Add minimum profit targets to cover commissions
+
+#### 2. Risk Management
+- [ ] Reduce max position size (from 10% to 5% or less)
+- [ ] Implement correlation-based position limits
+- [ ] Add maximum concurrent position limits
+- [ ] Widen stop loss and take profit levels
+- [ ] Add trailing stops
+- [ ] Implement maximum daily loss limits
+- [ ] Add position correlation filters
+
+#### 3. Entry/Exit Optimization
+- [ ] Add more stringent entry filters
+- [ ] Implement minimum holding periods
+- [ ] Add trend filters
+- [ ] Improve spread normalization
+- [ ] Add volatility filters
+- [ ] Implement dynamic position sizing
+
+#### 4. Commission Management
+- [ ] Add commission-aware position sizing
+- [ ] Implement minimum profit targets
+- [ ] Add spread-based commission filters
+- [ ] Optimize trade frequency for commission costs
+
+#### 5. Performance Monitoring
+- [ ] Add detailed commission tracking
+- [ ] Implement trade quality metrics
+- [ ] Add position correlation monitoring
+- [ ] Track strategy performance by time of day
+- [ ] Monitor market regime impact
+
+### Implementation Priority
+1. Reduce trading frequency and commission costs
+2. Improve risk management and position sizing
+3. Optimize entry/exit conditions
+4. Enhance performance monitoring
+5. Fine-tune strategy parameters
+
+### Expected Outcomes
+- Reduced commission costs
+- Improved risk-adjusted returns
+- More stable performance across periods
+- Better drawdown management
+- Higher win rates
+- Shorter drawdown durations 

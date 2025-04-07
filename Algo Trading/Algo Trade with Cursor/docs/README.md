@@ -266,3 +266,46 @@ config = {
 - Always run full backtests before deploying to production
 - Results from quick tests may not be representative of full backtest performance
 - Consider market conditions when interpreting quick test results 
+
+## Latest Backtest Results (20250407_200339)
+
+### Performance Summary
+- Strategy shows potential but needs optimization
+- All periods show negative total returns due to high commission costs
+- High trading frequency (17,000+ trades per period)
+- Low win rates (7.80% - 8.13%) but positive profit factors
+- Extreme drawdowns and long durations
+
+### Recent Changes
+- Changed timeframe from 15-minute to 1-hour intervals
+- Expected to reduce trading frequency and commission costs
+- Should improve signal quality and risk management
+
+### Improvement Plan
+1. **Reduce Trading Frequency**
+   - Move to longer timeframe (1h or 4h)
+   - Add minimum time between trades
+   - Implement trade frequency limits
+
+2. **Improve Risk Management**
+   - Reduce max position size
+   - Add position correlation filters
+   - Implement maximum concurrent position limits
+   - Widen stop loss and take profit levels
+
+3. **Optimize Entry/Exit**
+   - Add more stringent entry filters
+   - Implement minimum holding periods
+   - Add trend and volatility filters
+
+4. **Commission Management**
+   - Add commission-aware position sizing
+   - Implement minimum profit targets
+   - Optimize trade frequency
+
+5. **Performance Monitoring**
+   - Add detailed commission tracking
+   - Implement trade quality metrics
+   - Track strategy performance by time of day
+
+For detailed analysis and complete improvement tasks, see [Statistical Arbitrage Strategy Documentation](statistical_arbitrage_strategy.md). 

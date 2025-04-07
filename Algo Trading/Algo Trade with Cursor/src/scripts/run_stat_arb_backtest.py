@@ -902,7 +902,7 @@ def main():
             'LINKUSDT', 'NEARUSDT', 'WIFUSDT', 'AVAXUSDT', '1000SHIBUSDT',
             'DOGEUSDT', '1000PEPEUSDT', 'WLDUSDT'
         ],
-        'timeframe': '15m',
+        'timeframe': '4h',
         'data_dir': 'data',
         'initial_capital': 10000.0,
         'max_position_size': 0.1,
