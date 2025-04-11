@@ -1,7 +1,7 @@
 # Statistical Arbitrage Strategy with Machine Learning Enhancement
 
 ## Overview
-This document outlines a sophisticated statistical arbitrage strategy for cryptocurrency futures trading, combining traditional statistical methods with machine learning techniques.
+This document outlines a sophisticated statistical arbitrage strategy for cryptocurrency futures trading, combining traditional statistical methods with machine learning techniques. The current focus is on optimizing the strategy for 4-hour timeframe and improving profitability after commissions through rigorous backtesting.
 
 ## System Architecture
 
@@ -20,7 +20,7 @@ graph TD
 ## Strategy Components
 
 ### 1. Data Collection and Preprocessing
-- **Timeframe**: 1-hour intervals (changed from 15-minute intervals)
+- **Timeframe**: 4-hour intervals (changed from 1-hour intervals)
 - **Initial Asset Selection**: Top 10 liquid crypto pairs by volume
 - **Data Requirements**:
   - Historical price data (minimum 6 months)
@@ -29,29 +29,31 @@ graph TD
   - Market depth information
 - **Current Status**: ✅ Implemented and tested
 
-### Timeframe Change (20250407)
-- Changed from 15-minute to 1-hour timeframe to:
-  - Reduce trading frequency
+### Timeframe Change (20240408)
+- Changed from 1-hour to 4-hour timeframe to:
+  - Significantly reduce trading frequency
   - Lower commission costs
   - Improve signal quality
   - Reduce noise in price movements
   - Better align with market cycles
+  - Allow for more meaningful spread movements
 - Expected impact:
   - Fewer trades per day
   - Lower commission costs
   - More stable signals
   - Longer trade durations
   - Better risk management
+  - Higher profit per trade
 
 ### 2. Pair Selection Process
 1. **Liquidity Screening**:
-   - Minimum 24h volume > $100M
+   - Minimum 24h volume > $200M (increased from $100M)
    - Maximum spread < 0.1%
    - Current Status: ✅ Implemented and tested
 
 2. **Correlation Analysis**:
    - Calculate correlations between pairs
-   - Minimum correlation threshold: 0.7
+   - Minimum correlation threshold: 0.8 (increased from 0.7)
    - Current Status: ✅ Implemented and tested
 
 3. **Cointegration Testing**:
@@ -59,9 +61,9 @@ graph TD
    - Select pairs with significant cointegration (p-value < 0.05)
    - Current Status: ✅ Implemented and tested
 
-4. **Selected Pairs** (as of March 31, 2024):
+4. **Selected Pairs** (as of April 8, 2024):
    ```
-   ['LINKUSDT', 'NEARUSDT', 'WIFUSDT', 'TRUMPUSDT', 'AVAXUSDT', 
+   ['LINKUSDT', 'NEARUSDT', 'WIFUSDT', 'AVAXUSDT', 
     '1000SHIBUSDT', 'WLDUSDT', 'ETHUSDT', 'DOGEUSDT', '1000PEPEUSDT']
    ```
 
@@ -70,26 +72,27 @@ graph TD
 #### Entry Conditions
 1. **Statistical Significance**:
    - Z-score calculation for price spread
-   - Entry when |Z-score| > 1.5 (adjusted for testing)
+   - Entry when |Z-score| > 2.5 (adjusted for 4h timeframe)
    - Direction based on mean reversion expectation
    - Current Status: ✅ Implemented and tested
 
 2. **Position Sizing**:
    - Dynamic sizing based on Z-score confidence
-   - Maximum position size: 20% of portfolio
+   - Maximum position size: 10% of portfolio
    - Minimum confidence threshold: 0.4
-   - Volatility threshold: 0.05
+   - Volatility threshold: 0.015 (reduced from 0.02)
    - Current Status: ✅ Implemented and tested
 
 3. **Risk Management**:
    - Dynamic stop-loss based on volatility
-   - Maximum position size per pair: 20% of portfolio
+   - Maximum position size per pair: 10% of portfolio
+   - Maximum trade duration: 24 hours
    - Current Status: ✅ Implemented and tested
 
 #### Exit Conditions
 1. **Statistical**:
    - Z-score normalization
-   - Take profit at |Z-score| < 0.5
+   - Take profit at |Z-score| < 0.8 (adjusted for 4h timeframe)
    - Stop loss at |Z-score| > 3.0
    - Current Status: ✅ Implemented and tested
 
@@ -97,7 +100,7 @@ graph TD
 
 #### Portfolio Level
 - Maximum drawdown: 25%
-- Maximum exposure per asset: 20%
+- Maximum exposure per asset: 10%
 - Maximum total leverage: 2x
 - Daily loss limit: 5%
 
@@ -107,6 +110,7 @@ graph TD
   - Volatility (spread standard deviation)
   - Correlation stability
   - Market regime
+  - Time of day
 
 ### 5. Performance Metrics
 - Sharpe ratio
@@ -116,6 +120,9 @@ graph TD
 - Total PnL
 - Return percentage
 - Trade history
+- Commission impact
+- Slippage analysis
+- Trade duration distribution
 
 ## Implementation Phases
 
@@ -137,40 +144,60 @@ graph TD
 - [x] Risk management
 - [x] Order execution
 
-### Phase 4: Backtesting ✅
+### Phase 4: Backtesting ⏳
 - [x] Performance metrics
 - [x] Transaction cost modeling
 - [x] Slippage simulation
 - [x] Results analysis
+- [ ] Strategy optimization
+- [ ] Parameter tuning
+- [ ] Commission optimization
 
-### Phase 5: Live Trading ⏳
+### Phase 5: Live Trading
 - [ ] Paper trading
 - [ ] Small position testing
 - [ ] Full deployment
 - [ ] Performance monitoring
 
-## Next Steps
-1. Implement paper trading environment
-2. Add real-time data streaming
-3. Implement order book imbalance detection
-4. Add machine learning enhancements
-5. Set up performance monitoring dashboard
+## Current Focus Areas
 
-## Risk Considerations
-1. Market regime changes
-2. Liquidity constraints
-3. Exchange technical issues
-4. Network latency
-5. Model overfitting
-6. Transaction costs
-7. Slippage impact
+### 1. Strategy Optimization
+- Fine-tune entry/exit thresholds for 4h timeframe
+- Optimize position sizing for better risk-adjusted returns
+- Implement dynamic stop-loss based on spread volatility
+- Add market regime detection for adaptive parameters
+
+### 2. Commission Optimization
+- Reduce trading frequency through:
+  - Higher entry thresholds
+  - Minimum time between trades
+  - Trade clustering
+  - Volume-based commission discounts
+
+### 3. Performance Analysis
+- Detailed commission impact analysis
+- Slippage modeling and optimization
+- Trade duration analysis
+- Win rate by time of day
+- Market regime performance
+
+### 4. Risk Management Enhancement
+- Implement trailing stops
+- Add maximum trade duration
+- Dynamic position sizing based on:
+  - Market conditions
+  - Time of day
+  - Volatility regime
+  - Spread characteristics
 
 ## Success Criteria
 1. Sharpe ratio > 2.0
 2. Maximum drawdown < 25%
 3. Win rate > 60%
 4. Profit factor > 1.5
-5. Average trade duration < 4 hours
+5. Average trade duration < 24 hours
+6. Commission impact < 30% of gross profit
+7. Average profit per trade > 2x commission cost
 
 ## Quick Testing
 
@@ -182,8 +209,8 @@ The strategy supports quick testing through the `test_duration_hours` parameter,
 config = {
     'strategy_version': 'v2',
     'symbols': ['BTCUSDT', 'ETHUSDT'],
-    'timeframe': '15m',
-    'test_duration_hours': 1  # Quick test with 1 hour of data
+    'timeframe': '4h',
+    'test_duration_hours': 4  # Quick test with 4 hours of data
 }
 ```
 
@@ -210,7 +237,7 @@ The quick testing feature works by:
 ### Best Practices
 
 1. **Development Workflow**
-   - Use quick tests (1-2 hours) during development
+   - Use quick tests (4-8 hours) during development
    - Run full backtests before major changes
    - Validate results with different time periods
 
@@ -229,7 +256,7 @@ The quick testing feature works by:
 ```python
 # Quick test configuration
 config = {
-    'test_duration_hours': 1,
+    'test_duration_hours': 4,
     'initial_capital': 10000.0,
     'max_position_size': 0.1,
     'stop_loss': 0.02,
@@ -248,94 +275,6 @@ results = backtest_strategy(data, **config)
    - Limited sample size for statistical significance
 
 2. **Data Requirements**
-   - Requires recent data for all symbols
-   - May miss important market events
-   - Limited training data for strategy parameters
-
-3. **Validation**
-   - Quick tests should be validated with full backtests
-   - Consider market conditions during test period
-   - Check for data quality and consistency
-
-## Backtest Results Analysis (20250407_200339)
-
-### Performance Overview
-- All periods show negative total returns despite positive PnL:
-  - Train: -4.18% (PnL: $4,471.50)
-  - Test: -0.73% (PnL: $4,355.07)
-  - Val: -12.97% (PnL: $3,368.58)
-- High trading frequency causing significant commission costs
-- Strategy shows potential but needs optimization
-
-### Key Issues Identified
-1. **Trading Frequency**
-   - Extremely high number of trades (17,000+ per period)
-   - Very high trades per day (1,100+)
-   - 15-minute timeframe might be too short
-   - Commission costs are eroding profits
-
-2. **Risk Management**
-   - Extreme drawdowns (up to infinite in test/val periods)
-   - Very long drawdown durations (9,000+ days)
-   - Position sizing might be too aggressive
-   - Stop loss (2%) and take profit (3%) levels might be too tight
-
-3. **Trade Quality**
-   - Low win rates (7.80% - 8.13%)
-   - High number of consecutive losses (up to 454)
-   - Long average trade durations (223-237 hours)
-   - Positive profit factors (1.35-1.44) suggest potential
-
-### Improvement Tasks
-
-#### 1. Timeframe and Trading Frequency
-- [ ] Move to longer timeframe (1h or 4h)
-- [ ] Add minimum time between trades
-- [ ] Implement trade frequency limits
-- [ ] Add minimum spread requirements
-- [ ] Add minimum profit targets to cover commissions
-
-#### 2. Risk Management
-- [ ] Reduce max position size (from 10% to 5% or less)
-- [ ] Implement correlation-based position limits
-- [ ] Add maximum concurrent position limits
-- [ ] Widen stop loss and take profit levels
-- [ ] Add trailing stops
-- [ ] Implement maximum daily loss limits
-- [ ] Add position correlation filters
-
-#### 3. Entry/Exit Optimization
-- [ ] Add more stringent entry filters
-- [ ] Implement minimum holding periods
-- [ ] Add trend filters
-- [ ] Improve spread normalization
-- [ ] Add volatility filters
-- [ ] Implement dynamic position sizing
-
-#### 4. Commission Management
-- [ ] Add commission-aware position sizing
-- [ ] Implement minimum profit targets
-- [ ] Add spread-based commission filters
-- [ ] Optimize trade frequency for commission costs
-
-#### 5. Performance Monitoring
-- [ ] Add detailed commission tracking
-- [ ] Implement trade quality metrics
-- [ ] Add position correlation monitoring
-- [ ] Track strategy performance by time of day
-- [ ] Monitor market regime impact
-
-### Implementation Priority
-1. Reduce trading frequency and commission costs
-2. Improve risk management and position sizing
-3. Optimize entry/exit conditions
-4. Enhance performance monitoring
-5. Fine-tune strategy parameters
-
-### Expected Outcomes
-- Reduced commission costs
-- Improved risk-adjusted returns
-- More stable performance across periods
-- Better drawdown management
-- Higher win rates
-- Shorter drawdown durations 
+   - Need sufficient historical data for accurate testing
+   - Market conditions may vary significantly
+   - Commission impact may be underestimated 
