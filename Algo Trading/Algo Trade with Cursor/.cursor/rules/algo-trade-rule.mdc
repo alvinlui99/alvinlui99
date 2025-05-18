@@ -1,0 +1,102 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Make sure the logic is reasonably sound and reliable
+Try not to reinvent the wheel. Use existing code and infrastructure whenever possible.
+
+I am backtesting the stat arb strategy. Backtest results are stored in the results folder, which you can rely on for analysis for model and strategy improvements. 
+
+Read the documentation in docs folder.
+
+# Backtesting Infrastructure Rules
+
+## Core Infrastructure (DO NOT MODIFY)
+1. **Data Pipeline**
+   - Historical data loading and preprocessing
+   - Data validation and error handling
+   - Time series management
+   - Data synchronization across pairs
+
+2. **Risk Management Framework**
+   - Position sizing logic
+   - Stop loss and take profit calculation
+   - Leverage limits
+   - Commission handling
+   - Risk per trade limits
+
+3. **Performance Tracking**
+   - Trade execution logging
+   - PnL calculation
+   - Capital curve tracking
+   - Performance metrics calculation
+   - Results export functionality
+
+4. **Backtest Engine**
+   - Time step iteration
+   - Signal processing
+   - Trade execution
+   - Portfolio management
+   - Error handling and logging
+
+## Strategy Implementation (MODIFY ONLY THIS)
+1. **Signal Generation**
+   - Statistical arbitrage logic
+   - Cointegration testing
+   - Spread calculation
+   - Entry/exit conditions
+   - Signal validation
+
+2. **Strategy Parameters**
+   - Lookback periods
+   - Z-score thresholds
+   - Position sizing rules
+   - Rebalancing frequency
+   - Exit conditions
+
+3. **Strategy-Specific Features**
+   - Pair selection logic
+   - Spread normalization
+   - Mean reversion parameters
+   - Correlation thresholds
+   - Volatility filters
+
+## Error Handling Rules
+1. If an error occurs in the strategy implementation:
+   - Log the error with context
+   - Skip the current iteration
+   - Continue with the backtest
+   - Do not modify the infrastructure
+
+2. If an error occurs in the core infrastructure:
+   - Log the error with full details
+   - Stop the backtest
+   - Report the issue
+   - Do not attempt to fix the infrastructure
+
+## Testing Protocol
+1. Test new strategy implementations:
+   - On small time periods first
+   - With reduced position sizes
+   - With detailed logging enabled
+   - Without modifying infrastructure
+
+2. Validate results:
+   - Check trade execution
+   - Verify position sizing
+   - Confirm risk management
+   - Review performance metrics
+
+## Documentation Requirements
+1. Strategy Implementation:
+   - Document all strategy parameters
+   - Explain signal generation logic
+   - Detail risk management rules
+   - Provide usage examples
+
+2. Error Handling:
+   - Document expected errors
+   - Provide error recovery procedures
+   - List known limitations
+   - Include troubleshooting steps

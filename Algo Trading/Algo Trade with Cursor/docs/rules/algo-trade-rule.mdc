@@ -1,0 +1,70 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Algorithm Trading Rules
+
+## Strategy Parameters
+
+### Spread Calculation
+```python
+spread_multiplier = 1000  # Increased sensitivity to small price changes
+min_spread_std = 0.01    # Minimum standard deviation threshold (1%)
+min_spread = 0.01        # Minimum spread value threshold (1%)
+```
+
+### Position Sizing
+```python
+max_position_size = 0.1  # Maximum 10% of capital per trade
+initial_capital = 10000  # Starting capital
+```
+
+### Risk Management
+```python
+base_stop_loss = 0.02   # 2% base stop loss
+base_take_profit = 0.03 # 3% base take profit
+min_correlation = 0.7   # Minimum correlation for pair selection
+```
+
+## Trading Rules
+
+### Entry Rules
+1. Calculate normalized spread between asset pairs
+2. Verify minimum correlation threshold
+3. Check spread standard deviation meets minimum requirement
+4. Confirm spread value exceeds minimum threshold
+5. Calculate dynamic stop-loss and take-profit levels
+6. Execute trade if all conditions are met
+
+### Exit Rules
+1. Monitor spread for mean reversion
+2. Check stop-loss and take-profit levels
+3. Exit position if:
+   - Take-profit level is reached
+   - Stop-loss level is breached
+   - Spread returns to mean
+   - Maximum holding period exceeded
+
+### Risk Management Rules
+1. Never exceed maximum position size
+2. Adjust position size based on volatility
+3. Maintain minimum correlation threshold
+4. Monitor drawdown limits
+5. Regular rebalancing of positions
+
+## Performance Monitoring
+1. Track daily returns
+2. Monitor Sharpe ratio
+3. Calculate maximum drawdown
+4. Track win rate
+5. Monitor average profit per trade
+6. Regular strategy review and parameter optimization
+
+## Market Conditions
+The strategy performs best when:
+1. Asset pairs show high correlation (>0.7)
+2. Market exhibits mean reversion behavior
+3. Sufficient liquidity exists
+4. Volatility is moderate
+5. Trading costs are reasonable 

@@ -4,4 +4,6 @@ ta>=0.10.0
 matplotlib>=3.5.0
 scikit-learn>=1.0.0
 python-dotenv>=0.19.0
-binance-futures-connector>=3.0.0 
+binance-futures-connector>=3.0.0
+scipy>=1.7.0
+statsmodels>=0.13.0 
