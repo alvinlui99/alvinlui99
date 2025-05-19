@@ -1,0 +1,7 @@
+Collecting scipy
+  Downloading scipy-1.15.3-cp311-cp311-win_amd64.whl.metadata (60 kB)
+Requirement already satisfied: numpy<2.5,>=1.23.5 in c:\users\alvin lui\anaconda3\envs\capital_mgmt\lib\site-packages (from scipy) (2.2.6)
+Downloading scipy-1.15.3-cp311-cp311-win_amd64.whl (41.2 MB)
+   ---------------------------------------- 41.2/41.2 MB 11.9 MB/s eta 0:00:00
+Installing collected packages: scipy
+Successfully installed scipy-1.15.3

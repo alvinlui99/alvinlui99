@@ -3,6 +3,7 @@ pandas>=2.0.0
 numpy>=1.24.0
 yfinance>=0.2.36
 pandas-datareader>=0.10.0
+scipy>=1.11.0
 
 # Interactive Brokers API
 ib_insync>=0.9.86
