@@ -25,6 +25,7 @@ pytest-cov>=4.0.0
 python-dotenv>=1.0.0
 tqdm>=4.65.0
 loguru>=0.7.0
+requests>=2.31.0
 
 # Data storage
 pyarrow>=14.0.1

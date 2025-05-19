@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+**Important Note**: This project does NOT implement any trading functionality. The IBKR API is used solely for data retrieval purposes. No orders will be placed through this system.

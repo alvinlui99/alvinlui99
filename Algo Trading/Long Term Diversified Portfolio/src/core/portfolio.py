@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import yfinance as yf
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 
@@ -158,6 +158,45 @@ class Portfolio:
             print(f"Error fetching info for {symbol}: {e}")
             return None
     
+    def get_historical_data(self, symbol: str, period: str = '5y', interval: str = '1d') -> Optional[pd.DataFrame]:
+        """
+        Get historical data for a symbol using yfinance.
+        
+        Args:
+            symbol (str): The symbol to get data for
+            period (str): Period of data to fetch (e.g., '5y' for 5 years)
+            interval (str): Interval of data (e.g., '1d' for daily)
+            
+        Returns:
+            Optional[pd.DataFrame]: DataFrame with historical data or None if request fails
+        """
+        try:
+            ticker = yf.Ticker(symbol)
+            df = ticker.history(period=period, interval=interval)
+            return df
+        except Exception as e:
+            print(f"Error fetching historical data for {symbol}: {e}")
+            return None
+    
+    def get_portfolio_historical_data(self, symbols: List[str], period: str = '5y') -> Dict[str, pd.DataFrame]:
+        """
+        Get historical data for multiple symbols.
+        
+        Args:
+            symbols (List[str]): List of symbols to get data for
+            period (str): Period of data to fetch
+            
+        Returns:
+            Dict[str, pd.DataFrame]: Dictionary mapping symbols to their historical data
+        """
+        historical_data = {}
+        for symbol in symbols:
+            data = self.get_historical_data(symbol, period)
+            if data is not None:
+                historical_data[symbol] = data
+        
+        return historical_data
+    
     def calculate_stock_score(self, stock: StockMetrics, sector: str) -> float:
         """Calculate a composite score for a stock based on multiple factors."""
         weights = self.scoring_weights[sector]
@@ -274,7 +313,7 @@ class Portfolio:
         return holdings
     
     def calculate_portfolio_metrics(self, holdings: Dict) -> PortfolioMetrics:
-        """Calculate portfolio-level metrics."""
+        """Calculate portfolio-level metrics using historical data."""
         # Calculate weights
         equity_weight = sum(holding['weight'] for holding in holdings['equity'].values())
         fixed_income_weight = sum(holding['weight'] for holding in holdings['fixed_income'].values())
@@ -293,39 +332,119 @@ class Portfolio:
             'small_cap': 0.25   # From IJR
         }
         
-        # Expected returns (simplified assumptions)
-        expected_returns = {
-            'equity': 0.08,  # 8% expected return for equities
-            'fixed_income': 0.04,  # 4% expected return for fixed income
-            'cash': 0.02  # 2% expected return for cash
-        }
+        # Get historical data for all holdings
+        equity_symbols = list(holdings['equity'].keys())
+        fixed_income_symbols = list(holdings['fixed_income'].keys())
         
-        # Expected volatility (simplified assumptions)
-        expected_volatilities = {
-            'equity': 0.15,  # 15% volatility for equities
-            'fixed_income': 0.05,  # 5% volatility for fixed income
-            'cash': 0.01  # 1% volatility for cash
-        }
+        # Fetch historical data
+        equity_data = self.get_portfolio_historical_data(equity_symbols)
+        fixed_income_data = self.get_portfolio_historical_data(fixed_income_symbols)
         
-        # Calculate portfolio expected return
-        expected_return = (
-            equity_weight * expected_returns['equity'] +
-            fixed_income_weight * expected_returns['fixed_income'] +
-            cash_weight * expected_returns['cash']
-        )
+        if not equity_data or not fixed_income_data:
+            raise ValueError("Unable to fetch historical data for portfolio components")
         
-        # Calculate portfolio expected volatility (simplified)
+        # Calculate returns for each asset
+        returns_data = {}
+        
+        # Calculate equity returns
+        for symbol, data in equity_data.items():
+            if 'Close' not in data.columns:
+                raise ValueError(f"Missing 'Close' prices for {symbol}")
+            returns = data['Close'].pct_change().dropna()
+            returns_data[symbol] = returns
+        
+        # Calculate fixed income returns
+        for symbol, data in fixed_income_data.items():
+            if 'Close' not in data.columns:
+                raise ValueError(f"Missing 'Close' prices for {symbol}")
+            returns = data['Close'].pct_change().dropna()
+            returns_data[symbol] = returns
+        
+        # Create returns DataFrame
+        returns_df = pd.DataFrame(returns_data)
+        
+        if returns_df.empty:
+            raise ValueError("No valid return data available for portfolio components")
+        
+        # Calculate portfolio weights
+        weights = {}
+        for symbol in equity_symbols:
+            weights[symbol] = holdings['equity'][symbol]['weight']
+        for symbol in fixed_income_symbols:
+            weights[symbol] = holdings['fixed_income'][symbol]['weight']
+        
+        # Calculate correlation matrices
+        full_corr = returns_df.corr()
+        
+        # Calculate within-sector correlations
+        sector_correlations = {}
+        for sector in self.sector_weights.keys():
+            sector_symbols = [symbol for symbol in equity_symbols 
+                            if holdings['equity'][symbol]['sector'] == sector]
+            if len(sector_symbols) > 1:  # Only calculate if we have multiple stocks in sector
+                sector_corr = returns_df[sector_symbols].corr()
+                sector_correlations[sector] = {
+                    'mean_correlation': sector_corr.values[np.triu_indices_from(sector_corr.values, k=1)].mean(),
+                    'max_correlation': sector_corr.values[np.triu_indices_from(sector_corr.values, k=1)].max(),
+                    'min_correlation': sector_corr.values[np.triu_indices_from(sector_corr.values, k=1)].min()
+                }
+        
+        # Calculate cross-sector correlations
+        cross_sector_correlations = {}
+        sectors = list(self.sector_weights.keys())
+        for i, sector1 in enumerate(sectors):
+            for sector2 in sectors[i+1:]:
+                sector1_symbols = [symbol for symbol in equity_symbols 
+                                 if holdings['equity'][symbol]['sector'] == sector1]
+                sector2_symbols = [symbol for symbol in equity_symbols 
+                                 if holdings['equity'][symbol]['sector'] == sector2]
+                if sector1_symbols and sector2_symbols:
+                    cross_corr = returns_df[sector1_symbols + sector2_symbols].corr()
+                    # Get correlations between sectors
+                    sector1_indices = range(len(sector1_symbols))
+                    sector2_indices = range(len(sector1_symbols), len(sector1_symbols) + len(sector2_symbols))
+                    cross_sector_corr = cross_corr.iloc[sector1_indices, sector2_indices]
+                    cross_sector_correlations[f"{sector1}-{sector2}"] = {
+                        'mean_correlation': cross_sector_corr.values.mean(),
+                        'max_correlation': cross_sector_corr.values.max(),
+                        'min_correlation': cross_sector_corr.values.min()
+                    }
+        
+        # Calculate portfolio metrics
+        # Expected return (annualized)
+        expected_return = returns_df.mean().dot(pd.Series(weights)) * 252
+        
+        # Expected volatility (annualized)
         expected_volatility = np.sqrt(
-            (equity_weight * expected_volatilities['equity'])**2 +
-            (fixed_income_weight * expected_volatilities['fixed_income'])**2 +
-            (cash_weight * expected_volatilities['cash'])**2
-        )
+            returns_df.cov().dot(pd.Series(weights)).dot(pd.Series(weights))
+        ) * np.sqrt(252)
         
         # Calculate Sharpe ratio (assuming risk-free rate of 2%)
-        sharpe_ratio = (expected_return - 0.02) / expected_volatility
+        risk_free_rate = 0.02
+        sharpe_ratio = (expected_return - risk_free_rate) / expected_volatility
         
-        # Estimate maximum drawdown (simplified)
-        max_drawdown = expected_volatility * 2.5  # Rough estimate
+        # Calculate maximum drawdown
+        cumulative_returns = (1 + returns_df).cumprod()
+        rolling_max = cumulative_returns.expanding().max()
+        drawdowns = cumulative_returns / rolling_max - 1
+        max_drawdown = drawdowns.min().min()
+        
+        # Print correlation analysis
+        print("\nCorrelation Analysis:")
+        print("-------------------")
+        print("\nWithin-Sector Correlations:")
+        for sector, corr_stats in sector_correlations.items():
+            print(f"\n{sector.title()}:")
+            print(f"  Mean Correlation: {corr_stats['mean_correlation']:.3f}")
+            print(f"  Max Correlation: {corr_stats['max_correlation']:.3f}")
+            print(f"  Min Correlation: {corr_stats['min_correlation']:.3f}")
+        
+        print("\nCross-Sector Correlations:")
+        for sectors_pair, corr_stats in cross_sector_correlations.items():
+            print(f"\n{sectors_pair}:")
+            print(f"  Mean Correlation: {corr_stats['mean_correlation']:.3f}")
+            print(f"  Max Correlation: {corr_stats['max_correlation']:.3f}")
+            print(f"  Min Correlation: {corr_stats['min_correlation']:.3f}")
         
         return PortfolioMetrics(
             total_value=self.portfolio_value,
@@ -436,6 +555,61 @@ class Portfolio:
         metrics_df = pd.DataFrame(metrics_data)
         metrics_df.to_csv(f"{output_dir}/portfolio_metrics_{timestamp}.csv", index=False)
         
+        # Calculate and export sector correlations
+        equity_symbols = list(holdings['equity'].keys())
+        equity_data = self.get_portfolio_historical_data(equity_symbols)
+        
+        if equity_data:
+            # Calculate returns for each asset
+            returns_data = {}
+            for symbol, data in equity_data.items():
+                if 'Close' in data.columns:
+                    returns = data['Close'].pct_change().dropna()
+                    returns_data[symbol] = returns
+            
+            returns_df = pd.DataFrame(returns_data)
+            
+            if not returns_df.empty:
+                # Get unique sectors
+                sectors = sorted(set(holdings['equity'][symbol]['sector'] for symbol in equity_symbols))
+                
+                # Create correlation matrix
+                correlation_data = []
+                for i, sector1 in enumerate(sectors):
+                    for sector2 in sectors[i:]:  # Include same sector correlations
+                        sector1_symbols = [symbol for symbol in equity_symbols 
+                                         if holdings['equity'][symbol]['sector'] == sector1]
+                        sector2_symbols = [symbol for symbol in equity_symbols 
+                                         if holdings['equity'][symbol]['sector'] == sector2]
+                        
+                        if sector1_symbols and sector2_symbols:
+                            # Calculate correlation between sectors
+                            corr_matrix = returns_df[sector1_symbols + sector2_symbols].corr()
+                            
+                            # Get correlations between sectors
+                            sector1_indices = range(len(sector1_symbols))
+                            sector2_indices = range(len(sector1_symbols), len(sector1_symbols) + len(sector2_symbols))
+                            
+                            if sector1 == sector2:
+                                # For same sector, use upper triangle excluding diagonal
+                                corr_values = corr_matrix.iloc[sector1_indices, sector2_indices].values
+                                corr_values = corr_values[np.triu_indices_from(corr_values, k=1)]
+                            else:
+                                # For different sectors, use all cross-correlations
+                                corr_values = corr_matrix.iloc[sector1_indices, sector2_indices].values.flatten()
+                            
+                            correlation_data.append({
+                                'Sector 1': sector1,
+                                'Sector 2': sector2,
+                                'Mean Correlation': np.mean(corr_values),
+                                'Number of Pairs': len(corr_values)
+                            })
+                
+                # Convert to DataFrame and save
+                correlation_df = pd.DataFrame(correlation_data)
+                correlation_df.to_csv(f"{output_dir}/sector_correlations_{timestamp}.csv", index=False)
+                print(f"- Sector Correlations: sector_correlations_{timestamp}.csv")
+        
         print(f"\nPortfolio data exported to {output_dir}/")
         print(f"- Holdings: portfolio_holdings_{timestamp}.csv")
         print(f"- Metrics: portfolio_metrics_{timestamp}.csv")
@@ -496,4 +670,4 @@ if __name__ == "__main__":
     print("\nStyle Weights:")
     print("-------------")
     for style, weight in metrics.style_weights.items():
-        print(f"{style}: {weight:.1%}") 
+        print(f"{style}: {weight:.1%}")
