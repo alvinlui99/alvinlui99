@@ -10,6 +10,8 @@ import numpy as np
 from datetime import datetime, timedelta
 import os
 from scipy.optimize import minimize
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 @dataclass
@@ -74,14 +76,14 @@ class Portfolio:
         # Define scoring weights for each sector - Optimized for quality and risk-adjusted returns
         self.scoring_weights = {
             'technology': {
-                'roic': 0.35,           # Increased emphasis on ROIC
+                'roic': 0.35,
                 'profit_margin': 0.25,
-                'market_cap': 0.15,     # Reduced emphasis on size
+                'market_cap': 0.15,
                 'debt_to_equity': 0.15,
                 'beta': 0.10
             },
             'healthcare': {
-                'roic': 0.30,           # Increased emphasis on ROIC
+                'roic': 0.30,
                 'profit_margin': 0.25,
                 'market_cap': 0.15,
                 'debt_to_equity': 0.15,
@@ -92,11 +94,11 @@ class Portfolio:
                 'profit_margin': 0.15,
                 'market_cap': 0.15,
                 'debt_to_equity': 0.15,
-                'dividend_yield': 0.25,  # Increased emphasis on dividends
+                'dividend_yield': 0.25,
                 'beta': 0.10
             },
             'consumer_discretionary': {
-                'roic': 0.30,           # Increased emphasis on ROIC
+                'roic': 0.30,
                 'profit_margin': 0.20,
                 'market_cap': 0.15,
                 'debt_to_equity': 0.15,
@@ -147,9 +149,9 @@ class Portfolio:
                 'RSG', 'WCN', 'PCAR', 'CHRW', 'ODFL'
             ],
             'energy': [
-                'XOM', 'CVX', 'COP', 'EOG', 'PXD', 'SLB', 'HAL', 'BKR',
-                'MPC', 'VLO', 'PSX', 'OXY', 'DVN', 'PXD', 'EOG',
-                'FANG', 'MRO', 'APA', 'NOV', 'FTI'
+                'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'HAL', 'BKR',
+                'MPC', 'VLO', 'PSX', 'OXY', 'DVN', 'EOG',
+                'FANG', 'APA', 'NOV', 'FTI'
             ]
         }
         
@@ -225,13 +227,13 @@ class Portfolio:
         """Calculate a composite score for a stock based on multiple factors."""
         weights = self.scoring_weights[sector]
         
-        # Handle missing or invalid values
-        roic = max(0, stock.roic)
-        profit_margin = max(0, stock.profit_margin)
-        market_cap = max(0, stock.market_cap)
-        debt_to_equity = min(10, max(0, stock.debt_to_equity))
-        dividend_yield = max(0, stock.dividend_yield)
-        beta = min(3, max(0, stock.beta))
+        # Handle missing or invalid values with safe defaults
+        roic = max(0, float(stock.roic) if stock.roic is not None else 0)
+        profit_margin = max(0, float(stock.profit_margin) if stock.profit_margin is not None else 0)
+        market_cap = max(0, float(stock.market_cap) if stock.market_cap is not None else 0)
+        debt_to_equity = min(10, max(0, float(stock.debt_to_equity) if stock.debt_to_equity is not None else 0))
+        dividend_yield = max(0, float(stock.dividend_yield) if stock.dividend_yield is not None else 0)
+        beta = min(3, max(0, float(stock.beta) if stock.beta is not None else 1.0))
         
         # Calculate score components
         score = (
@@ -326,6 +328,7 @@ class Portfolio:
         
         # Get equity holdings
         equity_holdings = {}
+        total_commission = 0
         
         # Allocate by sector (weights are relative to equity portion)
         for sector, weight in self.sector_weights.items():
@@ -335,6 +338,7 @@ class Portfolio:
                 stocks = self.get_recommended_stocks(sector, sector_value)
                 for stock in stocks:
                     equity_holdings[stock['symbol']] = stock
+                    total_commission += stock.get('commission', 0)
             else:
                 # ETF holdings
                 etf_symbol = self.recommended_etfs.get(sector)
@@ -345,6 +349,14 @@ class Portfolio:
                         'amount': equity_value * weight,
                         'sector': sector
                     }
+        
+        # Calculate total equity value including commissions
+        total_equity_value = sum(holding['amount'] for holding in equity_holdings.values())
+        
+        # Normalize equity weights to account for commissions
+        if total_equity_value > 0:
+            for symbol in equity_holdings:
+                equity_holdings[symbol]['weight'] = (equity_holdings[symbol]['amount'] / total_equity_value) * self.asset_weights['equity']
         
         # Add fixed income and cash
         holdings = {
@@ -824,16 +836,478 @@ class Portfolio:
             print("Optimization failed. Using current weights.")
             return self.sector_weights
 
+    def calculate_forward_performance(self, holdings: Dict, start_date: str = '2024-01-01', end_date: str = '2024-12-31') -> Dict:
+        """
+        Calculate portfolio performance for a specific time period.
+        
+        Args:
+            holdings (Dict): Portfolio holdings
+            start_date (str): Start date in YYYY-MM-DD format
+            end_date (str): End date in YYYY-MM-DD format
+            
+        Returns:
+            Dict: Performance metrics for the period
+        """
+        # Get all equity and fixed income symbols
+        equity_symbols = list(holdings['equity'].keys())
+        fixed_income_symbols = list(holdings['fixed_income'].keys())
+        all_symbols = equity_symbols + fixed_income_symbols
+        
+        # Get historical data for the period
+        historical_data = {}
+        for symbol in all_symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(start=start_date, end=end_date)
+                if not data.empty:
+                    historical_data[symbol] = data
+            except Exception as e:
+                print(f"Error fetching data for {symbol}: {e}")
+        
+        if not historical_data:
+            raise ValueError("No historical data available for the period")
+        
+        # Calculate daily returns for each asset
+        returns_data = {}
+        for symbol, data in historical_data.items():
+            if 'Close' in data.columns:
+                returns = data['Close'].pct_change().dropna()
+                returns_data[symbol] = returns
+        
+        returns_df = pd.DataFrame(returns_data)
+        
+        # Calculate portfolio weights
+        weights = {}
+        for symbol in equity_symbols:
+            weights[symbol] = holdings['equity'][symbol]['weight']
+        for symbol in fixed_income_symbols:
+            weights[symbol] = holdings['fixed_income'][symbol]['weight']
+        
+        # Calculate portfolio returns
+        portfolio_returns = returns_df.dot(pd.Series(weights))
+        
+        # Calculate initial portfolio value after commissions
+        initial_value = self.portfolio_value
+        total_commission = sum(holding.get('commission', 0) for holding in holdings['equity'].values())
+        net_initial_value = initial_value - total_commission
+        
+        # Calculate cumulative portfolio value
+        portfolio_values = (1 + portfolio_returns).cumprod() * net_initial_value
+        
+        # Calculate metrics
+        total_return = (portfolio_values.iloc[-1] / net_initial_value) - 1
+        annualized_return = (1 + total_return) ** (252 / len(portfolio_returns)) - 1
+        volatility = portfolio_returns.std() * np.sqrt(252)
+        sharpe_ratio = (annualized_return - 0.02) / volatility  # Assuming 2% risk-free rate
+        
+        # Calculate drawdown
+        rolling_max = portfolio_values.expanding().max()
+        drawdowns = portfolio_values / rolling_max - 1
+        max_drawdown = drawdowns.min()
+        
+        # Calculate monthly returns
+        monthly_returns = portfolio_returns.resample('M').apply(lambda x: (1 + x).prod() - 1)
+        
+        return {
+            'total_return': total_return,
+            'annualized_return': annualized_return,
+            'volatility': volatility,
+            'sharpe_ratio': sharpe_ratio,
+            'max_drawdown': max_drawdown,
+            'monthly_returns': monthly_returns,
+            'daily_returns': returns_df,  # Return the DataFrame instead of Series
+            'portfolio_values': portfolio_values,
+            'total_commission': total_commission,
+            'net_initial_value': net_initial_value
+        }
+
+    def plot_portfolio_performance(self, performance: Dict, holdings: Dict, output_dir: str = "output/reports") -> None:
+        """
+        Create visualizations of portfolio performance.
+        
+        Args:
+            performance (Dict): Performance metrics from calculate_forward_performance
+            holdings (Dict): Portfolio holdings
+            output_dir (str): Directory to save plots
+        """
+        # Create output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Get S&P 500 data for the same period
+        sp500 = yf.Ticker("^GSPC")
+        sp500_data = sp500.history(start=performance['portfolio_values'].index[0], 
+                                 end=performance['portfolio_values'].index[-1])
+        sp500_values = (1 + sp500_data['Close'].pct_change().dropna()).cumprod() * performance['net_initial_value']
+        
+        # 1. Portfolio Value Over Time with S&P 500
+        plt.figure(figsize=(12, 6))
+        performance['portfolio_values'].plot(label='Portfolio')
+        sp500_values.plot(label='S&P 500')
+        plt.title('Portfolio Value vs S&P 500')
+        plt.xlabel('Date')
+        plt.ylabel('Portfolio Value ($)')
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(f"{output_dir}/portfolio_value_vs_sp500.png")
+        plt.close()
+        
+        # 2. Monthly Returns Heatmap
+        monthly_returns = performance['monthly_returns']
+        monthly_returns_matrix = monthly_returns.values.reshape(-1, 1)
+        months = [d.strftime('%b %Y') for d in monthly_returns.index]
+        
+        plt.figure(figsize=(10, 6))
+        sns.heatmap(monthly_returns_matrix, 
+                   annot=True, 
+                   fmt='.1%',
+                   cmap='RdYlGn',
+                   center=0,
+                   yticklabels=months)
+        plt.title('Monthly Returns Heatmap')
+        plt.tight_layout()
+        plt.savefig(f"{output_dir}/monthly_returns_heatmap.png")
+        plt.close()
+        
+        # 3. Drawdown Chart
+        portfolio_values = performance['portfolio_values']
+        rolling_max = portfolio_values.expanding().max()
+        drawdowns = (portfolio_values / rolling_max - 1) * 100
+        
+        plt.figure(figsize=(12, 6))
+        drawdowns.plot()
+        plt.title('Portfolio Drawdown Over Time')
+        plt.xlabel('Date')
+        plt.ylabel('Drawdown (%)')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"{output_dir}/drawdown_chart.png")
+        plt.close()
+        
+        # 4. Return Distribution
+        plt.figure(figsize=(10, 6))
+        sns.histplot(performance['daily_returns'].mean(axis=1) * 100, bins=50)  # Use mean of daily returns
+        plt.title('Daily Returns Distribution')
+        plt.xlabel('Daily Return (%)')
+        plt.ylabel('Frequency')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"{output_dir}/returns_distribution.png")
+        plt.close()
+        
+        # 5. Sector Returns
+        sector_stocks = {}
+        for symbol, holding in holdings['equity'].items():
+            if 'sector' in holding:
+                sector = holding['sector']
+                if sector not in sector_stocks:
+                    sector_stocks[sector] = []
+                sector_stocks[sector].append(symbol)
+        
+        # Calculate sector returns
+        sector_performance = {}
+        for sector, symbols in sector_stocks.items():
+            sector_data = pd.DataFrame()
+            for symbol in symbols:
+                if symbol in performance['daily_returns'].columns:
+                    sector_data[symbol] = performance['daily_returns'][symbol]
+            if not sector_data.empty:
+                # Calculate weighted returns for the sector
+                weights = [holdings['equity'][symbol]['weight'] for symbol in symbols if symbol in performance['daily_returns'].columns]
+                weights = np.array(weights) / sum(weights)  # Normalize weights
+                sector_returns = sector_data.dot(weights)
+                sector_performance[sector] = (1 + sector_returns).cumprod() * performance['net_initial_value']
+        
+        # Plot sector returns
+        plt.figure(figsize=(12, 6))
+        for sector, returns in sector_performance.items():
+            returns.plot(label=sector)
+        plt.title('Sector Performance Over Time')
+        plt.xlabel('Date')
+        plt.ylabel('Value ($)')
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(f"{output_dir}/sector_performance.png")
+        plt.close()
+        
+        # 6-8. Individual Stock Returns for each sector
+        for sector, symbols in sector_stocks.items():
+            plt.figure(figsize=(12, 6))
+            for symbol in symbols:
+                if symbol in performance['daily_returns'].columns:
+                    stock_returns = (1 + performance['daily_returns'][symbol]).cumprod() * performance['net_initial_value']
+                    stock_returns.plot(label=symbol)
+            plt.title(f'{sector.title()} Stocks Performance')
+            plt.xlabel('Date')
+            plt.ylabel('Value ($)')
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(f"{output_dir}/{sector}_stocks_performance.png")
+            plt.close()
+
+    def optimize_stock_selection(self, lookback_years: int = 5, start_date: str = '2024-01-01', end_date: str = '2024-12-31') -> Dict:
+        """
+        Optimize stock selection and weights within sectors.
+        Selects top 5 stocks from tech and finance, top 3 from energy,
+        and uses ETFs for healthcare, consumer discretionary, and industrial.
+        
+        Args:
+            lookback_years (int): Number of years of historical data to use for optimization
+            start_date (str): Start date for forward performance calculation
+            end_date (str): End date for forward performance calculation
+            
+        Returns:
+            Dict: Optimized portfolio holdings
+        """
+        # Get historical data for all stocks and ETFs
+        all_stocks = []
+        for sector in ['technology', 'financials', 'energy']:
+            all_stocks.extend(self.stock_universe[sector])
+        
+        # Add ETFs to the list
+        all_stocks.extend(self.recommended_etfs.values())
+        
+        # Get historical data for optimization
+        historical_data = self.get_portfolio_historical_data(all_stocks, period=f'{lookback_years}y')
+        
+        # Calculate returns for each stock
+        returns_data = {}
+        for symbol, data in historical_data.items():
+            if 'Close' in data.columns:
+                returns = data['Close'].pct_change().dropna()
+                returns_data[symbol] = returns
+        
+        returns_df = pd.DataFrame(returns_data)
+        
+        # Get stock information and calculate scores
+        stocks_info = {}
+        for sector in ['technology', 'financials', 'energy']:
+            sector_stocks = []
+            for symbol in self.stock_universe[sector]:
+                info = self.get_stock_info(symbol)
+                if info:
+                    info.score = self.calculate_stock_score(info, sector)
+                    sector_stocks.append(info)
+            
+            # Sort by score and take top N
+            sector_stocks.sort(key=lambda x: x.score, reverse=True)
+            n_stocks = 5 if sector in ['technology', 'financials'] else 3
+            stocks_info[sector] = sector_stocks[:n_stocks]
+        
+        # Prepare optimization data
+        selected_symbols = []
+        for sector, stocks in stocks_info.items():
+            selected_symbols.extend([stock.symbol for stock in stocks])
+        
+        # Add ETF symbols
+        for sector, etf in self.recommended_etfs.items():
+            selected_symbols.append(etf)
+        
+        # Get returns for selected symbols
+        selected_returns = returns_df[selected_symbols]
+        
+        # Calculate mean returns and covariance matrix
+        mean_returns = selected_returns.mean() * 252  # Annualize
+        cov_matrix = selected_returns.cov() * 252  # Annualize
+        
+        # Define optimization constraints
+        def objective(weights):
+            portfolio_return = np.sum(mean_returns * weights)
+            portfolio_vol = np.sqrt(weights.dot(cov_matrix).dot(weights))
+            sharpe_ratio = (portfolio_return - 0.02) / portfolio_vol  # Assuming 2% risk-free rate
+            return -sharpe_ratio  # Negative because we're minimizing
+        
+        def constraint_sum(weights):
+            return np.sum(weights) - 0.65  # Total equity weight
+        
+        def constraint_max(weights):
+            return 0.15 - weights  # Maximum 15% per position
+        
+        def constraint_min(weights):
+            return weights - 0.02  # Minimum 2% per position
+        
+        # Initial guess (equal weights)
+        n_assets = len(selected_symbols)
+        initial_weights = np.ones(n_assets) * (0.65 / n_assets)
+        
+        # Define constraints
+        constraints = [
+            {'type': 'eq', 'fun': constraint_sum},
+            {'type': 'ineq', 'fun': constraint_max},
+            {'type': 'ineq', 'fun': constraint_min}
+        ]
+        
+        # Define bounds (2% to 15% for each weight)
+        bounds = [(0.02, 0.15) for _ in range(n_assets)]
+        
+        # Optimize
+        result = minimize(
+            objective,
+            initial_weights,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints,
+            options={'maxiter': 1000}
+        )
+        
+        if result.success:
+            # Create holdings dictionary
+            holdings = {
+                'equity': {},
+                'fixed_income': {
+                    'AGG': {
+                        'name': 'iShares Core U.S. Aggregate Bond ETF',
+                        'weight': self.asset_weights['fixed_income'] * 0.7,
+                        'amount': self.portfolio_value * self.asset_weights['fixed_income'] * 0.7
+                    },
+                    'TLT': {
+                        'name': 'iShares 20+ Year Treasury Bond ETF',
+                        'weight': self.asset_weights['fixed_income'] * 0.3,
+                        'amount': self.portfolio_value * self.asset_weights['fixed_income'] * 0.3
+                    }
+                },
+                'cash': {
+                    'USD': {
+                        'name': 'Cash',
+                        'weight': self.asset_weights['cash'],
+                        'amount': self.portfolio_value * self.asset_weights['cash']
+                    }
+                }
+            }
+            
+            # Add equity holdings
+            for i, symbol in enumerate(selected_symbols):
+                weight = result.x[i]
+                amount = self.portfolio_value * weight
+                
+                if symbol in self.recommended_etfs.values():
+                    # ETF holding
+                    sector = next(s for s, etf in self.recommended_etfs.items() if etf == symbol)
+                    holdings['equity'][symbol] = {
+                        'name': f"{sector.title()} ETF",
+                        'weight': weight,
+                        'amount': amount,
+                        'sector': sector
+                    }
+                else:
+                    # Stock holding
+                    stock_info = next((s for s in sum(stocks_info.values(), []) if s.symbol == symbol), None)
+                    if stock_info:
+                        shares = int(amount / stock_info.current_price)
+                        commission = self.calculate_commission(shares, stock_info.current_price)
+                        actual_amount = (shares * stock_info.current_price) + commission
+                        
+                        holdings['equity'][symbol] = {
+                            'name': stock_info.name,
+                            'weight': actual_amount / self.portfolio_value,
+                            'amount': actual_amount,
+                            'shares': shares,
+                            'commission': commission,
+                            'sector': stock_info.sector,
+                            'score': stock_info.score
+                        }
+            
+            # Calculate forward performance
+            performance = self.calculate_forward_performance(holdings, start_date, end_date)
+            
+            # Print performance metrics
+            print("\nForward Performance Metrics (2024):")
+            print("--------------------------------")
+            print(f"Initial Portfolio Value: ${self.portfolio_value:,.2f}")
+            print(f"Total Commission: ${performance['total_commission']:,.2f}")
+            print(f"Net Initial Value: ${performance['net_initial_value']:,.2f}")
+            print(f"Final Portfolio Value: ${performance['portfolio_values'].iloc[-1]:,.2f}")
+            print(f"Total Return: {performance['total_return']:.1%}")
+            print(f"Annualized Return: {performance['annualized_return']:.1%}")
+            print(f"Volatility: {performance['volatility']:.1%}")
+            print(f"Sharpe Ratio: {performance['sharpe_ratio']:.2f}")
+            print(f"Maximum Drawdown: {performance['max_drawdown']:.1%}")
+
+            # Print ending value and weight of each position
+            print("\nEnding Position Values and Weights:")
+            print("----------------------------------")
+            final_date = performance['portfolio_values'].index[-1]
+            final_portfolio_value = performance['portfolio_values'].iloc[-1]
+            # Combine equity and fixed income symbols
+            all_symbols = list(holdings['equity'].keys()) + list(holdings['fixed_income'].keys())
+            starting_positions = []
+            ending_positions = []
+            for symbol in all_symbols:
+                # Get initial weight and amount
+                if symbol in holdings['equity']:
+                    initial_weight = holdings['equity'][symbol]['weight']
+                    initial_amount = holdings['equity'][symbol]['amount']
+                    name = holdings['equity'][symbol]['name']
+                    asset_class = 'Equity'
+                    sector = holdings['equity'][symbol].get('sector', '')
+                else:
+                    initial_weight = holdings['fixed_income'][symbol]['weight']
+                    initial_amount = holdings['fixed_income'][symbol]['amount']
+                    name = holdings['fixed_income'][symbol]['name']
+                    asset_class = 'Fixed Income'
+                    sector = 'Fixed Income'
+                # Get ending value
+                if symbol in performance['daily_returns'].columns:
+                    # Calculate cumulative return for this asset
+                    asset_returns = performance['daily_returns'][symbol]
+                    asset_cum_return = (1 + asset_returns).cumprod()
+                    ending_value = initial_amount * asset_cum_return.loc[final_date]
+                else:
+                    # If no return data, assume static value
+                    ending_value = initial_amount
+                ending_weight = ending_value / final_portfolio_value
+                print(f"{symbol}: Value = ${ending_value:,.2f}, Weight = {ending_weight:.2%}")
+                # Collect for CSV
+                starting_positions.append({
+                    'Symbol': symbol,
+                    'Name': name,
+                    'Asset Class': asset_class,
+                    'Sector': sector,
+                    'Start Value': initial_amount,
+                    'Start Weight': initial_weight
+                })
+                ending_positions.append({
+                    'Symbol': symbol,
+                    'Name': name,
+                    'Asset Class': asset_class,
+                    'Sector': sector,
+                    'End Value': ending_value,
+                    'End Weight': ending_weight
+                })
+            # Export to CSV
+            output_dir = "output/reports"
+            timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+            pd.DataFrame(starting_positions).to_csv(f"{output_dir}/starting_positions_{timestamp}.csv", index=False)
+            pd.DataFrame(ending_positions).to_csv(f"{output_dir}/ending_positions_{timestamp}.csv", index=False)
+            print(f"\nStarting and ending positions exported to {output_dir}/starting_positions_{timestamp}.csv and {output_dir}/ending_positions_{timestamp}.csv")
+
+            # Create visualizations
+            self.plot_portfolio_performance(performance, holdings)
+            print("\nPerformance charts have been saved to the output/reports directory.")
+            
+            return holdings
+        else:
+            print("Optimization failed. Using current weights.")
+            return self.get_target_holdings()
+
 
 if __name__ == "__main__":
     # Example usage
     portfolio = Portfolio(initial_capital=300_000)
     
-    # Optimize portfolio
-    # portfolio.optimize_portfolio()
+    # First optimize sector allocation using 5 years of data prior to 2023-01-01
+    print("\nOptimizing sector allocation using data from 2018-01-01 to 2023-01-01...")
+    optimized_sector_weights = portfolio.optimize_portfolio(lookback_years=5)
     
-    # Get target holdings
-    holdings = portfolio.get_target_holdings()
+    # Then optimize stock selection as of 2023-01-01
+    print("\nOptimizing stock selection as of 2023-01-01...")
+    holdings = portfolio.optimize_stock_selection(
+        lookback_years=5,
+        start_date='2023-01-01',
+        end_date='2024-01-01'
+    )
     
     # Calculate metrics
     metrics = portfolio.calculate_portfolio_metrics(holdings)

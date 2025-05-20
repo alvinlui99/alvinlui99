@@ -144,6 +144,20 @@ class TestPortfolio(unittest.TestCase):
     @patch('yfinance.Ticker')
     def test_calculate_portfolio_metrics(self, mock_ticker):
         """Test portfolio metrics calculation."""
+        # Mock stock info
+        mock_info = {
+            'longName': 'Apple Inc.',
+            'sector': 'Technology',
+            'marketCap': 2_000_000_000_000,
+            'profitMargins': 0.25,
+            'debtToEquity': 1.5,
+            'returnOnInvestedCapital': 0.15,
+            'dividendYield': 0.02,
+            'beta': 1.2,
+            'currentPrice': 150.0
+        }
+        mock_ticker.return_value.info = mock_info
+        
         # Mock historical data
         mock_data = pd.DataFrame({
             'Close': [100, 101, 102, 103, 104],
@@ -155,12 +169,21 @@ class TestPortfolio(unittest.TestCase):
         
         mock_ticker.return_value.history.return_value = mock_data
         
-        holdings = self.portfolio.get_target_holdings()
-        metrics = self.portfolio.calculate_portfolio_metrics(holdings)
+        # Create a test portfolio with a smaller initial capital for testing
+        test_portfolio = Portfolio(initial_capital=100_000)
         
+        # Get holdings and calculate metrics
+        holdings = test_portfolio.get_target_holdings()
+        metrics = test_portfolio.calculate_portfolio_metrics(holdings)
+        
+        # Verify metrics
         self.assertIsInstance(metrics, PortfolioMetrics)
-        self.assertEqual(metrics.total_value, 1_000_000)
+        self.assertEqual(metrics.total_value, 100_000)
         self.assertAlmostEqual(metrics.equity_weight + metrics.fixed_income_weight + metrics.cash_weight, 1.0, places=2)
+        self.assertIsInstance(metrics.expected_return, float)
+        self.assertIsInstance(metrics.expected_volatility, float)
+        self.assertIsInstance(metrics.sharpe_ratio, float)
+        self.assertIsInstance(metrics.max_drawdown, float)
         
     def test_export_to_csv(self):
         """Test exporting portfolio data to CSV."""
