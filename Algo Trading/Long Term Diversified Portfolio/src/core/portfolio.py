@@ -10,8 +10,19 @@ import numpy as np
 from datetime import datetime, timedelta
 import os
 from scipy.optimize import minimize
-import matplotlib.pyplot as plt
-import seaborn as sns
+import logging
+import copy  # Add this import
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('backtest.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -43,6 +54,158 @@ class PortfolioMetrics:
     max_drawdown: float
     sector_weights: Dict[str, float]
     style_weights: Dict[str, float]
+
+
+@dataclass
+class BacktestMetrics:
+    """Metrics for backtesting results."""
+    total_return: float
+    annualized_return: float
+    volatility: float
+    sharpe_ratio: float
+    max_drawdown: float
+    sector_returns: Dict[str, float]
+    monthly_returns: pd.Series
+    daily_returns: pd.Series
+    equity_curve: pd.Series
+    position_history: List[Dict]
+
+
+class PortfolioBacktest:
+    def __init__(self, 
+                 positions: Dict,
+                 start_date: str,
+                 end_date: str):
+        """
+        Initialize backtest with initial positions.
+        
+        Args:
+            positions (Dict): Initial positions with shares and prices
+            start_date (str): Start date in YYYY-MM-DD format
+            end_date (str): End date in YYYY-MM-DD format
+        """
+        self.positions = positions
+        self.start_date = pd.Timestamp(start_date)
+        self.end_date = pd.Timestamp(end_date)
+        self.price_data = None
+        self.daily_returns = []
+        self.equity_curve = []
+        self.position_history = []
+        
+    def run_backtest(self) -> BacktestMetrics:
+        """Run the backtest simulation."""
+        # Get price data for backtest period
+        symbols = list(self.positions.keys())
+        self.price_data = self._get_price_data(symbols)
+        
+        # Initialize tracking variables
+        initial_value = sum(pos['value'] for pos in self.positions.values())
+        self.equity_curve = []
+        self.daily_returns = []
+        
+        # Run simulation day by day
+        for date in self.price_data.index:
+            self._process_day(date, self.price_data.loc[date])
+            
+        # Calculate metrics
+        return self._calculate_metrics()
+    
+    def _get_price_data(self, symbols: List[str]) -> pd.DataFrame:
+        """Get price data for backtest period."""
+        historical_data = {}
+        for symbol in symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(start=self.start_date, end=self.end_date)
+                if not data.empty:
+                    historical_data[symbol] = data['Close']
+            except Exception as e:
+                print(f"Error fetching data for {symbol}: {e}")
+        
+        return pd.DataFrame(historical_data)
+    
+    def _process_day(self, date: pd.Timestamp, prices: pd.Series):
+        """Process a single day of the backtest."""
+        # Update position values
+        total_value = 0
+        for symbol, position in self.positions.items():
+            if symbol in prices:
+                position['current_price'] = prices[symbol]
+                position['current_value'] = position['shares'] * prices[symbol]
+                total_value += position['current_value']
+            else:
+                # If no price data, keep previous value
+                total_value += position['current_value']
+        
+        # Calculate daily return
+        if self.equity_curve:
+            daily_return = (total_value / self.equity_curve[-1]) - 1
+        else:
+            # For first day, calculate return from initial value
+            initial_value = sum(pos['shares'] * pos['price'] for pos in self.positions.values())
+            daily_return = (total_value / initial_value) - 1
+        
+        self.daily_returns.append(daily_return)
+        self.equity_curve.append(total_value)
+        
+        # Record position history with deep copy
+        self.position_history.append({
+            'date': date,
+            'total_value': total_value,
+            'positions': copy.deepcopy(self.positions)
+        })
+    
+    def _calculate_metrics(self) -> BacktestMetrics:
+        """Calculate backtest performance metrics."""
+        # Convert lists to Series
+        daily_returns = pd.Series(self.daily_returns, index=self.price_data.index)
+        equity_curve = pd.Series(self.equity_curve, index=self.price_data.index)
+        
+        # Calculate basic metrics
+        total_return = (equity_curve.iloc[-1] / equity_curve.iloc[0]) - 1
+        annualized_return = (1 + total_return) ** (252 / len(daily_returns)) - 1
+        volatility = daily_returns.std() * np.sqrt(252)
+        sharpe_ratio = (annualized_return - 0.02) / volatility  # Assuming 2% risk-free rate
+        
+        # Calculate drawdown
+        rolling_max = equity_curve.expanding().max()
+        drawdowns = equity_curve / rolling_max - 1
+        max_drawdown = drawdowns.min()
+        
+        # Calculate sector returns
+        sector_returns = {}
+        for position in self.positions.values():
+            if 'sector' in position:
+                sector = position['sector']
+                initial_value = position['shares'] * position['price']
+                final_value = position['shares'] * position['current_price']
+                sector_returns[sector] = sector_returns.get(sector, 0) + (final_value - initial_value)
+        
+        # Log backtest results
+        logger.info("\nBacktest Results:")
+        logger.info("----------------")
+        logger.info(f"Total Return: {total_return:.1%}")
+        logger.info(f"Annualized Return: {annualized_return:.1%}")
+        logger.info(f"Sharpe Ratio: {sharpe_ratio:.2f}")
+        logger.info(f"Max Drawdown: {max_drawdown:.1%}")
+        
+        logger.info("\nSector Returns:")
+        logger.info("--------------")
+        for sector, returns in sector_returns.items():
+            logger.info(f"{sector}: ${returns:,.2f}")
+        
+        return BacktestMetrics(
+            total_return=total_return,
+            annualized_return=annualized_return,
+            volatility=volatility,
+            sharpe_ratio=sharpe_ratio,
+            max_drawdown=max_drawdown,
+            sector_returns=sector_returns,
+            monthly_returns=daily_returns.resample('ME').apply(lambda x: (1 + x).prod() - 1),
+            daily_returns=daily_returns,
+            equity_curve=equity_curve,
+            position_history=self.position_history
+        )
 
 
 class Portfolio:
@@ -181,16 +344,18 @@ class Portfolio:
                 current_price=info.get('currentPrice', 0)
             )
         except Exception as e:
-            print(f"Error fetching info for {symbol}: {e}")
+            logger.error(f"Error fetching info for {symbol}: {e}")
             return None
     
-    def get_historical_data(self, symbol: str, period: str = '5y', interval: str = '1d') -> Optional[pd.DataFrame]:
+    def get_historical_data(self, symbol: str, start_date: str = None, end_date: str = None, period: str = None, interval: str = '1d') -> Optional[pd.DataFrame]:
         """
         Get historical data for a symbol using yfinance.
         
         Args:
             symbol (str): The symbol to get data for
-            period (str): Period of data to fetch (e.g., '5y' for 5 years)
+            start_date (str): Start date in YYYY-MM-DD format
+            end_date (str): End date in YYYY-MM-DD format
+            period (str): Period of data to fetch (e.g., '5y' for 5 years). Only used if start_date and end_date are None
             interval (str): Interval of data (e.g., '1d' for daily)
             
         Returns:
@@ -198,26 +363,31 @@ class Portfolio:
         """
         try:
             ticker = yf.Ticker(symbol)
-            df = ticker.history(period=period, interval=interval)
+            if start_date and end_date:
+                df = ticker.history(start=start_date, end=end_date, interval=interval)
+            else:
+                df = ticker.history(period=period, interval=interval)
             return df
         except Exception as e:
-            print(f"Error fetching historical data for {symbol}: {e}")
+            logger.error(f"Error fetching historical data for {symbol}: {e}")
             return None
     
-    def get_portfolio_historical_data(self, symbols: List[str], period: str = '5y') -> Dict[str, pd.DataFrame]:
+    def get_portfolio_historical_data(self, symbols: List[str], start_date: str = None, end_date: str = None, period: str = None) -> Dict[str, pd.DataFrame]:
         """
         Get historical data for multiple symbols.
         
         Args:
             symbols (List[str]): List of symbols to get data for
-            period (str): Period of data to fetch
+            start_date (str): Start date in YYYY-MM-DD format
+            end_date (str): End date in YYYY-MM-DD format
+            period (str): Period of data to fetch. Only used if start_date and end_date are None
             
         Returns:
             Dict[str, pd.DataFrame]: Dictionary mapping symbols to their historical data
         """
         historical_data = {}
         for symbol in symbols:
-            data = self.get_historical_data(symbol, period)
+            data = self.get_historical_data(symbol, start_date, end_date, period)
             if data is not None:
                 historical_data[symbol] = data
         
@@ -487,175 +657,22 @@ class Portfolio:
             style_weights={}  # Empty for now, will be implemented later
         )
 
-    def export_to_csv(self, holdings: Dict, metrics: PortfolioMetrics, output_dir: str = "output/reports") -> None:
-        """
-        Export portfolio composition and metrics to CSV files.
-        
-        Args:
-            holdings (Dict): Portfolio holdings
-            metrics (PortfolioMetrics): Portfolio metrics
-            output_dir (str): Directory to save CSV files (default: output/reports)
-        """
-        # Create output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Prepare holdings data
-        holdings_data = []
-        
-        # Add equity holdings
-        for symbol, holding in holdings['equity'].items():
-            holdings_data.append({
-                'Symbol': symbol,
-                'Name': holding['name'],
-                'Asset Class': 'Equity',
-                'Sector': holding['sector'],
-                'Weight': holding['weight'],
-                'Amount': holding['amount'],
-                'Shares': holding.get('shares', 'N/A'),
-                'Commission': holding.get('commission', 'N/A'),
-                'Score': holding.get('score', 'N/A')
-            })
-        
-        # Add fixed income holdings
-        for symbol, holding in holdings['fixed_income'].items():
-            holdings_data.append({
-                'Symbol': symbol,
-                'Name': holding['name'],
-                'Asset Class': 'Fixed Income',
-                'Sector': 'Fixed Income',
-                'Weight': holding['weight'],
-                'Amount': holding['amount'],
-                'Shares': 'N/A',
-                'Commission': 'N/A',
-                'Score': 'N/A'
-            })
-        
-        # Add cash
-        holdings_data.append({
-            'Symbol': 'USD',
-            'Name': 'Cash',
-            'Asset Class': 'Cash',
-            'Sector': 'Cash',
-            'Weight': holdings['cash']['USD']['weight'],
-            'Amount': holdings['cash']['USD']['amount'],
-            'Shares': 'N/A',
-            'Commission': 'N/A',
-            'Score': 'N/A'
-        })
-        
-        # Convert to DataFrame and save
-        holdings_df = pd.DataFrame(holdings_data)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        holdings_df.to_csv(f"{output_dir}/portfolio_holdings_{timestamp}.csv", index=False)
-        
-        # Prepare metrics data
-        metrics_data = {
-            'Metric': [
-                'Total Value',
-                'Equity Weight',
-                'Fixed Income Weight',
-                'Cash Weight',
-                'Expected Return',
-                'Expected Volatility',
-                'Sharpe Ratio',
-                'Max Drawdown'
-            ],
-            'Value': [
-                f"${metrics.total_value:,.2f}",
-                f"{metrics.equity_weight:.1%}",
-                f"{metrics.fixed_income_weight:.1%}",
-                f"{metrics.cash_weight:.1%}",
-                f"{metrics.expected_return:.1%}",
-                f"{metrics.expected_volatility:.1%}",
-                f"{metrics.sharpe_ratio:.2f}",
-                f"{metrics.max_drawdown:.1%}"
-            ]
-        }
-        
-        # Add sector weights
-        for sector, weight in metrics.sector_weights.items():
-            metrics_data['Metric'].append(f"{sector.title()} Weight")
-            metrics_data['Value'].append(f"{weight:.1%}")
-        
-        # Add style weights
-        for style, weight in metrics.style_weights.items():
-            metrics_data['Metric'].append(f"{style.replace('_', ' ').title()} Weight")
-            metrics_data['Value'].append(f"{weight:.1%}")
-        
-        # Convert to DataFrame and save
-        metrics_df = pd.DataFrame(metrics_data)
-        metrics_df.to_csv(f"{output_dir}/portfolio_metrics_{timestamp}.csv", index=False)
-        
-        # Calculate and export sector correlations
-        equity_symbols = list(holdings['equity'].keys())
-        equity_data = self.get_portfolio_historical_data(equity_symbols)
-        
-        if equity_data:
-            # Calculate returns for each asset
-            returns_data = {}
-            for symbol, data in equity_data.items():
-                if 'Close' in data.columns:
-                    returns = data['Close'].pct_change().dropna()
-                    returns_data[symbol] = returns
-            
-            returns_df = pd.DataFrame(returns_data)
-            
-            if not returns_df.empty:
-                # Get unique sectors
-                sectors = sorted(set(holdings['equity'][symbol]['sector'] for symbol in equity_symbols))
-                
-                # Create correlation matrix
-                correlation_data = []
-                for i, sector1 in enumerate(sectors):
-                    for sector2 in sectors[i:]:  # Include same sector correlations
-                        sector1_symbols = [symbol for symbol in equity_symbols 
-                                         if holdings['equity'][symbol]['sector'] == sector1]
-                        sector2_symbols = [symbol for symbol in equity_symbols 
-                                         if holdings['equity'][symbol]['sector'] == sector2]
-                        
-                        if sector1_symbols and sector2_symbols:
-                            # Calculate correlation between sectors
-                            corr_matrix = returns_df[sector1_symbols + sector2_symbols].corr()
-                            
-                            # Get correlations between sectors
-                            sector1_indices = range(len(sector1_symbols))
-                            sector2_indices = range(len(sector1_symbols), len(sector1_symbols) + len(sector2_symbols))
-                            
-                            if sector1 == sector2:
-                                # For same sector, use upper triangle excluding diagonal
-                                corr_values = corr_matrix.iloc[sector1_indices, sector2_indices].values
-                                corr_values = corr_values[np.triu_indices_from(corr_values, k=1)]
-                            else:
-                                # For different sectors, use all cross-correlations
-                                corr_values = corr_matrix.iloc[sector1_indices, sector2_indices].values.flatten()
-                            
-                            correlation_data.append({
-                                'Sector 1': sector1,
-                                'Sector 2': sector2,
-                                'Mean Correlation': np.mean(corr_values),
-                                'Number of Pairs': len(corr_values)
-                            })
-                
-                # Convert to DataFrame and save
-                correlation_df = pd.DataFrame(correlation_data)
-                correlation_df.to_csv(f"{output_dir}/sector_correlations_{timestamp}.csv", index=False)
-                print(f"- Sector Correlations: sector_correlations_{timestamp}.csv")
-        
-        print(f"\nPortfolio data exported to {output_dir}/")
-        print(f"- Holdings: portfolio_holdings_{timestamp}.csv")
-        print(f"- Metrics: portfolio_metrics_{timestamp}.csv")
-
-    def calculate_sector_correlations(self, lookback_years: int = 5) -> Tuple[Dict[str, float], pd.DataFrame]:
+    def calculate_sector_correlations(self, lookback_years: int = 5, end_date: str = None) -> Tuple[Dict[str, float], pd.DataFrame]:
         """
         Calculate sector returns and correlation matrix.
         
         Args:
             lookback_years (int): Number of years of historical data to use
+            end_date (str): End date for historical data in YYYY-MM-DD format. If None, uses current date.
             
         Returns:
             Tuple[Dict[str, float], pd.DataFrame]: Dictionary of sector Sharpe ratios and correlation matrix
         """
-        end_date = datetime.now()
+        if end_date:
+            end_date = pd.Timestamp(end_date)
+        else:
+            end_date = datetime.now()
+            
         start_date = end_date - timedelta(days=lookback_years*365)
         
         # Risk-free rate
@@ -714,35 +731,23 @@ class Portfolio:
         
         return sector_sharpe_ratios, correlation_matrix
 
-    def optimize_portfolio(self, lookback_years: int = 5) -> None:
-        """
-        Optimize portfolio weights using Sharpe ratio for the entire portfolio.
-        Considers sector correlations in the optimization.
-        
-        Note: Sector weights are optimized as a percentage of the total portfolio.
-        The weights must sum to 65% (equity portion) of the total portfolio.
-        For example, if a sector has 20% weight, it means 20% of total portfolio,
-        which is about 30.8% of the equity portion (20/65).
-        
-        Args:
-            lookback_years (int): Number of years of historical data to use
-        """
+    def optimize_portfolio(self, lookback_years: int = 5, end_date: str = None) -> Dict[str, float]:
         # Reset all sector weights to zero
         self.sector_weights = {sector: 0.0 for sector in self.sector_weights}
         
         # Get sector Sharpe ratios and correlation matrix
-        sharpe_ratios, correlation_matrix = self.calculate_sector_correlations(lookback_years)
+        sharpe_ratios, correlation_matrix = self.calculate_sector_correlations(lookback_years, end_date)
         
-        # Print sector Sharpe ratios for analysis
-        print("\nSector Sharpe Ratios:")
-        print("--------------------")
+        # Log sector Sharpe ratios for analysis
+        logger.info("\nSector Sharpe Ratios:")
+        logger.info("--------------------")
         for sector, ratio in sorted(sharpe_ratios.items(), key=lambda x: x[1], reverse=True):
-            print(f"{sector}: {ratio:.3f}")
+            logger.info(f"{sector}: {ratio:.3f}")
         
-        # Print correlation matrix
-        print("\nSector Correlations:")
-        print("-------------------")
-        print(correlation_matrix.round(2))
+        # Log correlation matrix
+        logger.info("\nSector Correlations:")
+        logger.info("-------------------")
+        logger.info(correlation_matrix.round(2))
         
         # Convert to numpy arrays for optimization
         sectors = list(sharpe_ratios.keys())
@@ -751,27 +756,18 @@ class Portfolio:
         
         # Define optimization constraints
         def objective(weights):
-            # Calculate portfolio return
             portfolio_return = np.sum(weights * ratio_values)
-            
-            # Calculate portfolio volatility using correlation matrix
             portfolio_vol = np.sqrt(weights.dot(corr_matrix).dot(weights))
-            
-            # Calculate portfolio Sharpe ratio
             portfolio_sharpe = portfolio_return / portfolio_vol if portfolio_vol > 0 else 0
-            
-            return -portfolio_sharpe  # Negative because we're minimizing
+            return -portfolio_sharpe
         
         def constraint_sum(weights):
-            # Weights must sum to 0.65 (65% of total portfolio)
             return np.sum(weights) - 0.65
         
         def constraint_max(weights):
-            # Maximum weight of 0.25 (25% of total portfolio)
             return 0.25 - weights
         
         def constraint_min(weights):
-            # Minimum weight of 0.02 (2% of total portfolio)
             return weights - 0.02
         
         # Initial guess (equal weights summing to 65%)
@@ -780,9 +776,9 @@ class Portfolio:
         
         # Define constraints
         constraints = [
-            {'type': 'eq', 'fun': constraint_sum},  # Weights sum to 65%
-            {'type': 'ineq', 'fun': constraint_max},  # Maximum weight
-            {'type': 'ineq', 'fun': constraint_min}   # Minimum weight
+            {'type': 'eq', 'fun': constraint_sum},
+            {'type': 'ineq', 'fun': constraint_max},
+            {'type': 'ineq', 'fun': constraint_min}
         ]
         
         # Define bounds (0.02 to 0.25 for each weight)
@@ -802,265 +798,42 @@ class Portfolio:
             # Create dictionary of optimized weights
             optimized_weights = dict(zip(sectors, result.x))
             
-            # Print optimized weights
-            print("\nOptimized Weights (as % of total portfolio):")
-            print("----------------------------------------")
+            # Log optimized weights
+            logger.info("\nOptimized Weights (as % of total portfolio):")
+            logger.info("----------------------------------------")
             for sector, weight in sorted(optimized_weights.items(), key=lambda x: x[1], reverse=True):
-                print(f"{sector}: {weight:.1%}")
+                logger.info(f"{sector}: {weight:.1%}")
             
-            # Print weights as % of equity portion
-            print("\nWeights (as % of equity portion):")
-            print("--------------------------------")
+            # Log weights as % of equity portion
+            logger.info("\nWeights (as % of equity portion):")
+            logger.info("--------------------------------")
             for sector, weight in sorted(optimized_weights.items(), key=lambda x: x[1], reverse=True):
-                equity_weight = weight / 0.65  # Convert to % of equity portion
-                print(f"{sector}: {equity_weight:.1%}")
+                equity_weight = weight / 0.65
+                logger.info(f"{sector}: {equity_weight:.1%}")
             
             # Update sector weights
             self.sector_weights = optimized_weights
             
-            # Calculate and print portfolio metrics
+            # Calculate and log portfolio metrics
             holdings = self.get_target_holdings()
             metrics = self.calculate_portfolio_metrics(holdings)
             
-            print("\nPortfolio Metrics:")
-            print(f"Expected Return: {metrics.expected_return:.1%}")
-            print(f"Expected Volatility: {metrics.expected_volatility:.1%}")
-            print(f"Sharpe Ratio: {metrics.sharpe_ratio:.2f}")
-            print(f"Maximum Drawdown: {metrics.max_drawdown:.1%}")
-            
-            # Export results
-            self.export_to_csv(holdings, metrics)
+            logger.info("\nPortfolio Metrics:")
+            logger.info(f"Expected Return: {metrics.expected_return:.1%}")
+            logger.info(f"Expected Volatility: {metrics.expected_volatility:.1%}")
+            logger.info(f"Sharpe Ratio: {metrics.sharpe_ratio:.2f}")
+            logger.info(f"Maximum Drawdown: {metrics.max_drawdown:.1%}")
             
             return optimized_weights
         else:
-            print("Optimization failed. Using current weights.")
+            logger.warning("Optimization failed. Using current weights.")
             return self.sector_weights
 
-    def calculate_forward_performance(self, holdings: Dict, start_date: str = '2024-01-01', end_date: str = '2024-12-31') -> Dict:
-        """
-        Calculate portfolio performance for a specific time period.
+    def optimize_stock_selection(self, lookback_years: int = 5, start_date: str = '2023-01-01', end_date: str = '2024-01-01') -> Dict:
+        # Calculate the start date for historical data
+        hist_end_date = pd.Timestamp(start_date)
+        hist_start_date = hist_end_date - pd.DateOffset(years=lookback_years)
         
-        Args:
-            holdings (Dict): Portfolio holdings
-            start_date (str): Start date in YYYY-MM-DD format
-            end_date (str): End date in YYYY-MM-DD format
-            
-        Returns:
-            Dict: Performance metrics for the period
-        """
-        # Get all equity and fixed income symbols
-        equity_symbols = list(holdings['equity'].keys())
-        fixed_income_symbols = list(holdings['fixed_income'].keys())
-        all_symbols = equity_symbols + fixed_income_symbols
-        
-        # Get historical data for the period
-        historical_data = {}
-        for symbol in all_symbols:
-            try:
-                ticker = yf.Ticker(symbol)
-                data = ticker.history(start=start_date, end=end_date)
-                if not data.empty:
-                    historical_data[symbol] = data
-            except Exception as e:
-                print(f"Error fetching data for {symbol}: {e}")
-        
-        if not historical_data:
-            raise ValueError("No historical data available for the period")
-        
-        # Calculate daily returns for each asset
-        returns_data = {}
-        for symbol, data in historical_data.items():
-            if 'Close' in data.columns:
-                returns = data['Close'].pct_change().dropna()
-                returns_data[symbol] = returns
-        
-        returns_df = pd.DataFrame(returns_data)
-        
-        # Calculate portfolio weights
-        weights = {}
-        for symbol in equity_symbols:
-            weights[symbol] = holdings['equity'][symbol]['weight']
-        for symbol in fixed_income_symbols:
-            weights[symbol] = holdings['fixed_income'][symbol]['weight']
-        
-        # Calculate portfolio returns
-        portfolio_returns = returns_df.dot(pd.Series(weights))
-        
-        # Calculate initial portfolio value after commissions
-        initial_value = self.portfolio_value
-        total_commission = sum(holding.get('commission', 0) for holding in holdings['equity'].values())
-        net_initial_value = initial_value - total_commission
-        
-        # Calculate cumulative portfolio value
-        portfolio_values = (1 + portfolio_returns).cumprod() * net_initial_value
-        
-        # Calculate metrics
-        total_return = (portfolio_values.iloc[-1] / net_initial_value) - 1
-        annualized_return = (1 + total_return) ** (252 / len(portfolio_returns)) - 1
-        volatility = portfolio_returns.std() * np.sqrt(252)
-        sharpe_ratio = (annualized_return - 0.02) / volatility  # Assuming 2% risk-free rate
-        
-        # Calculate drawdown
-        rolling_max = portfolio_values.expanding().max()
-        drawdowns = portfolio_values / rolling_max - 1
-        max_drawdown = drawdowns.min()
-        
-        # Calculate monthly returns
-        monthly_returns = portfolio_returns.resample('M').apply(lambda x: (1 + x).prod() - 1)
-        
-        return {
-            'total_return': total_return,
-            'annualized_return': annualized_return,
-            'volatility': volatility,
-            'sharpe_ratio': sharpe_ratio,
-            'max_drawdown': max_drawdown,
-            'monthly_returns': monthly_returns,
-            'daily_returns': returns_df,  # Return the DataFrame instead of Series
-            'portfolio_values': portfolio_values,
-            'total_commission': total_commission,
-            'net_initial_value': net_initial_value
-        }
-
-    def plot_portfolio_performance(self, performance: Dict, holdings: Dict, output_dir: str = "output/reports") -> None:
-        """
-        Create visualizations of portfolio performance.
-        
-        Args:
-            performance (Dict): Performance metrics from calculate_forward_performance
-            holdings (Dict): Portfolio holdings
-            output_dir (str): Directory to save plots
-        """
-        # Create output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Get S&P 500 data for the same period
-        sp500 = yf.Ticker("^GSPC")
-        sp500_data = sp500.history(start=performance['portfolio_values'].index[0], 
-                                 end=performance['portfolio_values'].index[-1])
-        sp500_values = (1 + sp500_data['Close'].pct_change().dropna()).cumprod() * performance['net_initial_value']
-        
-        # 1. Portfolio Value Over Time with S&P 500
-        plt.figure(figsize=(12, 6))
-        performance['portfolio_values'].plot(label='Portfolio')
-        sp500_values.plot(label='S&P 500')
-        plt.title('Portfolio Value vs S&P 500')
-        plt.xlabel('Date')
-        plt.ylabel('Portfolio Value ($)')
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(f"{output_dir}/portfolio_value_vs_sp500.png")
-        plt.close()
-        
-        # 2. Monthly Returns Heatmap
-        monthly_returns = performance['monthly_returns']
-        monthly_returns_matrix = monthly_returns.values.reshape(-1, 1)
-        months = [d.strftime('%b %Y') for d in monthly_returns.index]
-        
-        plt.figure(figsize=(10, 6))
-        sns.heatmap(monthly_returns_matrix, 
-                   annot=True, 
-                   fmt='.1%',
-                   cmap='RdYlGn',
-                   center=0,
-                   yticklabels=months)
-        plt.title('Monthly Returns Heatmap')
-        plt.tight_layout()
-        plt.savefig(f"{output_dir}/monthly_returns_heatmap.png")
-        plt.close()
-        
-        # 3. Drawdown Chart
-        portfolio_values = performance['portfolio_values']
-        rolling_max = portfolio_values.expanding().max()
-        drawdowns = (portfolio_values / rolling_max - 1) * 100
-        
-        plt.figure(figsize=(12, 6))
-        drawdowns.plot()
-        plt.title('Portfolio Drawdown Over Time')
-        plt.xlabel('Date')
-        plt.ylabel('Drawdown (%)')
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(f"{output_dir}/drawdown_chart.png")
-        plt.close()
-        
-        # 4. Return Distribution
-        plt.figure(figsize=(10, 6))
-        sns.histplot(performance['daily_returns'].mean(axis=1) * 100, bins=50)  # Use mean of daily returns
-        plt.title('Daily Returns Distribution')
-        plt.xlabel('Daily Return (%)')
-        plt.ylabel('Frequency')
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(f"{output_dir}/returns_distribution.png")
-        plt.close()
-        
-        # 5. Sector Returns
-        sector_stocks = {}
-        for symbol, holding in holdings['equity'].items():
-            if 'sector' in holding:
-                sector = holding['sector']
-                if sector not in sector_stocks:
-                    sector_stocks[sector] = []
-                sector_stocks[sector].append(symbol)
-        
-        # Calculate sector returns
-        sector_performance = {}
-        for sector, symbols in sector_stocks.items():
-            sector_data = pd.DataFrame()
-            for symbol in symbols:
-                if symbol in performance['daily_returns'].columns:
-                    sector_data[symbol] = performance['daily_returns'][symbol]
-            if not sector_data.empty:
-                # Calculate weighted returns for the sector
-                weights = [holdings['equity'][symbol]['weight'] for symbol in symbols if symbol in performance['daily_returns'].columns]
-                weights = np.array(weights) / sum(weights)  # Normalize weights
-                sector_returns = sector_data.dot(weights)
-                sector_performance[sector] = (1 + sector_returns).cumprod() * performance['net_initial_value']
-        
-        # Plot sector returns
-        plt.figure(figsize=(12, 6))
-        for sector, returns in sector_performance.items():
-            returns.plot(label=sector)
-        plt.title('Sector Performance Over Time')
-        plt.xlabel('Date')
-        plt.ylabel('Value ($)')
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(f"{output_dir}/sector_performance.png")
-        plt.close()
-        
-        # 6-8. Individual Stock Returns for each sector
-        for sector, symbols in sector_stocks.items():
-            plt.figure(figsize=(12, 6))
-            for symbol in symbols:
-                if symbol in performance['daily_returns'].columns:
-                    stock_returns = (1 + performance['daily_returns'][symbol]).cumprod() * performance['net_initial_value']
-                    stock_returns.plot(label=symbol)
-            plt.title(f'{sector.title()} Stocks Performance')
-            plt.xlabel('Date')
-            plt.ylabel('Value ($)')
-            plt.grid(True)
-            plt.legend()
-            plt.tight_layout()
-            plt.savefig(f"{output_dir}/{sector}_stocks_performance.png")
-            plt.close()
-
-    def optimize_stock_selection(self, lookback_years: int = 5, start_date: str = '2024-01-01', end_date: str = '2024-12-31') -> Dict:
-        """
-        Optimize stock selection and weights within sectors.
-        Selects top 5 stocks from tech and finance, top 3 from energy,
-        and uses ETFs for healthcare, consumer discretionary, and industrial.
-        
-        Args:
-            lookback_years (int): Number of years of historical data to use for optimization
-            start_date (str): Start date for forward performance calculation
-            end_date (str): End date for forward performance calculation
-            
-        Returns:
-            Dict: Optimized portfolio holdings
-        """
         # Get historical data for all stocks and ETFs
         all_stocks = []
         for sector in ['technology', 'financials', 'energy']:
@@ -1070,7 +843,11 @@ class Portfolio:
         all_stocks.extend(self.recommended_etfs.values())
         
         # Get historical data for optimization
-        historical_data = self.get_portfolio_historical_data(all_stocks, period=f'{lookback_years}y')
+        historical_data = self.get_portfolio_historical_data(
+            all_stocks,
+            start_date=hist_start_date.strftime('%Y-%m-%d'),
+            end_date=hist_end_date.strftime('%Y-%m-%d')
+        )
         
         # Calculate returns for each stock
         returns_data = {}
@@ -1117,7 +894,7 @@ class Portfolio:
             portfolio_return = np.sum(mean_returns * weights)
             portfolio_vol = np.sqrt(weights.dot(cov_matrix).dot(weights))
             sharpe_ratio = (portfolio_return - 0.02) / portfolio_vol  # Assuming 2% risk-free rate
-            return -sharpe_ratio  # Negative because we're minimizing
+            return -sharpe_ratio
         
         def constraint_sum(weights):
             return np.sum(weights) - 0.65  # Total equity weight
@@ -1159,20 +936,17 @@ class Portfolio:
                 'fixed_income': {
                     'AGG': {
                         'name': 'iShares Core U.S. Aggregate Bond ETF',
-                        'weight': self.asset_weights['fixed_income'] * 0.7,
-                        'amount': self.portfolio_value * self.asset_weights['fixed_income'] * 0.7
+                        'weight': self.asset_weights['fixed_income'] * 0.7
                     },
                     'TLT': {
                         'name': 'iShares 20+ Year Treasury Bond ETF',
-                        'weight': self.asset_weights['fixed_income'] * 0.3,
-                        'amount': self.portfolio_value * self.asset_weights['fixed_income'] * 0.3
+                        'weight': self.asset_weights['fixed_income'] * 0.3
                     }
                 },
                 'cash': {
                     'USD': {
                         'name': 'Cash',
-                        'weight': self.asset_weights['cash'],
-                        'amount': self.portfolio_value * self.asset_weights['cash']
+                        'weight': self.asset_weights['cash']
                     }
                 }
             }
@@ -1180,7 +954,6 @@ class Portfolio:
             # Add equity holdings
             for i, symbol in enumerate(selected_symbols):
                 weight = result.x[i]
-                amount = self.portfolio_value * weight
                 
                 if symbol in self.recommended_etfs.values():
                     # ETF holding
@@ -1188,175 +961,175 @@ class Portfolio:
                     holdings['equity'][symbol] = {
                         'name': f"{sector.title()} ETF",
                         'weight': weight,
-                        'amount': amount,
                         'sector': sector
                     }
                 else:
                     # Stock holding
                     stock_info = next((s for s in sum(stocks_info.values(), []) if s.symbol == symbol), None)
                     if stock_info:
-                        shares = int(amount / stock_info.current_price)
-                        commission = self.calculate_commission(shares, stock_info.current_price)
-                        actual_amount = (shares * stock_info.current_price) + commission
-                        
                         holdings['equity'][symbol] = {
                             'name': stock_info.name,
-                            'weight': actual_amount / self.portfolio_value,
-                            'amount': actual_amount,
-                            'shares': shares,
-                            'commission': commission,
+                            'weight': weight,
                             'sector': stock_info.sector,
                             'score': stock_info.score
                         }
             
-            # Calculate forward performance
-            performance = self.calculate_forward_performance(holdings, start_date, end_date)
-            
-            # Print performance metrics
-            print("\nForward Performance Metrics (2024):")
-            print("--------------------------------")
-            print(f"Initial Portfolio Value: ${self.portfolio_value:,.2f}")
-            print(f"Total Commission: ${performance['total_commission']:,.2f}")
-            print(f"Net Initial Value: ${performance['net_initial_value']:,.2f}")
-            print(f"Final Portfolio Value: ${performance['portfolio_values'].iloc[-1]:,.2f}")
-            print(f"Total Return: {performance['total_return']:.1%}")
-            print(f"Annualized Return: {performance['annualized_return']:.1%}")
-            print(f"Volatility: {performance['volatility']:.1%}")
-            print(f"Sharpe Ratio: {performance['sharpe_ratio']:.2f}")
-            print(f"Maximum Drawdown: {performance['max_drawdown']:.1%}")
-
-            # Print ending value and weight of each position
-            print("\nEnding Position Values and Weights:")
-            print("----------------------------------")
-            final_date = performance['portfolio_values'].index[-1]
-            final_portfolio_value = performance['portfolio_values'].iloc[-1]
-            # Combine equity and fixed income symbols
-            all_symbols = list(holdings['equity'].keys()) + list(holdings['fixed_income'].keys())
-            starting_positions = []
-            ending_positions = []
-            for symbol in all_symbols:
-                # Get initial weight and amount
-                if symbol in holdings['equity']:
-                    initial_weight = holdings['equity'][symbol]['weight']
-                    initial_amount = holdings['equity'][symbol]['amount']
-                    name = holdings['equity'][symbol]['name']
-                    asset_class = 'Equity'
-                    sector = holdings['equity'][symbol].get('sector', '')
-                else:
-                    initial_weight = holdings['fixed_income'][symbol]['weight']
-                    initial_amount = holdings['fixed_income'][symbol]['amount']
-                    name = holdings['fixed_income'][symbol]['name']
-                    asset_class = 'Fixed Income'
-                    sector = 'Fixed Income'
-                # Get ending value
-                if symbol in performance['daily_returns'].columns:
-                    # Calculate cumulative return for this asset
-                    asset_returns = performance['daily_returns'][symbol]
-                    asset_cum_return = (1 + asset_returns).cumprod()
-                    ending_value = initial_amount * asset_cum_return.loc[final_date]
-                else:
-                    # If no return data, assume static value
-                    ending_value = initial_amount
-                ending_weight = ending_value / final_portfolio_value
-                print(f"{symbol}: Value = ${ending_value:,.2f}, Weight = {ending_weight:.2%}")
-                # Collect for CSV
-                starting_positions.append({
-                    'Symbol': symbol,
-                    'Name': name,
-                    'Asset Class': asset_class,
-                    'Sector': sector,
-                    'Start Value': initial_amount,
-                    'Start Weight': initial_weight
-                })
-                ending_positions.append({
-                    'Symbol': symbol,
-                    'Name': name,
-                    'Asset Class': asset_class,
-                    'Sector': sector,
-                    'End Value': ending_value,
-                    'End Weight': ending_weight
-                })
-            # Export to CSV
-            output_dir = "output/reports"
-            timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
-            pd.DataFrame(starting_positions).to_csv(f"{output_dir}/starting_positions_{timestamp}.csv", index=False)
-            pd.DataFrame(ending_positions).to_csv(f"{output_dir}/ending_positions_{timestamp}.csv", index=False)
-            print(f"\nStarting and ending positions exported to {output_dir}/starting_positions_{timestamp}.csv and {output_dir}/ending_positions_{timestamp}.csv")
-
-            # Create visualizations
-            self.plot_portfolio_performance(performance, holdings)
-            print("\nPerformance charts have been saved to the output/reports directory.")
-            
             return holdings
         else:
-            print("Optimization failed. Using current weights.")
+            logger.warning("Optimization failed. Using current weights.")
             return self.get_target_holdings()
+
+    def get_initial_positions(self, holdings: Dict, start_date: str = None, end_date: str = None) -> Dict:
+        """
+        Get initial positions with exact prices as of start_date.
+        
+        Args:
+            holdings (Dict): Portfolio holdings from optimization
+            start_date (str): Start date in YYYY-MM-DD format
+            end_date (str): End date in YYYY-MM-DD format
+            
+        Returns:
+            Dict: Initial positions with shares and prices
+        """
+        if start_date is None:
+            start_date = (pd.to_datetime(end_date) - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+
+        if end_date is None:
+            end_date = (pd.to_datetime(start_date) + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+
+        positions = {}
+        
+        for symbol, holding in holdings['equity'].items():
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(start=start_date, end=end_date)
+                if not data.empty:
+                    price = data['Close'].iloc[-1]
+                    shares = int((self.portfolio_value * holding['weight']) / price)
+                    positions[symbol] = {
+                        'shares': shares,
+                        'price': price,
+                        'value': shares * price,
+                        'sector': holding['sector'],
+                        'name': holding['name']
+                    }
+            except Exception as e:
+                logger.error(f"Error getting price for {symbol}: {e}")
+        
+        return positions
+
+    def run_backtest(self, 
+                    start_date: str,
+                    end_date: str,
+                    initial_capital: float) -> BacktestMetrics:
+        """
+        Run a backtest of the portfolio strategy.
+        
+        Args:
+            start_date (str): Start date in YYYY-MM-DD format
+            end_date (str): End date in YYYY-MM-DD format
+            initial_capital (float): Initial capital for the backtest
+            
+        Returns:
+            BacktestMetrics: Backtest results and metrics
+        """
+        # Get optimized holdings
+        holdings = self.get_target_holdings()
+        
+        # Get initial positions with exact prices
+        positions = self.get_initial_positions(holdings, end_date=start_date)
+        
+        # Run backtest
+        backtest = PortfolioBacktest(
+            positions=positions,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        return backtest.run_backtest()
+
+    def export_position_history(self, backtest_results: BacktestMetrics, filename: str = 'position_history.csv'):
+        """
+        Export position history to CSV file.
+        
+        Args:
+            backtest_results (BacktestMetrics): Results from backtest
+            filename (str): Name of the CSV file to create
+        """
+        # Create a list to store flattened position data
+        position_data = []
+        
+        # Process each day's position history
+        for day_data in backtest_results.position_history:
+            date = day_data['date']
+            total_value = day_data['total_value']
+            
+            # Add each position's data
+            for symbol, position in day_data['positions'].items():
+                position_data.append({
+                    'Date': date,
+                    'Symbol': symbol,
+                    'Name': position['name'],
+                    'Shares': position['shares'],
+                    'Price': position['current_price'],
+                    'Value': position['current_value'],
+                    'Sector': position.get('sector', ''),
+                    'Total_Portfolio_Value': total_value
+                })
+        
+        # Convert to DataFrame and save to CSV
+        df = pd.DataFrame(position_data)
+        df.to_csv(filename, index=False)
+        logger.info(f"Position history exported to {filename}")
 
 
 if __name__ == "__main__":
     # Example usage
     portfolio = Portfolio(initial_capital=300_000)
     
-    # First optimize sector allocation using 5 years of data prior to 2023-01-01
-    print("\nOptimizing sector allocation using data from 2018-01-01 to 2023-01-01...")
-    optimized_sector_weights = portfolio.optimize_portfolio(lookback_years=5)
-    
-    # Then optimize stock selection as of 2023-01-01
-    print("\nOptimizing stock selection as of 2023-01-01...")
-    holdings = portfolio.optimize_stock_selection(
+    # First optimize sector allocation using 5 years of data prior to 2022-12-30
+    logger.info("\nOptimizing sector allocation using data from 2017-12-29 to 2022-12-30...")
+    optimized_sector_weights = portfolio.optimize_portfolio(
         lookback_years=5,
-        start_date='2023-01-01',
-        end_date='2024-01-01'
+        end_date='2022-12-30'
     )
     
-    # Calculate metrics
-    metrics = portfolio.calculate_portfolio_metrics(holdings)
+    # Update portfolio's sector weights with the optimized weights
+    if optimized_sector_weights:
+        portfolio.sector_weights = optimized_sector_weights
+        logger.info("\nUpdated sector weights after optimization:")
+        for sector, weight in sorted(optimized_sector_weights.items(), key=lambda x: x[1], reverse=True):
+            logger.info(f"{sector}: {weight:.1%}")
+    else:
+        logger.warning("Warning: Sector optimization did not return weights. Using default weights.")
     
-    # Export to CSV
-    portfolio.export_to_csv(holdings, metrics)
+    # Then optimize stock selection as of 2022-12-30
+    logger.info("\nOptimizing stock selection as of 2022-12-30...")
+    holdings = portfolio.optimize_stock_selection(
+        lookback_years=5,
+        start_date='2017-12-29',
+        end_date='2022-12-30'
+    )
     
-    # Print portfolio overview
-    print("\nPortfolio Overview:")
-    print("------------------")
-    print(f"Total Value: ${metrics.total_value:,.2f}")
-    print(f"\nAsset Allocation:")
-    print(f"Equity: {metrics.equity_weight:.1%}")
-    print(f"Fixed Income: {metrics.fixed_income_weight:.1%}")
-    print(f"Cash: {metrics.cash_weight:.1%}")
+    # Get initial positions with exact prices as of 2022-12-30
+    logger.info("\nGetting initial positions as of 2022-12-30...")
+    positions = portfolio.get_initial_positions(holdings, end_date='2022-12-30')
     
-    print("\nEquity Holdings:")
-    print("---------------")
-    for symbol, holding in holdings['equity'].items():
-        print(f"\n{symbol} - {holding['name']}")
-        print(f"  Weight: {holding['weight']:.1%}")
-        print(f"  Amount: ${holding['amount']:,.2f}")
-        if 'shares' in holding:
-            print(f"  Shares: {holding['shares']}")
-        if 'commission' in holding:
-            print(f"  Commission: ${holding['commission']:,.2f}")
-        if 'score' in holding:
-            print(f"  Score: {holding['score']:.3f}")
+    # Log initial positions
+    logger.info("\nInitial Positions:")
+    logger.info("----------------")
+    total_value = 0
+    for symbol, pos in positions.items():
+        total_value += pos['value']
+    logger.info(f"\nTotal Portfolio Value: ${total_value:,.2f}")
     
-    print("\nFixed Income Holdings:")
-    print("---------------------")
-    for symbol, holding in holdings['fixed_income'].items():
-        print(f"\n{symbol} - {holding['name']}")
-        print(f"  Weight: {holding['weight']:.1%}")
-        print(f"  Amount: ${holding['amount']:,.2f}")
+    # Run backtest for 2023
+    logger.info("\nRunning backtest for 2023...")
+    backtest_results = portfolio.run_backtest(
+        start_date='2022-12-30',
+        end_date='2024-12-30',
+        initial_capital=300_000
+    )
     
-    print("\nRisk & Return Metrics:")
-    print("---------------------")
-    print(f"Expected Return: {metrics.expected_return:.1%}")
-    print(f"Expected Volatility: {metrics.expected_volatility:.1%}")
-    print(f"Sharpe Ratio: {metrics.sharpe_ratio:.2f}")
-    print(f"Maximum Drawdown: {metrics.max_drawdown:.1%}")
-    
-    print("\nSector Weights:")
-    print("--------------")
-    for sector, weight in metrics.sector_weights.items():
-        print(f"{sector}: {weight:.1%}")
-    
-    print("\nStyle Weights:")
-    print("-------------")
-    for style, weight in metrics.style_weights.items():
-        print(f"{style}: {weight:.1%}")
+    # Export position history to CSV
+    portfolio.export_position_history(backtest_results, 'position_history_2023.csv')

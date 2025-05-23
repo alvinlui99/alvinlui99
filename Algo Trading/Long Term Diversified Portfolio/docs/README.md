@@ -1,81 +1,83 @@
 # Long Term Diversified Portfolio
 
-A Python-based portfolio management system that helps create and analyze diversified long-term investment portfolios.
+A Python-based portfolio management system designed for long-term, diversified investing. The system implements a strategic asset allocation approach with sector-specific optimizations and comprehensive backtesting capabilities.
 
-## Project Structure
+## System Workflow
 
-```
-├── src/
-│   ├── core/               # Core portfolio management logic
-│   ├── data/              # Data handling and processing
-│   ├── utils/             # Utility functions
-│   ├── visualization/     # Data visualization modules
-│   ├── strategies/        # Investment strategy implementations
-│   └── config/            # Configuration files
-├── tests/                 # Unit tests
-├── docs/                  # Documentation
-├── output/               # Generated reports and outputs
-├── data/                 # Data storage
-└── requirements.txt      # Project dependencies
-```
+### 1. Portfolio Optimization
+- Uses historical data to optimize sector weights
+- Selects stocks based on scoring criteria
+- Determines initial portfolio composition
+- Outputs optimized holdings
 
-## Market Data Integration
+### 2. Portfolio Initialization
+- Gets exact prices as of start date
+- Calculates position sizes
+- Sets up initial portfolio
+- Records starting positions
 
-This project uses Yahoo Finance (yfinance) for market data retrieval. The integration provides:
+### 3. Backtesting Process
+- Tracks daily position values
+- Updates portfolio metrics
+- Monitors performance
+- Records trade history
 
-1. Historical price data
-2. Company financial information
-3. Dividend data
-4. Market statistics
+## System Components
 
-### Data Retrieval
+### Portfolio Management
+- Asset allocation optimization
+- Stock selection and scoring
+- Portfolio construction
+- Performance calculation
+- Risk metrics computation
 
-The `Portfolio` class handles all interactions with yfinance. It provides methods for:
+### Backtesting Framework
+- Portfolio initialization with exact prices
+- Daily position value tracking
+- Performance metrics calculation
+- Sector performance analysis
+- Comprehensive reporting
 
-- Fetching historical data for individual symbols
-- Retrieving data for multiple symbols simultaneously
-- Converting API responses to pandas DataFrames for analysis
-- Calculating returns and volatility metrics
+## Performance Metrics
 
-## Portfolio Management
+### Return Metrics
+- Total Return
+- Annualized Return
+- Monthly Returns
+- Sector Returns
 
-The portfolio management system provides:
+### Risk Metrics
+- Sharpe Ratio
+- Maximum Drawdown
+- Volatility
+- Sector Correlations
 
-1. Asset allocation across:
-   - Equities (65%)
-   - Fixed Income (30%)
-   - Cash (5%)
+## Output Reports
 
-2. Sector diversification within equities:
-   - Technology (28%)
-   - Healthcare (13%)
-   - Financials (12%)
-   - Consumer Discretionary (10%)
-   - And more...
+### Position Reports
+- Starting positions with exact prices
+- Ending positions with performance
+- Sector allocation breakdown
 
-3. Risk metrics calculation:
-   - Expected returns
-   - Volatility
-   - Sharpe ratio
-   - Maximum drawdown
+### Performance Reports
+- Portfolio value vs S&P 500
+- Monthly returns heatmap
+- Drawdown analysis
+- Returns distribution
+- Sector performance
+- Individual stock performance
 
-## Usage
+## Future Enhancements
 
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+1. Semi-annual rebalancing
+2. Tax-loss harvesting
+3. Factor analysis
+4. Risk parity optimization
+5. Dynamic asset allocation
 
-2. Run the portfolio analysis:
-   ```python
-   from src.core.portfolio import Portfolio
-   
-   portfolio = Portfolio(initial_capital=1_000_000)
-   holdings = portfolio.get_target_holdings()
-   metrics = portfolio.calculate_portfolio_metrics(holdings)
-   ```
+## Implementation Notes
 
-3. Export results:
-   ```python
-   portfolio.export_to_csv(holdings, metrics)
-   ```
+- Uses yfinance for market data
+- All prices are adjusted for splits and dividends
+- Commission and slippage are not modeled
+- Assumes perfect execution of trades
