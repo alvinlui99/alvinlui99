@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The goal of this portfolio is to sustain perpetual capital while supporting an annual withdrawal of 5%, funded through a combination of dividends, bond coupons, and strategic sales. This portfolio exists outside of regular income or cashflow needs and is meant for long-term wealth growth and active capital allocation.
+The goal of this portfolio is to sustain **perpetual capital** while supporting an **annual withdrawal of 5%**, funded through a combination of dividends, bond coupons, and strategic sales. This portfolio exists **outside of regular income or cashflow needs** and is designed for **long-term wealth growth** and **active capital allocation**.
 
 ## Objectives
 
@@ -17,53 +17,99 @@ The goal of this portfolio is to sustain perpetual capital while supporting an a
 - **Capacity to bear loss**: Strong — job income covers all personal expenses and separate crypto allocation exists.
 - **Investment knowledge**: Advanced — Fellow of the Society of Actuaries with a specialization in quantitative finance and investments.
 
-## Asset Allocation
+## Strategic Asset Allocation (SAA)
 
-Initial target mix (to be reviewed annually):
+**Target mix** (to be reviewed annually):
 
-| Asset Class   | Allocation | Notes                                                             |
-|---------------|------------|-------------------------------------------------------------------|
-| US Equities   | 65%        | Mix of large-cap growth, value, and small/mid-cap across sectors. |
-| Fixed Income  | 30%        | Mix of US Treasuries and BB-rated corporate bonds.                |
-| Cash (USD)    | 5%         | Withdrawal buffer and tactical capital.                           |
+| Asset Class                 | Allocation | Notes                                                                 |
+|----------------------------|------------|-----------------------------------------------------------------------|
+| AI & Tech Equities         | 20%        | Direct equity in large-cap AI/tech leaders.                          |
+| Financials                 | 20%        | Global financial institutions, insurers, and fintech.                |
+| Fixed Income (ETF)         | 20%        | US bonds, international bonds, and TIPS via ETFs.                    |
+| Renewable Energy           | 10%        | Equity or ETFs focused on green/clean energy transition.             |
+| Commodities                | 10%        | Broad commodity basket and inflation hedges via ETFs.                |
+| Alternatives (REITs, Infra)| 20%        | REITs and infrastructure via ETFs.                                   |
 
-*Allocation to be reviewed periodically based on opportunity, valuation shifts, or macroeconomic considerations.*
+\* Tactical deviations of up to ±5% from the SAA are permitted to reflect short- to medium-term macro, valuation, or risk-adjusted return opportunities. TAA is not a separate asset class.
 
-## Equity Strategy
+## Equity Strategy (AI/Tech – 20%)
 
-- Focus on US-listed securities on NASDAQ/NYSE.
-- Broad diversification across sectors and styles (blend of value and growth).
-- Open to factor tilts depending on market regime (e.g., overweight quality or momentum when appropriate).
-- Preference for direct equity ownership for flexibility and tactical positioning.
+- Selection universe includes:
+  - **NVIDIA (NVDA), AMD, TSMC (TSM), Tesla (TSLA), Microsoft (MSFT), Alphabet (GOOGL), Amazon (AMZN), Oracle (ORCL)**
+- Allocation can be equal-weighted or conviction-weighted.
+- Long-term positioning focused on semiconductors, cloud, automation, and AI leaders.
 
-## Fixed Income Strategy
+## Financials Strategy (20%)
 
-- ~50% US Treasuries: duration to be actively managed depending on yield curve and rate outlook.
-- ~50% Corporate bonds: target average BB credit quality; may include select high-yield instruments.
-- May include TIPS or floating-rate notes tactically for inflation exposure or rate hedging.
+- Suggested universe:
+  - **US Majors**: JPMorgan Chase (JPM), Goldman Sachs (GS), Morgan Stanley (MS)
+  - **Global**: HSBC, BNP Paribas, DBS Group
+  - **Insurance**: Aon (AON), Chubb (CB)
+  - **Fintech**: Visa (V), Mastercard (MA), PayPal (PYPL)
+
+## Fixed Income Strategy (20%)
+
+- Implemented via bond ETFs:
+  - **50% US Bonds**
+  - **25% International Bonds**
+  - **25% TIPS** for inflation protection
+- Duration and credit quality actively managed based on macro outlook.
+
+## Renewable Energy Strategy (10%)
+
+- Exposure through equities or ETFs:
+  - **Stocks**: Enphase (ENPH), SolarEdge (SEDG)
+  - **ETFs**: ICLN, TAN, QCLN
+- Focus on solar, wind, battery storage, and utilities.
+
+## Commodities Strategy (10%)
+
+- Exposure via diversified commodity ETFs and inflation hedges:
+  - **ETFs**: DBC (broad basket), GLD (gold), SLV (silver), PDBC (active commodity strategy)
+- Used as a hedge against inflation and geopolitical instability.
+
+## Alternatives Strategy (20%)
+
+- Implemented via REITs, infrastructure, and possibly private equity proxies:
+  - **ETFs**: VNQ (US REITs), SCHH (REIT), IFRA (infrastructure), GQRE (global real estate)
+- Focus on income, diversification, and inflation resistance.
+
+## Tactical Asset Allocation (TAA)
+
+- Flexibility to deviate ±5% from SAA to take advantage of:
+  - Market dislocations
+  - Valuation extremes
+  - Macro events or structural themes
+- Not a separate asset class; all shifts must revert to SAA within a year unless reapproved.
 
 ## Rebalancing Strategy
 
 - **Scheduled Rebalance**: Semiannually (January and July).
-- **Interim Rebalance**: Triggered if any major asset class deviates by more than ±5% from target.
-- Use rebalancing opportunities to trim stretched positions and reallocate to undervalued areas.
+- **Interim Rebalance**: Triggered if any core asset class deviates by ±5% from SAA.
+- Tactical moves are re-evaluated continuously and should have a clear exit plan.
 
 ## Implementation
 
 - **Broker**: Interactive Brokers (IBKR)
-- **Platform**: Trading managed through API (algorithmic access).
-- **Securities**: Direct investments in stocks and bonds (minimal use of ETFs unless tactical).
+- **Platform**: Managed through IBKR API for automated and systematic trading.
+- **Securities**: Primarily direct equities and ETFs.
 
 ## Behavioral & Tactical Notes
 
-- Stay grounded in fundamentals and macro outlook; avoid reactionary trades based on short-term volatility.
-- Tactical deviations from the strategic allocation are permitted but should be clearly documented.
-- Crypto and other speculative assets are managed in a separate portfolio.
+- Avoid emotional or reactive trading; focus on long-term fundamentals.
+- Tactical trades should be documented with thesis, risk limits, and expected time horizon.
+- Speculative assets (e.g., crypto) are excluded from this portfolio.
 
 ## Review Process
 
-- **Annual strategy review**: Update return assumptions, withdrawal needs, and asset allocation.
-- **Performance tracking**: Monthly or quarterly, benchmarked against:
-  - 65% S&P 500 Total Return Index
-  - 30% Bloomberg US Aggregate Bond Index
-  - 5% ICE BofA 1-3 Month Treasury Bill Index
+- **Annual Review**:
+  - Reassess asset allocation, withdrawal needs, and macro assumptions.
+- **Performance Monitoring**:
+  - Monthly or quarterly tracking.
+  - Benchmarked against a composite of:
+    - 20% Nasdaq 100
+    - 20% Financials Index (e.g., XLF)
+    - 10% Renewable Energy (ICLN)
+    - 10% Commodity Index (DBC)
+    - 20% Bloomberg US Aggregate Bond Index
+    - 20% REITs/Infrastructure Blend (e.g., VNQ + IFRA)

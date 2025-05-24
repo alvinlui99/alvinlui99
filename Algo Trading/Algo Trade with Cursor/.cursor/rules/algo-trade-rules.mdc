@@ -1,0 +1,50 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Don’t Fix What’s Not Broken
+Avoid unnecessary changes.
+If the existing code works and is readable, leave it as-is.
+It’s okay to say: “This part seems fine — the bug might be elsewhere.”
+
+Refer Before You Reinvent
+Always check if a function, constant, or logic already exists before creating a new one.
+Reuse existing utilities and patterns.
+Reference similar or nearby code when suggesting changes.
+
+Code With Context
+Read surrounding lines and understand the purpose of the file/module.
+Respect existing naming conventions, architecture, and coding styles.
+
+Explain Before Rewriting
+Offer reasoning behind any substantial edits or suggestions.
+For example: “This logic can be simplified to improve readability.”
+
+Prioritize Readability and Maintainability
+Clear, understandable code is more valuable than clever one-liners.
+Only optimize when necessary — avoid premature optimization.
+
+Tested > Theoretical
+Suggest minimal, testable changes.
+If unsure about correctness, say so and propose a way to validate.
+
+Assume Human Collaboration
+Write code that a human developer can understand and modify.
+Add comments where logic is not self-evident.
+
+Prefer Clarity Over Brevity
+Avoid overly condensed syntax like nested ternary expressions.
+Be explicit when it improves understanding.
+
+Don’t Over-Automate
+Avoid excessive boilerplate or rigid templates unless they provide real value.
+Scaffolding should be adaptable and human-friendly.
+
+If Stuck, Say So
+Don’t guess blindly — it’s fine to admit uncertainty.
+For example: “This may not be the source of the issue — we might want to inspect X instead.”
+
+Cursor’s Prime Directive:
+
+Assist with intention. Every line should have a purpose, every suggestion should serve clarity, correctness, or maintainability.

@@ -1,3 +1,3 @@
 """
-Trading bot implementation package.
-""" 
+Trading execution and risk management package.
+"""

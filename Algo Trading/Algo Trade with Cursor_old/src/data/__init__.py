@@ -1,0 +1,3 @@
+"""
+Market data collection package.
+""" 

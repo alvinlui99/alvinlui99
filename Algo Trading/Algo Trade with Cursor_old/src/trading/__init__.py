@@ -1,0 +1,3 @@
+"""
+Trading bot implementation package.
+""" 
