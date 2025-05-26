@@ -6,11 +6,21 @@ from typing import Dict, Tuple
 from strategy.pair_selector import PairIndicators
 
 class PairStrategy:
-    def __init__(self, window: int = 20, zscore_threshold: float = 2.0, correlation_threshold: float = 0.8, hedge_window: int = 30):
+    def __init__(
+        self, 
+        window: int = 20, 
+        zscore_threshold: float = 2.0, 
+        correlation_threshold: float = 0.8, 
+        hedge_window: int = 30,
+        long_term_window: int = 168,  # For long-term volatility
+        short_term_window: int = 24   # For short-term volatility
+    ):
         self.window = window
         self.zscore_threshold = zscore_threshold
         self.correlation_threshold = correlation_threshold
         self.hedge_window = hedge_window
+        self.long_term_window = long_term_window
+        self.short_term_window = short_term_window
         self.logger = logging.getLogger(__name__)  # For debugging/analysis
 
     def calculate_hedge_ratio(self, df1: pd.DataFrame, df2: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
@@ -39,9 +49,41 @@ class PairStrategy:
         
         return hedge_ratio, spread
 
+    def calculate_volatility_ratio(self, zscore: pd.Series) -> float:
+        """
+        Calculate the ratio of long-term to short-term zscore volatility.
+        Higher ratio indicates more stable market conditions.
+        """
+        long_term_vol = zscore.rolling(self.long_term_window).std()
+        short_term_vol = zscore.rolling(self.short_term_window).std()
+        
+        # Avoid division by zero
+        vol_ratio = 1 if long_term_vol.iloc[-1] == 0 else short_term_vol.iloc[-1] / long_term_vol.iloc[-1]
+        
+        return vol_ratio
+
+    def calculate_dynamic_threshold(self, vol_ratio: float) -> float:
+        """
+        Adjust zscore threshold based on volatility ratio.
+        Higher vol_ratio (more stable) -> lower threshold
+        Lower vol_ratio (more volatile) -> higher threshold
+        """
+        # Base threshold adjustment
+        base_threshold = self.zscore_threshold
+        
+        # Adjust threshold based on vol_ratio
+        # If vol_ratio > 1: market is more volatile than usual -> higher threshold
+        # If vol_ratio < 1: market is more stable than usual -> lower threshold
+        adjusted_threshold = base_threshold * vol_ratio
+        
+        # Set reasonable bounds for the threshold
+        min_threshold = 1.5
+        max_threshold = 3.0
+        return np.clip(adjusted_threshold, min_threshold, max_threshold)
+
     def generate_signals(self, df1: pd.DataFrame, df2: pd.DataFrame, position_state: Dict = None) -> Dict:
         """
-        Generate trading signals with position state awareness.
+        Generate trading signals with position state awareness and dynamic thresholds.
         
         Args:
             df1: First asset DataFrame
@@ -59,16 +101,21 @@ class PairStrategy:
                 'signal': int (1 for long, -1 for short, 0 for no position),
                 'correlation': float,
                 'hedge_ratio': float,
-                'zscore': float
+                'zscore': float,
+                'vol_ratio': float,
+                'dynamic_threshold': float
             }
         """
-        # Calculate metrics for current point
         hedge_ratio, spread = self.calculate_hedge_ratio(df1, df2)
         correlation = PairIndicators.calculate_correlation(df1, df2, self.window)
 
         spread_mean = spread.rolling(self.window).mean()
         spread_std = spread.rolling(self.window).std()
         zscore = (spread - spread_mean) / spread_std
+        
+        # Calculate volatility ratio and dynamic threshold
+        vol_ratio = self.calculate_volatility_ratio(zscore)
+        dynamic_threshold = self.calculate_dynamic_threshold(vol_ratio)
         
         # Get current values
         current_correlation = correlation.iloc[-1]
@@ -85,6 +132,9 @@ class PairStrategy:
             entry_zscore = position_state.get('entry_zscore', 0)
             
             if in_position:
+                # Default to holding position
+                signal = position_type
+
                 # Exit conditions when in position
                 if position_type == 1:  # Long spread position
                     # Exit if zscore crosses mean or correlation drops
@@ -97,16 +147,18 @@ class PairStrategy:
             else:
                 # Entry conditions when not in position
                 if current_correlation >= self.correlation_threshold:
-                    if current_zscore <= -self.zscore_threshold:
+                    if current_zscore <= -dynamic_threshold:
                         signal = 1
-                    elif current_zscore >= self.zscore_threshold:
+                    elif current_zscore >= dynamic_threshold:
                         signal = -1
         
         return {
             'signal': signal,
             'correlation': current_correlation,
             'hedge_ratio': current_hedge_ratio,
-            'zscore': current_zscore
+            'zscore': current_zscore,
+            'vol_ratio': vol_ratio,
+            'dynamic_threshold': dynamic_threshold
         }
 
     def analyze_signals(self, signals: pd.DataFrame) -> Dict:

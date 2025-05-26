@@ -94,8 +94,6 @@ class PairBacktest:
             'position_type': 0,
             'entry_zscore': 0.0
         }
-        
-        print("DEBUG FLAG 1")
 
         for i, (idx, row) in enumerate(results.iterrows()):
             # Update position state
@@ -118,6 +116,8 @@ class PairBacktest:
             results.at[idx, 'hedge_ratio'] = current_signals['hedge_ratio']
             results.at[idx, 'zscore'] = current_signals['zscore']
             results.at[idx, 'signal'] = signal
+            results.at[idx, 'vol_ratio'] = current_signals['vol_ratio']
+            results.at[idx, 'dynamic_threshold'] = current_signals['dynamic_threshold']
             
             price1 = row['symbol1_price']
             price2 = row['symbol2_price']
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     backtest = PairBacktest(
         symbol1='BTCUSDT',
         symbol2='ETHUSDT',
-        start_date='2023-12-01 00:00:00',
+        start_date='2023-01-01 00:00:00',
         end_date='2023-12-31 00:00:00',
         interval='1h',
         zscore_threshold=2.0,
