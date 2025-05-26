@@ -3,12 +3,15 @@ import numpy as np
 from typing import Dict, List, Tuple
 from datetime import datetime
 import os
+import logging
 
 from data import BinanceDataCollector, DataProcessor
 from utils import PairIndicators
 from strategy import PairStrategy
 from backtesting.performance import PerformanceAnalyzer
 from backtesting.visualizer import BacktestVisualizer
+
+logger = logging.getLogger(__name__)
 
 class PairBacktest:
     def __init__(
@@ -66,16 +69,11 @@ class PairBacktest:
         """Run the backtest and return results using portfolio value tracking."""
         # Fetch and process data
         df1, df2 = self.fetch_data()
-        signals = self.strategy.generate_signals(df1, df2)
-
+        
         # Initialize results
         results = pd.DataFrame(index=df1.index)
         results['symbol1_price'] = df1['close']
         results['symbol2_price'] = df2['close']
-        results['correlation'] = signals['correlation']
-        results['hedge_ratio'] = signals['hedge_ratio']
-        results['zscore'] = signals['zscore']
-        results['signal'] = signals['signal']
         results['symbol1_returns'] = df1['returns']
         results['symbol2_returns'] = df2['returns']
 
@@ -85,15 +83,45 @@ class PairBacktest:
         in_position = False
         position_type = 0  # 1 for long spread, -1 for short spread
         entry_price1 = entry_price2 = 0.0
+        entry_zscore = 0.0
         units1 = units2 = 0.0
         results['portfolio_value'] = np.nan
         results['strategy_returns'] = 0.0
 
+        # Initialize position state
+        position_state = {
+            'in_position': False,
+            'position_type': 0,
+            'entry_zscore': 0.0
+        }
+        
+        print("DEBUG FLAG 1")
+
         for i, (idx, row) in enumerate(results.iterrows()):
-            signal = row['signal']
+            # Update position state
+            position_state['in_position'] = in_position
+            position_state['position_type'] = position_type
+            position_state['entry_zscore'] = entry_zscore
+            
+            # Generate signals with current position state
+            current_signals = self.strategy.generate_signals(
+                df1.iloc[:i+1], 
+                df2.iloc[:i+1],
+                position_state
+            )
+            
+            # Get current signal and metrics
+            signal = current_signals['signal']
+            
+            # Update results with current signals
+            results.at[idx, 'correlation'] = current_signals['correlation']
+            results.at[idx, 'hedge_ratio'] = current_signals['hedge_ratio']
+            results.at[idx, 'zscore'] = current_signals['zscore']
+            results.at[idx, 'signal'] = signal
+            
             price1 = row['symbol1_price']
             price2 = row['symbol2_price']
-            hedge_ratio = row['hedge_ratio']
+            hedge_ratio = current_signals['hedge_ratio']
             
             # Enter new position if signal changes
             if not in_position and signal != 0:
@@ -101,6 +129,7 @@ class PairBacktest:
                 position_type = signal
                 entry_price1 = price1
                 entry_price2 = price2
+                entry_zscore = current_signals['zscore']
                 entry_portfolio_value = portfolio_value
                 
                 # Calculate position sizes based on hedge ratio
@@ -111,7 +140,7 @@ class PairBacktest:
                 else:
                     units1 = -portfolio_value / unit_cost
                 units2 = -units1 * hedge_ratio
-                
+            
             # If in position, update portfolio value
             elif in_position:
                 if position_type == 1:
@@ -122,8 +151,9 @@ class PairBacktest:
                     # Exit position if signal goes to 0 or flips
                     in_position = False
                     position_type = 0
+                    entry_zscore = 0.0
                     units1 = units2 = 0.0
-                
+
             # If not in position, portfolio value stays the same
             results.at[idx, 'portfolio_value'] = portfolio_value
             
@@ -136,6 +166,8 @@ class PairBacktest:
                     results.at[idx, 'strategy_returns'] = 0.0
             else:
                 results.at[idx, 'strategy_returns'] = 0.0
+
+            print(f"Current backtest progress: {i}/{len(results)}")
 
         # Fill initial portfolio value
         results['portfolio_value'].ffill()
@@ -169,7 +201,7 @@ if __name__ == "__main__":
     backtest = PairBacktest(
         symbol1='BTCUSDT',
         symbol2='ETHUSDT',
-        start_date='2020-01-01 00:00:00',
+        start_date='2023-12-01 00:00:00',
         end_date='2023-12-31 00:00:00',
         interval='1h',
         zscore_threshold=2.0,
