@@ -12,22 +12,15 @@ class BacktestVisualizer:
         self.metrics = metrics
         
     def plot_equity_curve(self, save_path: str = None):
-        """Plot equity curve with drawdown."""
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), gridspec_kw={'height_ratios': [3, 1]})
+        """Plot equity curve with asset returns."""
+        plt.figure(figsize=(12, 6))
         
-        # Plot equity curve
-        ax1.plot(self.results.index, self.results['cumulative_returns'], label='Strategy Returns')
-        ax1.set_title('Equity Curve')
-        ax1.set_ylabel('Cumulative Returns')
-        ax1.grid(True)
-        ax1.legend()
-        
-        # Plot drawdown
-        drawdown = (self.results['cumulative_returns'] / self.results['cumulative_returns'].cummax() - 1)
-        ax2.fill_between(self.results.index, drawdown, 0, color='red', alpha=0.3)
-        ax2.set_title('Drawdown')
-        ax2.set_ylabel('Drawdown')
-        ax2.grid(True)
+        # Plot equity curve and normalized prices
+        plt.plot(self.results.index, self.results['cumulative_returns'], label='Strategy Returns', linewidth=2)
+        plt.title('Equity Curve and Asset Returns')
+        plt.ylabel('Cumulative Returns')
+        plt.grid(True)
+        plt.legend()
         
         plt.tight_layout()
         

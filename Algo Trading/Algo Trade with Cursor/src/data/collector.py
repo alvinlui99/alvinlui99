@@ -44,15 +44,40 @@ class BinanceDataCollector:
                 start_str = start_time.strftime('%Y-%m-%d %H:%M:%S')
                 end_str = end_time.strftime('%Y-%m-%d %H:%M:%S')
             
-            klines = self.client.klines(
-                symbol=symbol,
-                interval=interval,
-                startTime=int(datetime.strptime(start_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000) if start_str else None,
-                endTime=int(datetime.strptime(end_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000) if end_str else None,
-                limit=limit
-            )
+            all_klines = []
+            current_time = int(datetime.strptime(start_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000)
+            end_time = int(datetime.strptime(end_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000)
             
-            df = pd.DataFrame(klines, columns=[
+            while current_time < end_time:
+                if interval.endswith('m'):
+                    chunk_days = 7
+                elif interval.endswith('h'):
+                    chunk_days = 30
+                else:
+                    chunk_days = 365
+                
+                chunk_end = min(
+                    current_time + (chunk_days * 24 * 60 * 60 * 1000),
+                    end_time
+                )
+                
+                klines = self.client.klines(
+                    symbol=symbol,
+                    interval=interval,
+                    startTime=current_time,
+                    endTime=chunk_end,
+                    limit=limit
+                )
+                
+                all_klines.extend(klines)
+
+                if interval == '1h':
+                    current_time = chunk_end + (60 * 60 * 1000)
+                else:
+                    current_time = chunk_end
+                    print(f"WARNING: Check interval in get_historical_klines")
+            
+            df = pd.DataFrame(all_klines, columns=[
                 'timestamp', 'open', 'high', 'low', 'close', 'volume',
                 'close_time', 'quote_asset_volume', 'number_of_trades',
                 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume',

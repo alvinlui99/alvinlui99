@@ -3,10 +3,10 @@ import numpy as np
 from typing import Dict, List, Tuple
 from datetime import datetime
 import os
-# from data.collector import BinanceDataCollector
-# from data.processor import DataProcessor
+
 from data import BinanceDataCollector, DataProcessor
 from utils import PairIndicators
+from strategy import PairStrategy
 from backtesting.performance import PerformanceAnalyzer
 from backtesting.visualizer import BacktestVisualizer
 
@@ -33,6 +33,7 @@ class PairBacktest:
         
         self.collector = BinanceDataCollector()
         self.processor = DataProcessor()
+        self.strategy = PairStrategy()
         self.trades = []
         self.positions = {}
         
@@ -61,58 +62,86 @@ class PairBacktest:
         
         return df1_aligned, df2_aligned
     
-    def calculate_signals(self, df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
-        """Calculate trading signals based on z-score and correlation."""
-        # Calculate pair metrics
-        correlation = PairIndicators.calculate_correlation(df1, df2, self.window)
-        zscore = PairIndicators.calculate_pair_zscore(df1, df2, self.window)
-        
-        # Initialize signals DataFrame
-        signals = pd.DataFrame(index=df1.index)
-        signals['correlation'] = correlation
-        signals['zscore'] = zscore
-        
-        # Generate trading signals
-        signals['signal'] = 0
-        signals.loc[(signals['correlation'] >= self.correlation_threshold) & 
-                   (signals['zscore'] >= self.zscore_threshold), 'signal'] = -1  # Short signal
-        signals.loc[(signals['correlation'] >= self.correlation_threshold) & 
-                   (signals['zscore'] <= -self.zscore_threshold), 'signal'] = 1   # Long signal
-        
-        return signals
-    
     def run_backtest(self) -> pd.DataFrame:
-        """Run the backtest and return results."""
+        """Run the backtest and return results using portfolio value tracking."""
         # Fetch and process data
         df1, df2 = self.fetch_data()
-        
-        # Calculate signals
-        signals = self.calculate_signals(df1, df2)
+        signals = self.strategy.generate_signals(df1, df2)
 
         # Initialize results
         results = pd.DataFrame(index=df1.index)
         results['symbol1_price'] = df1['close']
         results['symbol2_price'] = df2['close']
         results['correlation'] = signals['correlation']
+        results['hedge_ratio'] = signals['hedge_ratio']
         results['zscore'] = signals['zscore']
         results['signal'] = signals['signal']
-        
-        # Calculate returns
         results['symbol1_returns'] = df1['returns']
         results['symbol2_returns'] = df2['returns']
-        
-        # Calculate strategy returns
+
+        # Portfolio tracking variables
+        initial_portfolio_value = 10000.0
+        portfolio_value = initial_portfolio_value
+        in_position = False
+        position_type = 0  # 1 for long spread, -1 for short spread
+        entry_price1 = entry_price2 = 0.0
+        units1 = units2 = 0.0
+        results['portfolio_value'] = np.nan
         results['strategy_returns'] = 0.0
-        results.loc[results['signal'] == 1, 'strategy_returns'] = (
-            results['symbol1_returns'] - results['symbol2_returns']
-        )
-        results.loc[results['signal'] == -1, 'strategy_returns'] = (
-            results['symbol2_returns'] - results['symbol1_returns']
-        )
-        
-        # Calculate cumulative returns
-        results['cumulative_returns'] = (1 + results['strategy_returns']).cumprod() - 1
-        
+
+        for i, (idx, row) in enumerate(results.iterrows()):
+            signal = row['signal']
+            price1 = row['symbol1_price']
+            price2 = row['symbol2_price']
+            hedge_ratio = row['hedge_ratio']
+            
+            # Enter new position if signal changes
+            if not in_position and signal != 0:
+                in_position = True
+                position_type = signal
+                entry_price1 = price1
+                entry_price2 = price2
+                entry_portfolio_value = portfolio_value
+                
+                # Calculate position sizes based on hedge ratio
+                unit_cost = price1 + price2 * hedge_ratio
+                
+                if position_type == 1:
+                    units1 = portfolio_value / unit_cost
+                else:
+                    units1 = -portfolio_value / unit_cost
+                units2 = -units1 * hedge_ratio
+                
+            # If in position, update portfolio value
+            elif in_position:
+                if position_type == 1:
+                    portfolio_value = units1 * price1 - units2 * entry_price2 - units2 * (entry_price2 - price2)
+                else:
+                    portfolio_value = units2 * price2 - units1 * entry_price1 - units1 * (entry_price1 - price1)
+                if signal == 0 or signal != position_type:
+                    # Exit position if signal goes to 0 or flips
+                    in_position = False
+                    position_type = 0
+                    units1 = units2 = 0.0
+                
+            # If not in position, portfolio value stays the same
+            results.at[idx, 'portfolio_value'] = portfolio_value
+            
+            # Calculate strategy return (log return for compounding)
+            if i > 0 and not np.isnan(results.iloc[i-1]['portfolio_value']):
+                prev_value = results.iloc[i-1]['portfolio_value']
+                if prev_value > 0:
+                    results.at[idx, 'strategy_returns'] = np.log(portfolio_value / prev_value)
+                else:
+                    results.at[idx, 'strategy_returns'] = 0.0
+            else:
+                results.at[idx, 'strategy_returns'] = 0.0
+
+        # Fill initial portfolio value
+        results['portfolio_value'].ffill()
+        results.fillna({'portfolio_value': initial_portfolio_value}, inplace=True)
+        # Calculate cumulative returns from portfolio value
+        results['cumulative_returns'] = results['portfolio_value'] / initial_portfolio_value - 1
         return results
     
     def save_results(self, results: pd.DataFrame, output_dir: str = 'backtest_results'):
@@ -140,7 +169,7 @@ if __name__ == "__main__":
     backtest = PairBacktest(
         symbol1='BTCUSDT',
         symbol2='ETHUSDT',
-        start_date='2023-01-01 00:00:00',
+        start_date='2020-01-01 00:00:00',
         end_date='2023-12-31 00:00:00',
         interval='1h',
         zscore_threshold=2.0,
