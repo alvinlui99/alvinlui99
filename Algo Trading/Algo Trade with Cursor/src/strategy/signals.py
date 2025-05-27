@@ -54,11 +54,12 @@ class PairStrategy:
         Calculate the ratio of long-term to short-term zscore volatility.
         Higher ratio indicates more stable market conditions.
         """
-        long_term_vol = zscore.rolling(self.long_term_window).std()
-        short_term_vol = zscore.rolling(self.short_term_window).std()
+        # Only calculate std for the last window of data we need
+        long_term_vol = zscore.iloc[-self.long_term_window:].std()
+        short_term_vol = zscore.iloc[-self.short_term_window:].std()
         
         # Avoid division by zero
-        vol_ratio = 1 if long_term_vol.iloc[-1] == 0 else short_term_vol.iloc[-1] / long_term_vol.iloc[-1]
+        vol_ratio = 1 if long_term_vol == 0 else short_term_vol / long_term_vol
         
         return vol_ratio
 
@@ -81,7 +82,7 @@ class PairStrategy:
         max_threshold = 3.0
         return np.clip(adjusted_threshold, min_threshold, max_threshold)
 
-    def generate_signals(self, df1: pd.DataFrame, df2: pd.DataFrame, position_state: Dict = None) -> Dict:
+    def generate_signals(self, df1: pd.DataFrame, df2: pd.DataFrame, position_state: Dict) -> Dict:
         """
         Generate trading signals with position state awareness and dynamic thresholds.
         
@@ -92,7 +93,7 @@ class PairStrategy:
                 {
                     'in_position': bool,
                     'position_type': int (1 for long spread, -1 for short spread),
-                    'entry_zscore': float
+                    'unrealised_pnl': float
                 }
                 
         Returns:
@@ -129,7 +130,6 @@ class PairStrategy:
         if position_state is not None:
             in_position = position_state.get('in_position', False)
             position_type = position_state.get('position_type', 0)
-            entry_zscore = position_state.get('entry_zscore', 0)
             
             if in_position:
                 # Default to holding position

@@ -21,8 +21,6 @@ class PairBacktest:
         start_date: str,
         end_date: str,
         interval: str = '1h',
-        zscore_threshold: float = 2.0,
-        correlation_threshold: float = 0.8,
         window: int = 20
     ):
         self.symbol1 = symbol1
@@ -30,8 +28,6 @@ class PairBacktest:
         self.start_date = start_date
         self.end_date = end_date
         self.interval = interval
-        self.zscore_threshold = zscore_threshold
-        self.correlation_threshold = correlation_threshold
         self.window = window
         
         self.collector = BinanceDataCollector()
@@ -83,7 +79,7 @@ class PairBacktest:
         in_position = False
         position_type = 0  # 1 for long spread, -1 for short spread
         entry_price1 = entry_price2 = 0.0
-        entry_zscore = 0.0
+        unrealised_pnl = 0.0
         units1 = units2 = 0.0
         results['portfolio_value'] = np.nan
         results['strategy_returns'] = 0.0
@@ -92,15 +88,15 @@ class PairBacktest:
         position_state = {
             'in_position': False,
             'position_type': 0,
-            'entry_zscore': 0.0
+            'unrealised_pnl': 0.0,
         }
 
         for i, (idx, row) in enumerate(results.iterrows()):
             # Update position state
             position_state['in_position'] = in_position
             position_state['position_type'] = position_type
-            position_state['entry_zscore'] = entry_zscore
-            
+            position_state['unrealised_pnl'] = unrealised_pnl
+
             # Generate signals with current position state
             current_signals = self.strategy.generate_signals(
                 df1.iloc[:i+1], 
@@ -129,8 +125,6 @@ class PairBacktest:
                 position_type = signal
                 entry_price1 = price1
                 entry_price2 = price2
-                entry_zscore = current_signals['zscore']
-                entry_portfolio_value = portfolio_value
                 
                 # Calculate position sizes based on hedge ratio
                 unit_cost = price1 + price2 * hedge_ratio
@@ -143,16 +137,14 @@ class PairBacktest:
             
             # If in position, update portfolio value
             elif in_position:
-                if position_type == 1:
-                    portfolio_value = units1 * price1 - units2 * entry_price2 - units2 * (entry_price2 - price2)
-                else:
-                    portfolio_value = units2 * price2 - units1 * entry_price1 - units1 * (entry_price1 - price1)
+                unrealised_pnl = units1 * (price1 - entry_price1) + units2 * (price2 - entry_price2)
+                portfolio_value = abs(units1) * entry_price1 - abs(units2) * entry_price2 + unrealised_pnl
                 if signal == 0 or signal != position_type:
                     # Exit position if signal goes to 0 or flips
                     in_position = False
                     position_type = 0
-                    entry_zscore = 0.0
                     units1 = units2 = 0.0
+                    unrealised_pnl = 0.0
 
             # If not in position, portfolio value stays the same
             results.at[idx, 'portfolio_value'] = portfolio_value
@@ -201,11 +193,9 @@ if __name__ == "__main__":
     backtest = PairBacktest(
         symbol1='BTCUSDT',
         symbol2='ETHUSDT',
-        start_date='2023-01-01 00:00:00',
-        end_date='2023-12-31 00:00:00',
-        interval='1h',
-        zscore_threshold=2.0,
-        correlation_threshold=0.8
+        start_date='2020-01-01 00:00:00',
+        end_date='2024-12-31 00:00:00',
+        interval='1h'
     )
     
     # Run backtest

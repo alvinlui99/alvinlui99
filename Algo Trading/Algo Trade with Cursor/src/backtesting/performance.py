@@ -13,13 +13,16 @@ class PerformanceAnalyzer:
         returns = self.results['strategy_returns']
         cumulative_returns = self.results['cumulative_returns']
         
+        # Calculate actual time period in years
+        time_period = (returns.index[-1] - returns.index[0]).total_seconds() / (365.25 * 24 * 3600)
+        
         # Basic metrics
         total_return = cumulative_returns.iloc[-1]
-        annual_return = (1 + total_return) ** (252 / len(returns)) - 1
+        annual_return = (1 + total_return) ** (1 / time_period) - 1
         daily_returns = returns.resample('D').sum()
         
         # Risk metrics
-        volatility = returns.std() * np.sqrt(252)
+        volatility = returns.std() * np.sqrt(1 / time_period)
         sharpe_ratio = annual_return / volatility if volatility != 0 else 0
         max_drawdown = (cumulative_returns / cumulative_returns.cummax() - 1).min()
         
@@ -95,23 +98,3 @@ class PerformanceAnalyzer:
                     print(f"{key}: {value:.4f}")
             else:
                 print(f"{key}: {value}")
-
-if __name__ == "__main__":
-    # Example usage
-    from backtest import PairBacktest
-    
-    # Run backtest
-    backtest = PairBacktest(
-        symbol1='BTCUSDT',
-        symbol2='ETHUSDT',
-        start_date='2024-01-01 00:00:00',
-        end_date='2024-02-01 00:00:00'
-    )
-    results = backtest.run_backtest()
-    
-    # Analyze performance
-    analyzer = PerformanceAnalyzer(results)
-    metrics = analyzer.calculate_metrics()
-    
-    # Save metrics
-    analyzer.save_metrics(metrics)
