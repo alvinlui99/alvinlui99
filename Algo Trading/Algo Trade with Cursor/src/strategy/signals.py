@@ -1,7 +1,9 @@
 import logging
 import pandas as pd
 import numpy as np
+import pickle
 from typing import Dict, Tuple
+from statsmodels.tsa.stattools import adfuller
 
 from strategy.pair_selector import PairIndicators
 
@@ -9,45 +11,46 @@ class PairStrategy:
     def __init__(
         self, 
         window: int = 20, 
-        zscore_threshold: float = 2.0, 
-        correlation_threshold: float = 0.8, 
+        zscore_threshold: float = 3.0, 
+        adf_threshold: float = 0.05,
         hedge_window: int = 30,
-        long_term_window: int = 168,  # For long-term volatility
-        short_term_window: int = 24   # For short-term volatility
+        long_term_window: int = 168,
+        short_term_window: int = 24
     ):
         self.window = window
         self.zscore_threshold = zscore_threshold
-        self.correlation_threshold = correlation_threshold
+        self.adf_threshold = adf_threshold
         self.hedge_window = hedge_window
         self.long_term_window = long_term_window
         self.short_term_window = short_term_window
-        self.logger = logging.getLogger(__name__)  # For debugging/analysis
+        self.logger = logging.getLogger(__name__)
+        self.model = pickle.load(open('hmm_model.pkl', 'rb'))
 
-    def calculate_hedge_ratio(self, df1: pd.DataFrame, df2: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
+    def calculate_hedge_ratio(self, df1: pd.DataFrame, df2: pd.DataFrame) -> Tuple[float, pd.Series]:
         """
-        Calculate rolling hedge ratio using linear regression.
+        Calculate rolling hedge ratio using linear regression on log prices.
         Returns both the hedge ratio (beta) and the spread.
         """
         # Align dataframes
         df1, df2 = PairIndicators.align_dataframes(df1, df2)
         
         # Initialize series for hedge ratio and spread
-        hedge_ratio = pd.Series(index=df1.index, dtype=float)
+        beta = np.nan
         spread = pd.Series(index=df1.index, dtype=float)
         
         # Calculate rolling hedge ratio
         for i in range(self.hedge_window, len(df1)):
-            window_df1 = df1['close'].iloc[i-self.hedge_window:i]
-            window_df2 = df2['close'].iloc[i-self.hedge_window:i]
+            # Use log prices
+            window_df1 = np.log(df1['close'].iloc[i-self.hedge_window:i])
+            window_df2 = np.log(df2['close'].iloc[i-self.hedge_window:i])
             
             # Calculate hedge ratio using linear regression
             beta = np.polyfit(window_df2, window_df1, 1)[0]
-            hedge_ratio.iloc[i] = beta
             
-            # Calculate spread using current hedge ratio
-            spread.iloc[i] = df1['close'].iloc[i] - beta * df2['close'].iloc[i]
+            # Calculate spread using current hedge ratio and log prices
+            spread.iloc[i] = np.log(df1['close'].iloc[i]) - beta * np.log(df2['close'].iloc[i])
         
-        return hedge_ratio, spread
+        return beta, spread
 
     def calculate_volatility_ratio(self, zscore: pd.Series) -> float:
         """
@@ -78,9 +81,24 @@ class PairStrategy:
         adjusted_threshold = base_threshold * vol_ratio
         
         # Set reasonable bounds for the threshold
-        min_threshold = 1.5
-        max_threshold = 3.0
+        min_threshold = 2.5
+        max_threshold = 4.0
         return np.clip(adjusted_threshold, min_threshold, max_threshold)
+
+    def calculate_adf_statistic(self, spread: pd.Series) -> float:
+        """
+        Calculate Augmented Dickey-Fuller test p-value for the spread.
+        Returns the ADF test p-value.
+        """
+        # Remove NaN values
+        spread = spread.dropna()
+        
+        if len(spread) < self.window:
+            return 1.0  # Return high p-value when not enough data
+            
+        # Perform ADF test
+        adf_result = adfuller(spread, autolag='AIC')
+        return adf_result[1]  # Return the p-value
 
     def generate_signals(self, df1: pd.DataFrame, df2: pd.DataFrame, position_state: Dict) -> Dict:
         """
@@ -100,15 +118,16 @@ class PairStrategy:
             Dictionary containing current signal and metrics:
             {
                 'signal': int (1 for long, -1 for short, 0 for no position),
-                'correlation': float,
+                'adf_pvalue': float,
                 'hedge_ratio': float,
                 'zscore': float,
                 'vol_ratio': float,
-                'dynamic_threshold': float
+                'dynamic_threshold': float,
+                'half_life': float
             }
         """
         hedge_ratio, spread = self.calculate_hedge_ratio(df1, df2)
-        correlation = PairIndicators.calculate_correlation(df1, df2, self.window)
+        adf_pvalue = self.calculate_adf_statistic(spread)
 
         spread_mean = spread.rolling(self.window).mean()
         spread_std = spread.rolling(self.window).std()
@@ -119,8 +138,7 @@ class PairStrategy:
         dynamic_threshold = self.calculate_dynamic_threshold(vol_ratio)
         
         # Get current values
-        current_correlation = correlation.iloc[-1]
-        current_hedge_ratio = hedge_ratio.iloc[-1]
+        current_adf_pvalue = adf_pvalue
         current_zscore = zscore.iloc[-1]
         
         # Initialize signal
@@ -137,16 +155,16 @@ class PairStrategy:
 
                 # Exit conditions when in position
                 if position_type == 1:  # Long spread position
-                    # Exit if zscore crosses mean or correlation drops
-                    if current_zscore >= 0 or current_correlation < self.correlation_threshold:
+                    # Exit if zscore crosses mean
+                    if current_zscore >= 0:
                         signal = 0
                 else:  # Short spread position
-                    # Exit if zscore crosses mean or correlation drops
-                    if current_zscore <= 0 or current_correlation < self.correlation_threshold:
+                    # Exit if zscore crosses mean
+                    if current_zscore <= 0:
                         signal = 0
             else:
                 # Entry conditions when not in position
-                if current_correlation >= self.correlation_threshold:
+                if current_adf_pvalue <= self.adf_threshold:  # Check for cointegration (p-value <= threshold)
                     if current_zscore <= -dynamic_threshold:
                         signal = 1
                     elif current_zscore >= dynamic_threshold:
@@ -154,8 +172,8 @@ class PairStrategy:
         
         return {
             'signal': signal,
-            'correlation': current_correlation,
-            'hedge_ratio': current_hedge_ratio,
+            'adf_pvalue': current_adf_pvalue,
+            'hedge_ratio': hedge_ratio,
             'zscore': current_zscore,
             'vol_ratio': vol_ratio,
             'dynamic_threshold': dynamic_threshold
@@ -167,7 +185,7 @@ class PairStrategy:
             'total_signals': len(signals[signals['signal'] != 0]),
             'long_signals': len(signals[signals['signal'] == 1]),
             'short_signals': len(signals[signals['signal'] == -1]),
-            'avg_correlation': signals['correlation'].mean(),
+            'avg_adf': signals['adf_pvalue'].mean(),
             'avg_zscore': signals['zscore'].mean(),
             'signal_clusters': self._analyze_signal_clusters(signals)
         }

@@ -21,7 +21,8 @@ class PairBacktest:
         start_date: str,
         end_date: str,
         interval: str = '1h',
-        window: int = 20
+        window: int = 20,
+        commission: float = 0.00045
     ):
         self.symbol1 = symbol1
         self.symbol2 = symbol2
@@ -29,7 +30,7 @@ class PairBacktest:
         self.end_date = end_date
         self.interval = interval
         self.window = window
-        
+        self.commission = commission
         self.collector = BinanceDataCollector()
         self.processor = DataProcessor()
         self.strategy = PairStrategy()
@@ -83,6 +84,8 @@ class PairBacktest:
         units1 = units2 = 0.0
         results['portfolio_value'] = np.nan
         results['strategy_returns'] = 0.0
+        results['commission'] = 0.0  # Add commission tracking
+        total_commission = 0.0  # Track total commission paid
 
         # Initialize position state
         position_state = {
@@ -99,16 +102,17 @@ class PairBacktest:
 
             # Generate signals with current position state
             current_signals = self.strategy.generate_signals(
-                df1.iloc[:i+1], 
-                df2.iloc[:i+1],
+                df1.iloc[max(0, i-399):i+1], 
+                df2.iloc[max(0, i-399):i+1],
                 position_state
             )
             
             # Get current signal and metrics
             signal = current_signals['signal']
+            hedge_ratio = current_signals['hedge_ratio']
             
             # Update results with current signals
-            results.at[idx, 'correlation'] = current_signals['correlation']
+            results.at[idx, 'adf_pvalue'] = current_signals['adf_pvalue']
             results.at[idx, 'hedge_ratio'] = current_signals['hedge_ratio']
             results.at[idx, 'zscore'] = current_signals['zscore']
             results.at[idx, 'signal'] = signal
@@ -117,7 +121,6 @@ class PairBacktest:
             
             price1 = row['symbol1_price']
             price2 = row['symbol2_price']
-            hedge_ratio = current_signals['hedge_ratio']
             
             # Enter new position if signal changes
             if not in_position and signal != 0:
@@ -127,19 +130,26 @@ class PairBacktest:
                 entry_price2 = price2
                 
                 # Calculate position sizes based on hedge ratio
-                unit_cost = price1 + price2 * hedge_ratio
-                
-                if position_type == 1:
-                    units1 = portfolio_value / unit_cost
-                else:
-                    units1 = -portfolio_value / unit_cost
+                unit_cost = price1 + price2 * abs(hedge_ratio)
+
+                units1 = position_type * portfolio_value / unit_cost
                 units2 = -units1 * hedge_ratio
+                
+                # Calculate and record entry commission
+                entry_commission = (abs(units1) * price1 + abs(units2) * price2) * self.commission
+                total_commission += entry_commission
+                results.at[idx, 'commission'] = entry_commission
             
             # If in position, update portfolio value
             elif in_position:
                 unrealised_pnl = units1 * (price1 - entry_price1) + units2 * (price2 - entry_price2)
-                portfolio_value = abs(units1) * entry_price1 - abs(units2) * entry_price2 + unrealised_pnl
+                portfolio_value = abs(units1) * entry_price1 + abs(units2) * entry_price2 + unrealised_pnl
                 if signal == 0 or signal != position_type:
+                    # Calculate and record exit commission
+                    exit_commission = (abs(units1) * price1 + abs(units2) * price2) * self.commission
+                    total_commission += exit_commission
+                    results.at[idx, 'commission'] = exit_commission
+                    
                     # Exit position if signal goes to 0 or flips
                     in_position = False
                     position_type = 0
@@ -147,7 +157,7 @@ class PairBacktest:
                     unrealised_pnl = 0.0
 
             # If not in position, portfolio value stays the same
-            results.at[idx, 'portfolio_value'] = portfolio_value
+            results.at[idx, 'portfolio_value'] = portfolio_value - total_commission  # Subtract total commission from portfolio value
             
             # Calculate strategy return (log return for compounding)
             if i > 0 and not np.isnan(results.iloc[i-1]['portfolio_value']):
@@ -166,6 +176,7 @@ class PairBacktest:
         results.fillna({'portfolio_value': initial_portfolio_value}, inplace=True)
         # Calculate cumulative returns from portfolio value
         results['cumulative_returns'] = results['portfolio_value'] / initial_portfolio_value - 1
+        results['total_commission'] = total_commission  # Add total commission to results
         return results
     
     def save_results(self, results: pd.DataFrame, output_dir: str = 'backtest_results'):
@@ -189,7 +200,6 @@ class PairBacktest:
         print(f"Results saved to {output_dir}")
 
 if __name__ == "__main__":
-    # Example usage
     backtest = PairBacktest(
         symbol1='BTCUSDT',
         symbol2='ETHUSDT',
