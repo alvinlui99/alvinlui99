@@ -4,18 +4,19 @@ import numpy as np
 import pickle
 from typing import Dict, Tuple
 from statsmodels.tsa.stattools import adfuller
+from collections import deque
 
 from strategy.pair_selector import PairIndicators
 
 class PairStrategy:
     def __init__(
         self, 
-        window: int = 20, 
+        window: int = 240, 
         zscore_threshold: float = 3.0, 
         adf_threshold: float = 0.05,
-        hedge_window: int = 30,
-        long_term_window: int = 168,
-        short_term_window: int = 24
+        hedge_window: int = 240,
+        long_term_window: int = 720,
+        short_term_window: int = 240
     ):
         self.window = window
         self.zscore_threshold = zscore_threshold
@@ -24,7 +25,8 @@ class PairStrategy:
         self.long_term_window = long_term_window
         self.short_term_window = short_term_window
         self.logger = logging.getLogger(__name__)
-        self.model = pickle.load(open('hmm_model.pkl', 'rb'))
+        # self.model = pickle.load(open('hmm_model.pkl', 'rb'))
+        self.spread = deque(maxlen=800)
 
     def calculate_hedge_ratio(self, df1: pd.DataFrame, df2: pd.DataFrame) -> Tuple[float, pd.Series]:
         """
@@ -34,23 +36,23 @@ class PairStrategy:
         # Align dataframes
         df1, df2 = PairIndicators.align_dataframes(df1, df2)
         
-        # Initialize series for hedge ratio and spread
-        beta = np.nan
-        spread = pd.Series(index=df1.index, dtype=float)
+        if len(df1) < self.hedge_window:
+            return np.nan, pd.Series(dtype=float, index=df1.index)
         
-        # Calculate rolling hedge ratio
-        for i in range(self.hedge_window, len(df1)):
-            # Use log prices
-            window_df1 = np.log(df1['close'].iloc[i-self.hedge_window:i])
-            window_df2 = np.log(df2['close'].iloc[i-self.hedge_window:i])
-            
-            # Calculate hedge ratio using linear regression
-            beta = np.polyfit(window_df2, window_df1, 1)[0]
-            
-            # Calculate spread using current hedge ratio and log prices
-            spread.iloc[i] = np.log(df1['close'].iloc[i]) - beta * np.log(df2['close'].iloc[i])
+        # Calculate the latest values using the last hedge_window rows
+        window_df1 = np.log(df1['close'].iloc[-self.hedge_window:])
+        window_df2 = np.log(df2['close'].iloc[-self.hedge_window:])
         
-        return beta, spread
+        # Calculate hedge ratio using linear regression
+        beta = np.polyfit(window_df2, window_df1, 1)[0]
+        
+        # Calculate new spread value and append to deque
+        new_spread = np.log(df1['close'].iloc[-1]) - beta * np.log(df2['close'].iloc[-1])
+        self.spread.append(new_spread)
+        
+        # Convert deque to pandas Series for return
+        spread_series = pd.Series(self.spread, index=df1.index[-len(self.spread):])
+        return beta, spread_series
 
     def calculate_volatility_ratio(self, zscore: pd.Series) -> float:
         """
@@ -176,7 +178,10 @@ class PairStrategy:
             'hedge_ratio': hedge_ratio,
             'zscore': current_zscore,
             'vol_ratio': vol_ratio,
-            'dynamic_threshold': dynamic_threshold
+            'dynamic_threshold': dynamic_threshold,
+            'spread': spread.iloc[-1],
+            'spread_mean': spread_mean.iloc[-1],
+            'spread_std': spread_std.iloc[-1]
         }
 
     def analyze_signals(self, signals: pd.DataFrame) -> Dict:

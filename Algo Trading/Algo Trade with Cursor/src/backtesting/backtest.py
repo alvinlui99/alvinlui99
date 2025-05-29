@@ -102,8 +102,8 @@ class PairBacktest:
 
             # Generate signals with current position state
             current_signals = self.strategy.generate_signals(
-                df1.iloc[max(0, i-399):i+1], 
-                df2.iloc[max(0, i-399):i+1],
+                df1.iloc[max(0, i-899):i+1], 
+                df2.iloc[max(0, i-899):i+1],
                 position_state
             )
             
@@ -118,6 +118,9 @@ class PairBacktest:
             results.at[idx, 'signal'] = signal
             results.at[idx, 'vol_ratio'] = current_signals['vol_ratio']
             results.at[idx, 'dynamic_threshold'] = current_signals['dynamic_threshold']
+            results.at[idx, 'spread'] = current_signals['spread']
+            results.at[idx, 'spread_mean'] = current_signals['spread_mean']
+            results.at[idx, 'spread_std'] = current_signals['spread_std']
             
             price1 = row['symbol1_price']
             price2 = row['symbol2_price']
@@ -128,12 +131,12 @@ class PairBacktest:
                 position_type = signal
                 entry_price1 = price1
                 entry_price2 = price2
-                
-                # Calculate position sizes based on hedge ratio
-                unit_cost = price1 + price2 * abs(hedge_ratio)
 
-                units1 = position_type * portfolio_value / unit_cost
-                units2 = -units1 * hedge_ratio
+                cost1 = portfolio_value / (1 + abs(hedge_ratio))
+                cost2 = portfolio_value - cost1
+
+                units1 = position_type * cost1 / price1 * hedge_ratio / abs(hedge_ratio)
+                units2 = -position_type * cost2 / price2 * hedge_ratio / abs(hedge_ratio)
                 
                 # Calculate and record entry commission
                 entry_commission = (abs(units1) * price1 + abs(units2) * price2) * self.commission
@@ -155,6 +158,9 @@ class PairBacktest:
                     position_type = 0
                     units1 = units2 = 0.0
                     unrealised_pnl = 0.0
+
+            results.at[idx, 'units1'] = units1
+            results.at[idx, 'units2'] = units2
 
             # If not in position, portfolio value stays the same
             results.at[idx, 'portfolio_value'] = portfolio_value - total_commission  # Subtract total commission from portfolio value
