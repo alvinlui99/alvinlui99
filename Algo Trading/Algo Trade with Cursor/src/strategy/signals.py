@@ -13,17 +13,19 @@ class PairStrategy:
         self, 
         window: int = 240, 
         zscore_threshold: float = 3.0, 
-        adf_threshold: float = 0.05,
-        hedge_window: int = 240,
+        adf_entry_threshold: float = 0.05,
+        adf_exit_threshold: float = 0.10,
+        hedge_window: int = 800,
         long_term_window: int = 720,
         short_term_window: int = 240
     ):
-        self.window = window
+        self.window = hedge_window
         self.zscore_threshold = zscore_threshold
-        self.adf_threshold = adf_threshold
+        self.adf_entry_threshold = adf_entry_threshold
+        self.adf_exit_threshold = adf_exit_threshold
         self.hedge_window = hedge_window
         self.long_term_window = long_term_window
-        self.short_term_window = short_term_window
+        self.short_term_window = hedge_window
         self.logger = logging.getLogger(__name__)
         # self.model = pickle.load(open('hmm_model.pkl', 'rb'))
         self.spread = deque(maxlen=800)
@@ -36,23 +38,18 @@ class PairStrategy:
         # Align dataframes
         df1, df2 = PairIndicators.align_dataframes(df1, df2)
         
-        if len(df1) < self.hedge_window:
-            return np.nan, pd.Series(dtype=float, index=df1.index)
+        asset1_returns = df1['close'].pct_change()
+        asset2_returns = df2['close'].pct_change()
+
+        norm_asset1 = (1 + asset1_returns.iloc[-self.hedge_window:]).cumprod()
+        norm_asset2 = (1 + asset2_returns.iloc[-self.hedge_window:]).cumprod()
         
-        # Calculate the latest values using the last hedge_window rows
-        window_df1 = np.log(df1['close'].iloc[-self.hedge_window:])
-        window_df2 = np.log(df2['close'].iloc[-self.hedge_window:])
-        
-        # Calculate hedge ratio using linear regression
-        beta = np.polyfit(window_df2, window_df1, 1)[0]
-        
-        # Calculate new spread value and append to deque
-        new_spread = np.log(df1['close'].iloc[-1]) - beta * np.log(df2['close'].iloc[-1])
-        self.spread.append(new_spread)
-        
-        # Convert deque to pandas Series for return
-        spread_series = pd.Series(self.spread, index=df1.index[-len(self.spread):])
-        return beta, spread_series
+        # Calculate hedge ratio using linear regression on normalized data
+        beta = np.polyfit(norm_asset2, norm_asset1, 1)[0]
+
+        # Calculate spread using original prices
+        spread = norm_asset1 - beta * norm_asset2
+        return beta, spread
 
     def calculate_volatility_ratio(self, zscore: pd.Series) -> float:
         """
@@ -158,15 +155,15 @@ class PairStrategy:
                 # Exit conditions when in position
                 if position_type == 1:  # Long spread position
                     # Exit if zscore crosses mean
-                    if current_zscore >= 0:
+                    if current_zscore >= 0 or current_adf_pvalue >= self.adf_exit_threshold:
                         signal = 0
                 else:  # Short spread position
                     # Exit if zscore crosses mean
-                    if current_zscore <= 0:
+                    if current_zscore <= 0 or current_adf_pvalue >= self.adf_exit_threshold:
                         signal = 0
             else:
                 # Entry conditions when not in position
-                if current_adf_pvalue <= self.adf_threshold:  # Check for cointegration (p-value <= threshold)
+                if current_adf_pvalue <= self.adf_entry_threshold:  # Check for cointegration (p-value <= threshold)
                     if current_zscore <= -dynamic_threshold:
                         signal = 1
                     elif current_zscore >= dynamic_threshold:
@@ -174,6 +171,8 @@ class PairStrategy:
         
         return {
             'signal': signal,
+            'price1': df1['close'].iloc[-1],
+            'price2': df2['close'].iloc[-1],
             'adf_pvalue': current_adf_pvalue,
             'hedge_ratio': hedge_ratio,
             'zscore': current_zscore,

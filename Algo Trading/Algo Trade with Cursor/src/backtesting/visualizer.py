@@ -62,15 +62,14 @@ class BacktestVisualizer:
         else:
             plt.show()
     
-    def save_all_plots(self, output_dir: str = 'backtest_results'):
+    def save_all_plots(self, output_dir: str = 'backtest_results', hedge_window: int = 240):
         """Save all plots to files."""
         os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         # Save plots
-        self.plot_equity_curve(f"{output_dir}/equity_curve_{timestamp}.png")
-        self.plot_trade_distribution(f"{output_dir}/trade_distribution_{timestamp}.png")
-        self.plot_correlation_heatmap(f"{output_dir}/correlation_heatmap_{timestamp}.png")
+        self.plot_equity_curve(f"{output_dir}/equity_curve_{hedge_window}.png")
+        self.plot_trade_distribution(f"{output_dir}/trade_distribution_{hedge_window}.png")
+        self.plot_correlation_heatmap(f"{output_dir}/correlation_heatmap_{hedge_window}.png")
         
         print(f"Plots saved to {output_dir}")
 
@@ -94,4 +93,4 @@ if __name__ == "__main__":
     
     # Create visualizations
     visualizer = BacktestVisualizer(results, metrics)
-    visualizer.save_all_plots()
+    visualizer.save_all_plots(hedge_window=240)

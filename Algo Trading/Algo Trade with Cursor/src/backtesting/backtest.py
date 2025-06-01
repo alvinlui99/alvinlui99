@@ -22,7 +22,9 @@ class PairBacktest:
         end_date: str,
         interval: str = '1h',
         window: int = 20,
-        commission: float = 0.00045
+        commission: float = 0.00045,
+        stop_loss_pct: float = 0.02,
+        hedge_window: int = 240
     ):
         self.symbol1 = symbol1
         self.symbol2 = symbol2
@@ -33,9 +35,11 @@ class PairBacktest:
         self.commission = commission
         self.collector = BinanceDataCollector()
         self.processor = DataProcessor()
-        self.strategy = PairStrategy()
+        self.strategy = PairStrategy(hedge_window=hedge_window)
         self.trades = []
         self.positions = {}
+
+        self.stop_loss_pct = stop_loss_pct
         
     def fetch_data(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Fetch and process historical data for both symbols."""
@@ -79,10 +83,12 @@ class PairBacktest:
         portfolio_value = initial_portfolio_value
         in_position = False
         position_type = 0  # 1 for long spread, -1 for short spread
+        stop_loss_from_position = 0
         entry_price1 = entry_price2 = 0.0
         unrealised_pnl = 0.0
         units1 = units2 = 0.0
         results['portfolio_value'] = np.nan
+        results['trade_returns'] = np.nan
         results['strategy_returns'] = 0.0
         results['commission'] = 0.0  # Add commission tracking
         total_commission = 0.0  # Track total commission paid
@@ -95,6 +101,12 @@ class PairBacktest:
         }
 
         for i, (idx, row) in enumerate(results.iterrows()):
+            # Skip trading until we have enough data (800 rows)
+            if i < 800:
+                results.at[idx, 'portfolio_value'] = initial_portfolio_value
+                results.at[idx, 'strategy_returns'] = 0.0
+                continue
+
             # Update position state
             position_state['in_position'] = in_position
             position_state['position_type'] = position_type
@@ -102,8 +114,8 @@ class PairBacktest:
 
             # Generate signals with current position state
             current_signals = self.strategy.generate_signals(
-                df1.iloc[max(0, i-899):i+1], 
-                df2.iloc[max(0, i-899):i+1],
+                df1.iloc[-800:],
+                df2.iloc[-800:],
                 position_state
             )
             
@@ -126,11 +138,12 @@ class PairBacktest:
             price2 = row['symbol2_price']
             
             # Enter new position if signal changes
-            if not in_position and signal != 0:
+            if not in_position and signal != 0 and signal != stop_loss_from_position:
                 in_position = True
                 position_type = signal
                 entry_price1 = price1
                 entry_price2 = price2
+                stop_loss_from_position = 0
 
                 cost1 = portfolio_value / (1 + abs(hedge_ratio))
                 cost2 = portfolio_value - cost1
@@ -146,12 +159,27 @@ class PairBacktest:
             # If in position, update portfolio value
             elif in_position:
                 unrealised_pnl = units1 * (price1 - entry_price1) + units2 * (price2 - entry_price2)
-                portfolio_value = abs(units1) * entry_price1 + abs(units2) * entry_price2 + unrealised_pnl
-                if signal == 0 or signal != position_type:
+                entry_value = abs(units1) * entry_price1 + abs(units2) * entry_price2
+                portfolio_value = entry_value + unrealised_pnl
+
+                if -unrealised_pnl > self.stop_loss_pct * entry_value:
+                    exit_commission = (abs(units1) * price1 + abs(units2) * price2) * self.commission
+                    total_commission += exit_commission
+                    results.at[idx, 'commission'] = exit_commission
+                    
+                    stop_loss_from_position = position_type
+                    
+                    in_position = False
+                    position_type = 0
+                    units1 = units2 = 0.0
+                    unrealised_pnl = 0.0
+
+                elif signal == 0 or signal != position_type:
                     # Calculate and record exit commission
                     exit_commission = (abs(units1) * price1 + abs(units2) * price2) * self.commission
                     total_commission += exit_commission
                     results.at[idx, 'commission'] = exit_commission
+                    results.at[idx, 'trade_returns'] = unrealised_pnl / entry_value
                     
                     # Exit position if signal goes to 0 or flips
                     in_position = False
@@ -175,7 +203,7 @@ class PairBacktest:
             else:
                 results.at[idx, 'strategy_returns'] = 0.0
 
-            print(f"Current backtest progress: {i}/{len(results)}")
+            # print(f"Current backtest progress: {i}/{len(results)}")
 
         # Fill initial portfolio value
         results['portfolio_value'].ffill()
@@ -185,7 +213,7 @@ class PairBacktest:
         results['total_commission'] = total_commission  # Add total commission to results
         return results
     
-    def save_results(self, results: pd.DataFrame, output_dir: str = 'backtest_results'):
+    def save_results(self, results: pd.DataFrame, output_dir: str = 'backtest_results', hedge_window: int = 240):
         """Save backtest results to CSV files."""
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
@@ -194,14 +222,8 @@ class PairBacktest:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         # Save main results
-        results_file = f"{output_dir}/backtest_results_{self.symbol1}_{self.symbol2}_{timestamp}.csv"
+        results_file = f"{output_dir}/backtest_results_{hedge_window}.csv"
         results.to_csv(results_file)
-        
-        # Save trade summary
-        trades_df = pd.DataFrame(self.trades)
-        if not trades_df.empty:
-            trades_file = f"{output_dir}/trades_{self.symbol1}_{self.symbol2}_{timestamp}.csv"
-            trades_df.to_csv(trades_file, index=False)
         
         print(f"Results saved to {output_dir}")
 
@@ -210,15 +232,15 @@ if __name__ == "__main__":
         symbol1='BTCUSDT',
         symbol2='ETHUSDT',
         start_date='2020-01-01 00:00:00',
-        end_date='2024-12-31 00:00:00',
+        end_date='2020-12-31 00:00:00',
         interval='1h'
-    )
-    
+)
+
     # Run backtest
     results = backtest.run_backtest()
-    
+
     # Save results
-    backtest.save_results(results)
+    backtest.save_results(results, hedge_window=w)
 
     # Calculate performance metrics
     
@@ -227,13 +249,10 @@ if __name__ == "__main__":
     
     # Create and save visualizations
     visualizer = BacktestVisualizer(results, metrics)
-    visualizer.save_all_plots()
+    visualizer.save_all_plots(hedge_window=w)
     
     # Print summary
     print("\nBacktest Results Summary:")
+    print(f"Hedge Window: {w}")
     print(f"Total Return: {results['cumulative_returns'].iloc[-1]:.2%}")
-    print(f"Number of Trades: {len(results[results['signal'] != 0])}")
-    print(f"Average Return per Trade: {results['strategy_returns'].mean():.2%}")
-    print("\nPerformance Metrics:")
-    for metric, value in metrics.items():
-        print(f"{metric}: {value:.4f}")
+    print()
