@@ -101,8 +101,8 @@ class PairBacktest:
         }
 
         for i, (idx, row) in enumerate(results.iterrows()):
-            # Skip trading until we have enough data (800 rows)
-            if i < 800:
+            # Skip trading until we have enough data (96 rows)
+            if i < 72:
                 results.at[idx, 'portfolio_value'] = initial_portfolio_value
                 results.at[idx, 'strategy_returns'] = 0.0
                 continue
@@ -114,22 +114,21 @@ class PairBacktest:
 
             # Generate signals with current position state
             current_signals = self.strategy.generate_signals(
-                df1.iloc[-800:],
-                df2.iloc[-800:],
+                df1.iloc[i-72:i],
+                df2.iloc[i-72:i],
                 position_state
             )
-            
+            if current_signals is None:
+                continue
             # Get current signal and metrics
             signal = current_signals['signal']
             hedge_ratio = current_signals['hedge_ratio']
             
             # Update results with current signals
-            results.at[idx, 'adf_pvalue'] = current_signals['adf_pvalue']
+            results.at[idx, 'pvalue'] = current_signals['pvalue']
             results.at[idx, 'hedge_ratio'] = current_signals['hedge_ratio']
             results.at[idx, 'zscore'] = current_signals['zscore']
             results.at[idx, 'signal'] = signal
-            results.at[idx, 'vol_ratio'] = current_signals['vol_ratio']
-            results.at[idx, 'dynamic_threshold'] = current_signals['dynamic_threshold']
             results.at[idx, 'spread'] = current_signals['spread']
             results.at[idx, 'spread_mean'] = current_signals['spread_mean']
             results.at[idx, 'spread_std'] = current_signals['spread_std']
@@ -203,7 +202,7 @@ class PairBacktest:
             else:
                 results.at[idx, 'strategy_returns'] = 0.0
 
-            # print(f"Current backtest progress: {i}/{len(results)}")
+            print(f"Current backtest progress: {i}/{len(results)}")
 
         # Fill initial portfolio value
         results['portfolio_value'].ffill()
@@ -213,7 +212,7 @@ class PairBacktest:
         results['total_commission'] = total_commission  # Add total commission to results
         return results
     
-    def save_results(self, results: pd.DataFrame, output_dir: str = 'backtest_results', hedge_window: int = 240):
+    def save_results(self, results: pd.DataFrame, output_dir: str = 'backtest_results'):
         """Save backtest results to CSV files."""
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
@@ -222,7 +221,7 @@ class PairBacktest:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         # Save main results
-        results_file = f"{output_dir}/backtest_results_{hedge_window}.csv"
+        results_file = f"{output_dir}/backtest_results_{timestamp}.csv"
         results.to_csv(results_file)
         
         print(f"Results saved to {output_dir}")
@@ -240,7 +239,7 @@ if __name__ == "__main__":
     results = backtest.run_backtest()
 
     # Save results
-    backtest.save_results(results, hedge_window=w)
+    backtest.save_results(results)
 
     # Calculate performance metrics
     
@@ -249,10 +248,9 @@ if __name__ == "__main__":
     
     # Create and save visualizations
     visualizer = BacktestVisualizer(results, metrics)
-    visualizer.save_all_plots(hedge_window=w)
+    visualizer.save_all_plots()
     
     # Print summary
     print("\nBacktest Results Summary:")
-    print(f"Hedge Window: {w}")
     print(f"Total Return: {results['cumulative_returns'].iloc[-1]:.2%}")
     print()

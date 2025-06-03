@@ -148,7 +148,7 @@ class BinanceDataCollector:
         except Exception as e:
             print(f"Error fetching funding rates for {symbol}: {str(e)}")
             return pd.DataFrame()
-
+    
 if __name__ == "__main__":
     # Example usage
     collector = BinanceDataCollector()
