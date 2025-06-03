@@ -1,5 +1,9 @@
+import warnings
+warnings.filterwarnings("ignore")
+import numpy as np
 from selection import Selector
 from marginal_fitter import MarginalFitter
+from copula_fitter import CopulaFitter
 
 def asset_names_from_selected_pairs(selected_pairs):
     asset_names = set()
@@ -15,8 +19,7 @@ if __name__ == "__main__":
     asset_names = asset_names_from_selected_pairs(selected_pairs)
 
     fitter = MarginalFitter()
+    marginal_summary = fitter.fit_assets(selector.data, asset_names)
 
-    summary = fitter.fit_assets(selector.data, asset_names)
-    for asset, result in summary.items():
-        print(f"Best fit for {asset}: {result['best_dist']}")
-        print(result['uniform'])
+    copula_fitter = CopulaFitter()
+    copula_summary = copula_fitter.fit_assets(selected_pairs, marginal_summary)

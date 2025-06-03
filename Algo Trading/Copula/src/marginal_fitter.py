@@ -115,4 +115,5 @@ class MarginalFitter:
                 'returns': returns,
                 'uniform': uniform
             }
+            print(f"Fitted {asset} with marginal distribution {best_dist} with p-value {best_row['ks_p']:.3f}")
         return summary

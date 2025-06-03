@@ -15,7 +15,7 @@
 ## 3. Copula Modelling
 - Transform each asset's returns to uniforms using the fitted marginal CDFs.
 - For each pair, fit multiple copula families
-	- Gaussian, t, Clayton, Gumbel, Frank
+	- Gaussian, Clayton, Gumbel, Frank
 - Select the optimal copula for each pair using AIC, BIC
 
 ## 4. Signal Generation and Backtesting
