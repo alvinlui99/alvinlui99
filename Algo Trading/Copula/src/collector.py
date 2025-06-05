@@ -3,11 +3,11 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import pandas as pd
 from binance.um_futures import UMFutures
-from dotenv import load_dotenv
+
+from config import Config
 
 class BinanceDataCollector:
     def __init__(self):
-        load_dotenv()
         self.client = UMFutures(
             key=os.getenv('BINANCE_API_KEY'),
             secret=os.getenv('BINANCE_API_SECRET')
@@ -102,8 +102,8 @@ class BinanceDataCollector:
     def get_multiple_symbols_data(
         self,
         symbols: List[str],
-        interval: str = '1h',
-        days_back: int = 30
+        interval: str = None,
+        days_back: int = None
     ) -> Dict[str, pd.DataFrame]:
         """
         Fetch historical data for multiple symbols from Binance Futures.
@@ -116,6 +116,11 @@ class BinanceDataCollector:
         Returns:
             Dictionary with symbol as key and DataFrame as value
         """
+        if interval is None:
+            interval = Config().interval
+        if days_back is None:
+            days_back = Config().lookback_days
+
         data_dict = {}
         for symbol in symbols:
             df = self.get_historical_klines(
@@ -127,42 +132,3 @@ class BinanceDataCollector:
                 data_dict[symbol] = df
                 
         return data_dict
-
-    def get_funding_rate(self, symbol: str, limit: int = 30) -> pd.DataFrame:
-        """
-        Fetch historical funding rates for a symbol.
-        
-        Args:
-            symbol: Trading pair symbol (e.g., 'BTCUSDT')
-            limit: Number of records to fetch
-            
-        Returns:
-            DataFrame with funding rate history
-        """
-        try:
-            funding_rates = self.client.funding_rate(symbol=symbol, limit=limit)
-            df = pd.DataFrame(funding_rates)
-            df['fundingTime'] = pd.to_datetime(df['fundingTime'], unit='ms')
-            df['fundingRate'] = df['fundingRate'].astype(float)
-            return df[['fundingTime', 'fundingRate']]
-        except Exception as e:
-            print(f"Error fetching funding rates for {symbol}: {str(e)}")
-            return pd.DataFrame()
-    
-if __name__ == "__main__":
-    # Example usage
-    collector = BinanceDataCollector()
-    
-    # Test with BTC/USDT and ETH/USDT futures
-    symbols = ['BTCUSDT', 'ETHUSDT']
-    data = collector.get_multiple_symbols_data(symbols, interval='1h', days_back=7)
-    
-    # Print first few rows of each dataset
-    for symbol, df in data.items():
-        print(f"\nData for {symbol}:")
-        print(df.head())
-        
-    # Get funding rates for BTC
-    funding_rates = collector.get_funding_rate('BTCUSDT')
-    print("\nFunding rates for BTCUSDT:")
-    print(funding_rates.head())

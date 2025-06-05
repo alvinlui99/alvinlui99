@@ -18,13 +18,6 @@ class CopulaBasedStrategy:
         self.marginal_fitter = MarginalFitter()
         self.copula_fitter = CopulaFitter()
 
-    def run(self):
-        selected_pairs = self.selector.run(interval='1h', days_back=10)
-        asset_names = self.asset_names_from_selected_pairs(selected_pairs)
-        marginal_summary = self.marginal_fitter.fit_assets(self.selector.data, asset_names)
-        copula_summary = self.copula_fitter.fit_assets(selected_pairs, marginal_summary)
-        return selected_pairs, marginal_summary, copula_summary
-
     def asset_names_from_selected_pairs(self, selected_pairs: list[tuple[str, str, float]]) -> list[str]:
         asset_names = set()
         for c1, c2, _ in selected_pairs:
@@ -56,7 +49,25 @@ class CopulaBasedStrategy:
         cond_scale = np.sqrt((df + x2**2) * (1 - rho**2) / (df + 1))
         return t.cdf((x1 - cond_mu)/cond_scale, df + 1)
 
-
+    def run(self):
+        signals = {}
+        selected_pairs = self.selector.run(interval='1h', days_back=10)
+        asset_names = self.asset_names_from_selected_pairs(selected_pairs)
+        marginal_summary = self.marginal_fitter.fit_assets(self.selector.data, asset_names)
+        copula_summary = self.copula_fitter.fit_assets(selected_pairs, marginal_summary)
+        for c1, c2, _ in selected_pairs:
+            current_returns = self.get_current_returns([c1, c2])
+            mi = self.compute_mispricing_index((c1, c2), current_returns, marginal_summary, copula_summary)
+            signals[f'{c1}-{c2}'] = {
+                'mi': mi,
+                'c1': c1,
+                'c2': c2,
+                'current_returns': current_returns,
+                'marginal_summary': marginal_summary,
+                'copula_summary': copula_summary
+            }
+        return signals
+    
     def compute_mispricing_index(self,
                                  pair: tuple[str, str],
                                  returns: pd.DataFrame,
@@ -91,7 +102,7 @@ class CopulaBasedStrategy:
         elif copula_name == 't':
             mi = self.t_conditional_prob(copula, u, v)
 
-        return pd.Series(mi, index=returns.index)
+        return mi
     
     def get_current_returns(self, symbols: list[str]) -> pd.DataFrame:
         data = self.collector.get_multiple_symbols_data(symbols, interval='1h', days_back=1)

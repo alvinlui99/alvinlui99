@@ -22,8 +22,7 @@
 - Generate trading signals using the copula-based mispricing index (conditional probability)
 	- Long X, Short Y if MI_Y_given_X < 0.05, exit when MI_Y_given_X > 0.2
 	- Short X, Long Y if MI_Y_given_X > 0.95, exit when MI_Y_given_X < 0.8
-- For each pair, use volatility sizing. Budget k/vol_X for position size X and k/vol_Y for position size Y, where k = portfolio value / (1/vol_X + 1/vol_Y)
-- Use risk parity allocation. Allocate more capital to less volatile pairs. w_i = (1/vol_i) / (sum(1/vol_j)) for j = 1 to N
+- For each pair, use hedge ratio computed with OLS
 - Backtest the strategy, including realistic transaction costs
 	- Commission = 4.5bps
 	- There is no slippage because the market is highly liquid

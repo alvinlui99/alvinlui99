@@ -1,107 +1,80 @@
-import warnings
-warnings.filterwarnings("ignore")
-
+import os
 import numpy as np
-import pandas as pd
 
-from scipy.stats import norm, t
+from ta.volatility import AverageTrueRange
+from binance.um_futures import UMFutures
 
-from selection import Selector
-from marginal_fitter import MarginalFitter
-from copula_fitter import CopulaFitter
 from collector import BinanceDataCollector
+from copula_based_strategy import CopulaBasedStrategy
+from config import Config
 
-class CopulaBasedStrategy:
-    def __init__(self):
+class Trader:
+    def __init__(self, 
+                 api_key: str = None, 
+                 api_secret: str = None,
+                 base_url: str = 'https://testnet.binancefuture.com'):
+        if api_key is None:
+            api_key = os.getenv('BINANCE_API_KEY')
+        if api_secret is None:
+            api_secret = os.getenv('BINANCE_API_SECRET')
+        self.client = UMFutures(key=api_key, secret=api_secret, base_url=base_url)
         self.collector = BinanceDataCollector()
-        self.selector = Selector()
-        self.marginal_fitter = MarginalFitter()
-        self.copula_fitter = CopulaFitter()
 
-    def run(self):
-        selected_pairs = self.selector.run(interval='1h', days_back=10)
-        asset_names = self.asset_names_from_selected_pairs(selected_pairs)
-        marginal_summary = self.marginal_fitter.fit_assets(self.selector.data, asset_names)
-        copula_summary = self.copula_fitter.fit_assets(selected_pairs, marginal_summary)
-        return selected_pairs, marginal_summary, copula_summary
+    def get_hedge_ratio(self, c1: str, c2: str, window: int = None) -> float:
+        if window is None:
+            window = Config().window
+        df = self.collector.get_multiple_symbols_data([c1, c2])
+        hedge_ratio = np.polyfit(df[c2]['close'], df[c1]['close'], 1)[0]
+        return hedge_ratio
 
-    def asset_names_from_selected_pairs(self, selected_pairs: list[tuple[str, str, float]]) -> list[str]:
-        asset_names = set()
-        for c1, c2, _ in selected_pairs:
-            asset_names.add(c1)
-            asset_names.add(c2)
-        asset_names = list(asset_names)
-        return asset_names
+    def trade_from_signals(self, signals: dict,
+                           long_threshold: float = None,
+                           short_threshold: float = None):
+        if long_threshold is None:
+            long_threshold = Config().long_threshold
+        if short_threshold is None:
+            short_threshold = Config().short_threshold
+        target_positions = {}
+        prices = {}
+        position_sizes = {}
 
-    def gaussian_conditional_prob(self, cop, u1, u2):
-        rho = cop.sigma[0,1]  # correlation coefficient
-        z1 = norm.ppf(u1)
-        z2 = norm.ppf(u2)
-        
-        # Conditional mean and variance
-        cond_mu = rho * z2
-        cond_var = 1 - rho**2
-        return norm.cdf((z1 - cond_mu)/np.sqrt(cond_var))
+        investable_budget = float(self.client.account()['totalMarginBalance']) * Config().investable_budget_pc / Config().max_positions
+        for signal in signals.values():
+            c1 = signal['c1']
+            c2 = signal['c2']
+            mi = signal['mi']
 
-    def t_conditional_prob(self, cop, u1, u2):
-        rho = cop.sigma[0,1]
-        df = cop._df
+            # Netting quantity for all positions of the same asset
+            if mi > long_threshold:
+                print(f'{c1}-{c2}: long')
+                hedge_ratio = self.get_hedge_ratio(c1, c2)
 
-        x1 = t.ppf(u1, df=df)
-        x2 = t.ppf(u2, df=df)
+                price_1 = float(self.client.mark_price(c1)['markPrice']) if prices.get(c1) is None else prices[c1]
+                price_2 = float(self.client.mark_price(c2)['markPrice']) if prices.get(c2) is None else prices[c2]
+                prices[c1] = price_1
+                prices[c2] = price_2
 
-        
-        # Conditional parameters
-        cond_mu = rho * x2
-        cond_scale = np.sqrt((df + x2**2) * (1 - rho**2) / (df + 1))
-        return t.cdf((x1 - cond_mu)/cond_scale, df + 1)
+                unit_1 = investable_budget / (price_1 + price_2 * hedge_ratio)
+                unit_2 = unit_1 * hedge_ratio
+                target_positions[c1] = target_positions.get(c1, 0) - unit_1
+                target_positions[c2] = target_positions.get(c2, 0) + unit_2
+            elif mi < short_threshold:
+                print(f'{c1}-{c2}: short')
+                hedge_ratio = self.get_hedge_ratio(c1, c2)
 
+                price_1 = float(self.client.mark_price(c1)['markPrice']) if prices.get(c1) is None else prices[c1]
+                price_2 = float(self.client.mark_price(c2)['markPrice']) if prices.get(c2) is None else prices[c2]
+                prices[c1] = price_1
+                prices[c2] = price_2
 
-    def compute_mispricing_index(self,
-                                 pair: tuple[str, str],
-                                 returns: pd.DataFrame,
-                                 marginal_summary: dict,
-                                 copula_summary: dict) -> pd.Series:
-        """
-        Compute the mispricing index (MI) time series for a given asset pair using copulae.
+                unit_1 = investable_budget / (price_1 + price_2 * hedge_ratio)
+                unit_2 = unit_1 * hedge_ratio
+                target_positions[c1] = target_positions.get(c1, 0) + unit_1
+                target_positions[c2] = target_positions.get(c2, 0) - unit_2
+        return target_positions
 
-        Args:
-            pair: tuple of (asset1, asset2)
-            returns: pd.DataFrame with columns for asset1 and asset2
-            marginal_summary: dict with fitted marginal CDFs for each asset
-            copula_summary: dict with fitted copula objects for each pair
-
-        Returns:
-            pd.Series of MI_Y_given_X for each time point
-        """
-        asset1, asset2 = pair
-        marginal_X = marginal_summary[asset1]['best_dist_object']
-        params_X = marginal_summary[asset1]['params']
-        marginal_Y = marginal_summary[asset2]['best_dist_object']
-        params_Y = marginal_summary[asset2]['params']
-        copula = copula_summary[f'{asset1}-{asset2}']['best_copula_object']
-
-        # Transform returns to uniforms
-        u = marginal_X.cdf(returns[asset1], *params_X)
-        v = marginal_Y.cdf(returns[asset2], *params_Y)
-
-        copula_name = copula_summary[f'{asset1}-{asset2}']['best_copula_name']
-        if copula_name == 'gaussian':
-            mi = self.gaussian_conditional_prob(copula, u, v)
-        elif copula_name == 't':
-            mi = self.t_conditional_prob(copula, u, v)
-
-        return pd.Series(mi, index=returns.index)
-    
-    def get_current_returns(self, symbols: list[str]) -> pd.DataFrame:
-        data = self.collector.get_multiple_symbols_data(symbols, interval='1h', days_back=1)
-        return pd.DataFrame([{symbol: data[symbol]['close'].pct_change().dropna().iloc[-1] for symbol in symbols}])
-
-if __name__ == "__main__":
+if __name__ == '__main__':
+    trader = Trader()
     strategy = CopulaBasedStrategy()
-    selected_pairs, marginal_summary, copula_summary = strategy.run()
-    for c1, c2, _ in selected_pairs:
-        current_returns = strategy.get_current_returns([c1, c2])
-        mi = strategy.compute_mispricing_index((c1, c2), current_returns, marginal_summary, copula_summary)
-        print(f'{c1}-{c2}: {mi}')
-    
+    signals = strategy.run()
+    target_positions, prices, position_sizes = trader.trade_from_signals(signals)
