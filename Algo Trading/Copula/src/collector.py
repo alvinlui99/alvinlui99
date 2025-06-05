@@ -12,11 +12,12 @@ class BinanceDataCollector:
             key=os.getenv('BINANCE_API_KEY'),
             secret=os.getenv('BINANCE_API_SECRET')
         )
+        self.config = Config()
         
     def get_historical_klines(
         self,
         symbol: str,
-        interval: str = '1h',
+        interval: str = None,
         start_str: Optional[str] = None,
         end_str: Optional[str] = None,
         days_back: Optional[int] = None,
@@ -37,12 +38,20 @@ class BinanceDataCollector:
             DataFrame with columns: timestamp, open, high, low, close, volume
         """
         try:
-            # Handle days_back parameter
-            if days_back is not None:
-                end_time = datetime.now()
+            if days_back is None:
+                days_back = self.config.lookback_days
+            if interval is None:
+                interval = self.config.interval
+
+            if end_str is None:
+                end_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')                
+            end_time = datetime.strptime(end_str, '%Y-%m-%d %H:%M:%S')
+            
+            if start_str is None:                
                 start_time = end_time - timedelta(days=days_back)
                 start_str = start_time.strftime('%Y-%m-%d %H:%M:%S')
-                end_str = end_time.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                start_time = datetime.strptime(start_str, '%Y-%m-%d %H:%M:%S')
             
             all_klines = []
             current_time = int(datetime.strptime(start_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000)
@@ -102,8 +111,7 @@ class BinanceDataCollector:
     def get_multiple_symbols_data(
         self,
         symbols: List[str],
-        interval: str = None,
-        days_back: int = None
+        end_str: str = None
     ) -> Dict[str, pd.DataFrame]:
         """
         Fetch historical data for multiple symbols from Binance Futures.
@@ -116,19 +124,13 @@ class BinanceDataCollector:
         Returns:
             Dictionary with symbol as key and DataFrame as value
         """
-        if interval is None:
-            interval = Config().interval
-        if days_back is None:
-            days_back = Config().lookback_days
 
         data_dict = {}
         for symbol in symbols:
             df = self.get_historical_klines(
                 symbol=symbol,
-                interval=interval,
-                days_back=days_back
+                end_str=end_str
             )
-            if not df.empty:
-                data_dict[symbol] = df
+            data_dict[symbol] = df
                 
         return data_dict

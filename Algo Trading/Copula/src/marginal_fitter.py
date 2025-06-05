@@ -83,7 +83,7 @@ class MarginalFitter:
         best_row = eval_df.loc[eval_df[criterion].idxmin()]
         return best_row
 
-    def fit_assets(self, data_dict: Dict[str, pd.DataFrame], asset_names: list, returns_col: str = 'close', criterion: str = 'aic', pvalue_threshold: float = 0.05) -> Dict[str, Dict[str, Any]]:
+    def fit_assets(self, data: Dict[str, pd.DataFrame], asset_names: list, returns_col: str = 'close', criterion: str = 'aic', pvalue_threshold: float = 0.05) -> Dict[str, Dict[str, Any]]:
         """
         For each asset, compute returns, fit, evaluate, and select the best distribution.
         Args:
@@ -97,7 +97,7 @@ class MarginalFitter:
         """
         summary = {}
         for asset in asset_names:
-            df = data_dict[asset]
+            df = data[asset]
             returns = df[returns_col].pct_change().dropna().values
             fit_results = self.fit(returns)
             eval_df = self.evaluate(returns, fit_results)
@@ -119,5 +119,4 @@ class MarginalFitter:
                 'uniform': uniform,
                 'params': params
             }
-            print(f"Fitted {asset} with marginal distribution {best_row['distribution_name']} with p-value {best_row['ks_p']:.3f}")
         return summary

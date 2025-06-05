@@ -2,7 +2,7 @@
 
 ## 1. Asset Selection
 - List of Coins to choose from
-	- BTC, ETH, BNB, SOL, ADA, DOT, LINK, MATIC, AVAX, ATOM, LTC, XRP, UNI, AAVE, DOGE
+	- BTC, ETH, BNB, SOL, ADA, DOT, LINK, ARB, AVAX, ATOM, LTC, XRP, UNI, AAVE, DOGE
 - Cointegration-based Filtering
     - Run Engle-Granger Test for each pair. Select those with ADF p < 0.05
 

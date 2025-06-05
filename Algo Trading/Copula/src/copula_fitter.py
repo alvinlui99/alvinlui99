@@ -1,9 +1,11 @@
+import warnings
+warnings.filterwarnings("ignore")
+
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, Tuple
 
 from copulae import GaussianCopula, StudentCopula
-from scipy.stats import cramervonmises
 
 class CopulaFitter:
     """
@@ -54,7 +56,7 @@ class CopulaFitter:
 
     def fit_assets(self, selected_pairs: list, marginal_summary: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         summary = {}
-        for c1, c2, _ in selected_pairs:
+        for c1, c2 in selected_pairs:
             u = marginal_summary[c1]['uniform']
             v = marginal_summary[c2]['uniform']
             fit_results = self.fit(u, v)
@@ -66,6 +68,5 @@ class CopulaFitter:
                 'best_row': best_row,
                 'eval_df': eval_df
             }
-            print(f"Fitted {c1}-{c2} with copula {best_row['copula_name']}")
         return summary
 

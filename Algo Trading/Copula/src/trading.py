@@ -36,7 +36,6 @@ class Trader:
             short_threshold = Config().short_threshold
         target_positions = {}
         prices = {}
-        position_sizes = {}
 
         investable_budget = float(self.client.account()['totalMarginBalance']) * Config().investable_budget_pc / Config().max_positions
         for signal in signals.values():
@@ -75,6 +74,9 @@ class Trader:
 
 if __name__ == '__main__':
     trader = Trader()
-    strategy = CopulaBasedStrategy()
-    signals = strategy.run()
-    target_positions, prices, position_sizes = trader.trade_from_signals(signals)
+    # strategy = CopulaBasedStrategy()
+    # signals = strategy.run()
+    # target_positions = trader.trade_from_signals(signals)
+    account = trader.client.account()
+    for k, v in account.items():
+        print(f'{k}: {v}')

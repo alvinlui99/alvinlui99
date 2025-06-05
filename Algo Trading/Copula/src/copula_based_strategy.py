@@ -3,7 +3,7 @@ warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
-
+from typing import Dict, List
 from scipy.stats import norm, t
 
 from selection import Selector
@@ -20,11 +20,10 @@ class CopulaBasedStrategy:
 
     def asset_names_from_selected_pairs(self, selected_pairs: list[tuple[str, str, float]]) -> list[str]:
         asset_names = set()
-        for c1, c2, _ in selected_pairs:
+        for c1, c2 in selected_pairs:
             asset_names.add(c1)
             asset_names.add(c2)
-        asset_names = list(asset_names)
-        return asset_names
+        return list(asset_names)
 
     def gaussian_conditional_prob(self, cop, u1, u2):
         rho = cop.sigma[0,1]  # correlation coefficient
@@ -49,14 +48,15 @@ class CopulaBasedStrategy:
         cond_scale = np.sqrt((df + x2**2) * (1 - rho**2) / (df + 1))
         return t.cdf((x1 - cond_mu)/cond_scale, df + 1)
 
-    def run(self):
+    def run(self, data: Dict[str, pd.DataFrame], current_pairs: List[tuple[str, str]]):
         signals = {}
-        selected_pairs = self.selector.run(interval='1h', days_back=10)
+        selected_pairs = self.selector.run(data) + current_pairs
+
         asset_names = self.asset_names_from_selected_pairs(selected_pairs)
-        marginal_summary = self.marginal_fitter.fit_assets(self.selector.data, asset_names)
+        marginal_summary = self.marginal_fitter.fit_assets(data, asset_names)
         copula_summary = self.copula_fitter.fit_assets(selected_pairs, marginal_summary)
-        for c1, c2, _ in selected_pairs:
-            current_returns = self.get_current_returns([c1, c2])
+        for c1, c2 in selected_pairs:
+            current_returns = self.get_current_returns([c1, c2], data)
             mi = self.compute_mispricing_index((c1, c2), current_returns, marginal_summary, copula_summary)
             signals[f'{c1}-{c2}'] = {
                 'mi': mi,
@@ -104,15 +104,5 @@ class CopulaBasedStrategy:
 
         return mi
     
-    def get_current_returns(self, symbols: list[str]) -> pd.DataFrame:
-        data = self.collector.get_multiple_symbols_data(symbols, interval='1h', days_back=1)
+    def get_current_returns(self, symbols: list[str], data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
         return pd.DataFrame([{symbol: data[symbol]['close'].pct_change().dropna().iloc[-1] for symbol in symbols}])
-
-if __name__ == "__main__":
-    strategy = CopulaBasedStrategy()
-    selected_pairs, marginal_summary, copula_summary = strategy.run()
-    for c1, c2, _ in selected_pairs:
-        current_returns = strategy.get_current_returns([c1, c2])
-        mi = strategy.compute_mispricing_index((c1, c2), current_returns, marginal_summary, copula_summary)
-        print(f'{c1}-{c2}: {mi}')
-    
