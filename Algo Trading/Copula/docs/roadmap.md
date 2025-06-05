@@ -34,23 +34,20 @@
 - Analyze risk-adjusted performance metrics
 	- Sharpe, drawdown
 
-## 6. Advanced Forecasting (TFT)
-- Introduce **Temporal Fusion Transformer (TFT)** to forecast spread/mispricing index or returns.
+## 6. Regime Detection
+- Implement regime detection (Hidden Markov Models) to adapt strategy parameters or serve as features for TFT and optimization.
+- Use regime information for further risk management and signal refinement.
+
+## 7. LightGBM
+- Train LightGBMClassifier on the engineered features
 	- Input: (from both assets)
 		- From individual asset: 
 			- historical prices, volume, TA (RSI, MACD, MA, volatility)
 		- Collective from both assets:
 			- correlation, cointegration, historical mispricing index
+	- Label: future PnL
 	- Output:
-		- Mispricing Index for the pair
-
-## 7. Portfolio Optimization (Stochastic Control)
-- Apply stochastic control frameworks (e.g., Hamilton-Jacobi-Bellman PDE) for dynamic position sizing and optimal execution.
-- Integrate all predictive signals and risk constraints into the optimization.
-
-## 8. Regime Detection
-- Implement regime detection (e.g., Hidden Markov Models) to adapt strategy parameters or serve as features for TFT and optimization.
-- Use regime information for further risk management and signal refinement.
+		- Buy/Sell/Hold Signal
 
 ## **Best Practices**
 - After each step, validate performance and risk, then iterate as needed.

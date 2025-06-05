@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from typing import Dict, Any, Tuple
 
-from copulae import GaussianCopula, StudentCopula, FrankCopula, ClaytonCopula, GumbelCopula
+from copulae import GaussianCopula, StudentCopula
 from scipy.stats import cramervonmises
 
 class CopulaFitter:
@@ -10,13 +10,10 @@ class CopulaFitter:
     Fits Gaussian and t copulas to uniform marginals and selects the best fit using AIC/BIC.
     """
     def __init__(self):
-        self.copula_families = ['gaussian', 't', 'frank', 'clayton', 'gumbel']
+        self.copula_families = ['gaussian', 't']
         self.copula_classes = {
             'gaussian': GaussianCopula,
-            't': StudentCopula,
-            'frank': FrankCopula,
-            'clayton': ClaytonCopula,
-            'gumbel': GumbelCopula
+            't': StudentCopula
         }
 
     def fit(self, u: np.ndarray, v: np.ndarray) -> Dict[str, Any]:
@@ -44,7 +41,8 @@ class CopulaFitter:
                 aic = np.nan
                 bic = np.nan
             results.append({
-                'copula': family,
+                'copula_name': family,
+                'copula': cop,
                 'aic': aic,
                 'bic': bic
             })
@@ -52,7 +50,7 @@ class CopulaFitter:
 
     def select_best(self, eval_df: pd.DataFrame, criterion: str = 'aic') -> Tuple[str, Dict[str, float]]:
         best_row = eval_df.loc[eval_df[criterion].idxmin()]
-        return best_row['copula'], best_row.to_dict()
+        return best_row
 
     def fit_assets(self, selected_pairs: list, marginal_summary: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         summary = {}
@@ -61,12 +59,13 @@ class CopulaFitter:
             v = marginal_summary[c2]['uniform']
             fit_results = self.fit(u, v)
             eval_df = self.evaluate(u, v, fit_results)
-            best_copula, best_row = self.select_best(eval_df, criterion='aic')
+            best_row = self.select_best(eval_df, criterion='aic')
             summary[f'{c1}-{c2}'] = {
-                'best_copula': best_copula,
+                'best_copula_name': best_row['copula_name'],
+                'best_copula_object': best_row['copula'],
                 'best_row': best_row,
                 'eval_df': eval_df
             }
-            print(f"Fitted {c1}-{c2} with copula {best_copula}")
+            print(f"Fitted {c1}-{c2} with copula {best_row['copula_name']}")
         return summary
 
