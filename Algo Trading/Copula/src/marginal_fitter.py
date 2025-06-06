@@ -47,27 +47,17 @@ class MarginalFitter:
                 continue
             dist = getattr(stats, dist_name)
             # KS test
-            ks_stat, ks_p = stats.kstest(data, dist_name, args=params)
-            # Anderson-Darling test (only for some dists)
-            try:
-                ad_result = stats.anderson(data, dist=dist_name)
-                ad_stat = ad_result.statistic
-            except Exception:
-                ad_stat = np.nan
+            _, ks_p = stats.kstest(data, dist_name, args=params)
             # Log-likelihood
             loglik = np.sum(dist.logpdf(data, *params))
             k = len(params)
             aic = 2 * k - 2 * loglik
-            bic = k * np.log(n) - 2 * loglik
             results.append({
                 'distribution_name': dist_name,
                 'distribution_object': dist,
                 'params': params,
-                'ks_stat': ks_stat,
                 'ks_p': ks_p,
-                'ad_stat': ad_stat,
-                'aic': aic,
-                'bic': bic
+                'aic': aic
             })
         return pd.DataFrame(results)
 

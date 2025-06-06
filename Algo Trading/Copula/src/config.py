@@ -2,7 +2,7 @@ class Config:
     def __init__(self):
         self.coins = [
                 "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","ADAUSDT",
-                "DOTUSDT","LINKUSDT","TRXUSDT","AVAXUSDT","ATOMUSDT",
+                "DOTUSDT","TRXUSDT","AVAXUSDT","ATOMUSDT",
                 "LTCUSDT","XRPUSDT","UNIUSDT","AAVEUSDT","DOGEUSDT"
         ]
 
@@ -22,7 +22,9 @@ class Config:
 
         # Risk management
         self.investable_budget_pc = 0.95
-        self.max_positions = 5
+        self.max_positions = 10
+        self.take_profit_pc = 0.05
+        self.stop_loss_pc = 0.02
 
         # Backtest parameters
         self.commission_pc = 0.00045 # 0.045%

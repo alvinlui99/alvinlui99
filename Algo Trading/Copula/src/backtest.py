@@ -37,6 +37,7 @@ class Backtest:
         self.config = Config()
         self.coins = self.config.coins if coins is None else coins
         
+        self.prices: Dict[str, float] = {}
         self.pairs: List[Dict[str, Dict[str, float]]] = [] # List of pairs with their size and entry price
 
         self.pnls: List[float] = []  # PnL history
@@ -82,7 +83,10 @@ class Backtest:
             # Get trading signals
             data = self.collector.get_multiple_symbols_data(self.coins, end_str = current_date.strftime('%Y-%m-%d %H:%M:%S'))
             signals = self.strategy.run(data, self.pairs)
-            prices = {symbol: data[symbol]['close'].iloc[-1] for symbol in self.coins}
+
+            for symbol in self.coins:
+                if not data[symbol].empty:
+                    self.prices[symbol] = data[symbol]['close'].iloc[-1]
 
             for signal in signals.values():
                 c1, c2 = signal['c1'], signal['c2']
@@ -92,11 +96,13 @@ class Backtest:
                 for pair in self.pairs:
                     if c1 in pair.keys() and c2 in pair.keys():
                         current_pair_bool = True
-                        if (pair[c1]['size'] < 0 and mi < self.config.long_exit_threshold) or \
-                            (pair[c1]['size'] > 0 and mi > self.config.short_exit_threshold):
+                        pnl = pair[c1]['size'] * (self.prices[c1] - pair[c1]['entry_price']) + pair[c2]['size'] * (self.prices[c2] - pair[c2]['entry_price'])
+                        # if (pair[c1]['size'] < 0 and mi < self.config.long_exit_threshold) or \
+                        #     (pair[c1]['size'] > 0 and mi > self.config.short_exit_threshold) or \
+                        if pnl > self.margin_balance * self.config.take_profit_pc or \
+                            pnl < -self.margin_balance * self.config.stop_loss_pc:
                             # Exit the position
-                            pnl = pair[c1]['size'] * (prices[c1] - pair[c1]['entry_price']) + pair[c2]['size'] * (prices[c2] - pair[c2]['entry_price'])
-                            commission = (abs(pair[c1]['size']) * prices[c1] + abs(pair[c2]['size']) * prices[c2]) * self.config.commission_pc
+                            commission = (abs(pair[c1]['size']) * self.prices[c1] + abs(pair[c2]['size']) * self.prices[c2]) * self.config.commission_pc
                             self.pnls.append(pnl)
                             self.commissions.append(commission)
                             self.wallet_balance += pnl - commission
@@ -107,8 +113,8 @@ class Backtest:
                                 'size_1': pair[c1]['size'],
                                 'size_2': pair[c2]['size'],
                                 'hedge_ratio': np.nan,
-                                'price_1': prices[c1],
-                                'price_2': prices[c2],
+                                'price_1': self.prices[c1],
+                                'price_2': self.prices[c2],
                                 'commission': commission,
                                 'trade_date': current_date,
                                 'side': 'long' if pair[c1]['size'] < 0 else 'short',
@@ -119,18 +125,18 @@ class Backtest:
                             self.pairs.remove(pair)
 
                 
-                if not current_pair_bool:                    
+                if not current_pair_bool and len(self.pairs) < self.config.max_positions:
                     if mi > self.config.long_threshold:
                         hedge_ratio = self.get_hedge_ratio(c1, c2, data)
                         if hedge_ratio < 0:
                             hedge_ratio_negative_count += 1
                         else:
-                            unit_1, unit_2 = self.calculate_position_size(c1, c2, prices[c1], prices[c2], hedge_ratio)
+                            unit_1, unit_2 = self.calculate_position_size(c1, c2, self.prices[c1], self.prices[c2], hedge_ratio)
                             self.pairs.append({
-                                c1: {'size': -unit_1, 'entry_price': prices[c1]},
-                                c2: {'size': unit_2, 'entry_price': prices[c2]}
+                                c1: {'size': -unit_1, 'entry_price': self.prices[c1]},
+                                c2: {'size': unit_2, 'entry_price': self.prices[c2]}
                             })
-                            commission = (abs(unit_1) * prices[c1] + abs(unit_2) * prices[c2]) * self.config.commission_pc
+                            commission = (abs(unit_1) * self.prices[c1] + abs(unit_2) * self.prices[c2]) * self.config.commission_pc
                             self.commissions.append(commission)
                             self.wallet_balance -= commission
 
@@ -140,8 +146,8 @@ class Backtest:
                                 'size_1': -unit_1,
                                 'size_2': unit_2,
                                 'hedge_ratio': hedge_ratio,
-                                'entry_price_1': prices[c1],
-                                'entry_price_2': prices[c2],
+                                'entry_price_1': self.prices[c1],
+                                'entry_price_2': self.prices[c2],
                                 'commission': commission,
                                 'trade_date': current_date,
                                 'side': 'long',
@@ -153,12 +159,12 @@ class Backtest:
                         if hedge_ratio < 0:
                             hedge_ratio_negative_count += 1
                         else:                                                   
-                            unit_1, unit_2 = self.calculate_position_size(c1, c2, prices[c1], prices[c2], hedge_ratio)
+                            unit_1, unit_2 = self.calculate_position_size(c1, c2, self.prices[c1], self.prices[c2], hedge_ratio)
                             self.pairs.append({
-                                c1: {'size': unit_1, 'entry_price': prices[c1]},
-                                c2: {'size': -unit_2, 'entry_price': prices[c2]}
+                                c1: {'size': unit_1, 'entry_price': self.prices[c1]},
+                                c2: {'size': -unit_2, 'entry_price': self.prices[c2]}
                             })
-                            commission = (abs(unit_1) * prices[c1] + abs(unit_2) * prices[c2]) * self.config.commission_pc
+                            commission = (abs(unit_1) * self.prices[c1] + abs(unit_2) * self.prices[c2]) * self.config.commission_pc
                             self.commissions.append(commission)
                             self.wallet_balance -= commission
 
@@ -168,8 +174,8 @@ class Backtest:
                                 'size_1': unit_1,
                                 'size_2': -unit_2,
                                 'hedge_ratio': hedge_ratio,
-                                'entry_price_1': prices[c1],
-                                'entry_price_2': prices[c2],
+                                'entry_price_1': self.prices[c1],
+                                'entry_price_2': self.prices[c2],
                                 'commission': commission,
                                 'trade_date': current_date,
                                 'side': 'short',
@@ -178,7 +184,7 @@ class Backtest:
                             })
             
             # Calculate unrealised PnL
-            unrealised_pnl = self.calculate_unrealised_pnl(prices)
+            unrealised_pnl = self.calculate_unrealised_pnl(self.prices)
             self.margin_balance = self.wallet_balance + unrealised_pnl
             self.equity_curve.append(self.margin_balance)
             
@@ -187,18 +193,16 @@ class Backtest:
             print(f"Number of pairs: {len(self.pairs)}")
 
             self.max_pairs = max(self.max_pairs, len(self.pairs))
-            current_date += timedelta(hours=3)
+            current_date += timedelta(hours=1)
         
         # Calculate performance metrics
         total_return = (self.margin_balance - self.initial_capital) / self.initial_capital
         sharpe_ratio = pd.Series(self.pnls).mean() / pd.Series(self.pnls).std()
-        max_drawdown = (pd.Series(self.equity_curve).cummax() - self.equity_curve).max() / pd.Series(self.equity_curve).cummax()
         
         return {
             'total_return': total_return,
             'ending_margin_balance': self.margin_balance,
             'sharpe_ratio': sharpe_ratio,
-            'max_drawdown': max_drawdown,
             'num_trades': len(self.pnls),
             'pnls': sum(self.pnls),
             'max_pairs': self.max_pairs,
@@ -216,15 +220,15 @@ if __name__ == '__main__':
     backtest = Backtest(
         initial_capital=100000,
         start_date='2023-01-01 00:00:00',
-        end_date='2023-01-31 23:59:59'
+        end_date='2024-06-30 23:59:59'
     )
     results = backtest.run()
     print(f"Total Return: {results['total_return']:.2%}")
     print(f"Sharpe Ratio: {results['sharpe_ratio']:.2f}")
-    # print(f"Max Drawdown: {results['max_drawdown']:.2%}")
     print(f"Number of Trades: {results['num_trades']}")
     print(f"Total PnL: {sum(results['pnls']):.2f}")
     print(f"Max Number of Pairs: {results['max_pairs']}")
+    print(f"Negative Hedge Ratio Count: {results['negative_hedge_ratio_count']}")
 
     # Export the equity curve, trades, pnls, and commissions to csv
     pd.DataFrame(results['equity_curve']).to_csv('equity_curve.csv', index=False)
@@ -234,13 +238,3 @@ if __name__ == '__main__':
     end_time = datetime.now()
     runtime = end_time - start_time
     print(f"Total runtime: {runtime}")
-
-    # Plot the equity curve
-    plt.figure(figsize=(10, 6))
-    plt.plot(results['equity_curve'], label='Equity Curve')
-    plt.title('Equity Curve')
-    plt.xlabel('Time')
-    plt.ylabel('Equity')
-    plt.legend()
-    plt.grid(True)
-    plt.show()

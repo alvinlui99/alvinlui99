@@ -111,6 +111,7 @@ class BinanceDataCollector:
     def get_multiple_symbols_data(
         self,
         symbols: List[str],
+        start_str: str = None,
         end_str: str = None
     ) -> Dict[str, pd.DataFrame]:
         """
@@ -129,6 +130,7 @@ class BinanceDataCollector:
         for symbol in symbols:
             df = self.get_historical_klines(
                 symbol=symbol,
+                start_str=start_str,
                 end_str=end_str
             )
             data_dict[symbol] = df
