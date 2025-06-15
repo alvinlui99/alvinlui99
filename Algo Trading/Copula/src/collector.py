@@ -13,6 +13,7 @@ class BinanceDataCollector:
             secret=os.getenv('BINANCE_API_SECRET')
         )
         self.config = Config()
+        self.data_cache = {}
         
     def get_historical_klines(
         self,
@@ -126,13 +127,13 @@ class BinanceDataCollector:
             Dictionary with symbol as key and DataFrame as value
         """
 
-        data_dict = {}
         for symbol in symbols:
             df = self.get_historical_klines(
                 symbol=symbol,
                 start_str=start_str,
                 end_str=end_str
             )
-            data_dict[symbol] = df
+            if not df.empty:
+                self.data_cache[symbol] = df
                 
-        return data_dict
+        return self.data_cache

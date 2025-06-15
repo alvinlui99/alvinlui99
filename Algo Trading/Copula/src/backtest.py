@@ -1,240 +1,246 @@
-import warnings
-warnings.filterwarnings("ignore")
+from statsmodels.tsa.stattools import coint
+from scipy import stats
+import pywt
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from typing import Dict, List, Tuple
-from datetime import datetime, timedelta
-
-from copula_based_strategy import CopulaBasedStrategy
-from collector import BinanceDataCollector
 from config import Config
+from collector import BinanceDataCollector
+from copula_fitter import CopulaFitter
+from marginal_fitter import MarginalFitter
 
 class Backtest:
-    def __init__(self, 
-                 initial_capital: float = 100000,
-                 start_date: str = None,
-                 end_date: str = None,
-                 coins: List[str] = None):
-        """
-        Initialize the backtesting environment.
-        
-        Args:
-            initial_capital: Starting capital for the backtest
-            start_date: Start date for backtesting (format: 'YYYY-MM-DD')
-            end_date: End date for backtesting (format: 'YYYY-MM-DD')
-        """
-        self.initial_capital = initial_capital
-        self.wallet_balance = initial_capital     # wallet balance does not include unrealised pnl
-        self.margin_balance = initial_capital     # margin balance includes unrealised pnl
-        self.start_date = datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S') if start_date else None
-        self.end_date = datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S') if end_date else None
-        
-        self.strategy = CopulaBasedStrategy()
-        self.collector = BinanceDataCollector()
+    def __init__(self):
+        self.initial_balance = 1000000
+        self.wallet_balance = self.initial_balance
+        self.margin_balance = self.initial_balance
+        self.pnls = []
+        self.commissions = []
+        self.equity_curve = [self.initial_balance]
+        self.trades = []
+        self.num_trades = 0
+
+    def backtest_config(self,
+               data: dict,
+               selected_pairs: list[tuple[str, str]],
+               marginal_summary: dict,
+               copula_fitter: CopulaFitter):
         self.config = Config()
-        self.coins = self.config.coins if coins is None else coins
-        
-        self.prices: Dict[str, float] = {}
-        self.pairs: List[Dict[str, Dict[str, float]]] = [] # List of pairs with their size and entry price
+        self.data = data
+        self.selected_pairs = selected_pairs
+        self.marginal_summary = marginal_summary
+        self.copula_fitter = copula_fitter
+        self.current_position = {}
+        self.side = None
+        self.stop_loss = None
 
-        self.pnls: List[float] = []  # PnL history
-        self.commissions: List[float] = []  # Commission history
-        self.equity_curve: List[float] = [initial_capital]  # Portfolio value over time
+    def exp_smoothed_return(self, data: pd.Series, alpha: float = 0.3) -> float:
+        returns = data.pct_change().dropna()
+        returns = returns.ewm(alpha=alpha).mean()
+        return returns.iloc[-1]
 
-        # For analysis
-        self.max_pairs: int = 0
-        self.trades: List[Dict] = []
+    def mad(self, data) -> float:
+        return np.median(np.abs(data - np.median(data)))
+
+    def denoise_return(self, data: pd.Series, wavelet: str = 'db4', level: int = 5) -> float:
+        coeffs = pywt.wavedec(data, wavelet, level=level)
+        sigma = self.mad(coeffs[-level])
+        uthresh = sigma * np.sqrt(2*np.log(len(data)))
+        coeffs[1:] = (pywt.threshold(i, value=uthresh) for i in coeffs[1:])
+        denoised_data = pywt.waverec(coeffs, wavelet)
+        return denoised_data[-1]
+
+    def run(self):
+        result = []
+        ending_balances = []
+        for pair in self.selected_pairs:
+            self.__init__()
+            c1, c2 = pair
+            timestamps = sorted(list(set.intersection(*[set(self.data[asset].index) for asset in [c1, c2]])))
+            entry_price1 = 0
+            entry_price2 = 0
+            qty1 = 0
+            qty2 = 0
+            stop_loss = None
+            side = None
+            margin_balance = self.initial_balance
+            wallet_balance = self.initial_balance
+            for t in range(1, len(timestamps)):
+                if t < self.config.ewm_window:
+                    continue
+
+                price1 = self.data[c1].loc[timestamps[t], 'close']
+                price2 = self.data[c2].loc[timestamps[t], 'close']
+
+                # Stop loss
+                pnl = (price1 - entry_price1) * qty1 + (price2 - entry_price2) * qty2
+                commission = 0
+                if pnl < margin_balance * self.config.stop_loss_pc:
+                    stop_loss = 'stop loss from ' + side
+                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
+                    wallet_balance += pnl - commission
+                    pnl = 0
+                    side = None
+                    qty1 = 0
+                    qty2 = 0
+                    entry_price1 = 0
+                    entry_price2 = 0
+
+                # Entry
+                return1 = self.exp_smoothed_return(self.data[c1].loc[timestamps[t-self.config.ewm_window:t], 'close'])
+                return2 = self.exp_smoothed_return(self.data[c2].loc[timestamps[t-self.config.ewm_window:t], 'close'])
+                u1 = stats.t.cdf(return1, *self.marginal_summary[c1]['params'])
+                u2 = stats.t.cdf(return2, *self.marginal_summary[c2]['params'])
+                h1, _ = self.copula_fitter.copulae[f'{c1}-{c2}'].mispricing_index(u1, u2)
+                if h1 > self.config.long_threshold and side == None and stop_loss != 'stop loss from long':
+                    qty1 = round(margin_balance * self.config.investable_budget_pc * 0.5 / price1, 3)
+                    qty2 = -round(margin_balance * self.config.investable_budget_pc * 0.5 / price2, 3)
+                    entry_price1 = price1
+                    entry_price2 = price2
+                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
+                    wallet_balance -= commission
+                    side = 'long'
+                    stop_loss = None
+                elif h1 < self.config.short_threshold and side == None and stop_loss != 'stop loss from short':
+                    qty1 = -round(margin_balance * self.config.investable_budget_pc * 0.5 / price1, 3)
+                    qty2 = round(margin_balance * self.config.investable_budget_pc * 0.5 / price2, 3)
+                    entry_price1 = price1
+                    entry_price2 = price2
+                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
+                    wallet_balance -= commission
+                    side = 'short'
+                    stop_loss = None
+                # Exit
+                elif h1 < self.config.long_exit_threshold and side == 'long' and qty1 > 0:
+                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
+                    wallet_balance += pnl - commission
+                    pnl = 0
+                    qty1 = 0
+                    qty2 = 0
+                    entry_price1 = 0
+                    entry_price2 = 0
+                    side = None
+                elif h1 > self.config.short_exit_threshold and self.side == 'short' and len(self.current_position) > 0:
+                    commission = self.config.commission_pc * (abs(self.current_position[c1]['size']) * price1 + abs(self.current_position[c2]['size']) * price2)
+                    wallet_balance += pnl - commission
+                    pnl = 0
+                    qty1 = 0
+                    qty2 = 0
+                    entry_price1 = 0
+                    entry_price2 = 0
+                    side = None
+                margin_balance = wallet_balance + pnl
+
+                output = {
+                    'price1': price1,
+                    'price2': price2,
+                    'u1': u1,
+                    'u2': u2,
+                    'h1': h1,
+                    'qty1': qty1,
+                    'qty2': qty2,
+                    'entry_price1': entry_price1,
+                    'entry_price2': entry_price2,
+                    'pnl': pnl,
+                    'commission': commission,
+                    'margin_balance': margin_balance,
+                    'wallet_balance': wallet_balance,
+                }
+                result.append(output)
+            ending_balances.append((f'{c1}-{c2}', margin_balance + pnl))
+            pd.DataFrame(result).to_csv(f'backtest_results/{c1}-{c2}.csv', index=False)
+        pd.DataFrame(ending_balances, columns=['pair', 'ending_balance']).to_csv('backtest_results/ending_balances.csv', index=False)
         
-    def calculate_position_size(self, c1: str, c2: str, price_1: float, price_2: float, hedge_ratio: float) -> Tuple[float, float]:
-        """Calculate position sizes for a pair based on the hedge ratio."""
-        investable_budget = self.margin_balance * self.config.investable_budget_pc
-        unit_1 = investable_budget / (price_1 + price_2 * hedge_ratio)
-        unit_2 = unit_1 * hedge_ratio
-        return round(unit_1, 3), round(unit_2, 3)
+def select_pairs(coins: list[str], data: dict):
+    pairs_with_stats = []
+    for i in range(len(coins)):
+        for j in range(i+1, len(coins)):
+            c1, c2 = coins[i], coins[j]
+            coint_t, _, _ = coint(data[c1]['close'], data[c2]['close'])
+            if coint_t > Config().coint_threshold:
+                pairs_with_stats.append((c1, c2, coint_t))
     
-    def calculate_unrealised_pnl(self, prices: Dict[str, float]) -> float:
-        """Calculate unrealised PnL based on current positions and prices."""
-        pnl = 0
-        for pair in self.pairs:
-            for symbol, position in pair.items():
-                pnl += position['size'] * (prices[symbol] - position['entry_price'])
-        return pnl
+    pairs_with_stats.sort(key=lambda x: x[2], reverse=True)
+    selected_pairs = [(c1, c2) for c1, c2, _ in pairs_with_stats]
+    output = pd.DataFrame(pairs_with_stats, columns=['c1', 'c2', 't-stat'])
+    output.to_csv('pairs_with_stats.csv', index=False)
+    # selected_pairs = [(c1, c2) for c1, c2, _ in pairs_with_stats[:Config().num_pairs]]
+    return selected_pairs
+
+def crypto_backtest():
+    collector = BinanceDataCollector()
     
-    def get_hedge_ratio(self, c1: str, c2: str, data: Dict[str, pd.DataFrame], window: int = None) -> float:
-        window = self.config.window if window is None else window
-        hedge_ratio = np.sum(data[c1]['close'] * data[c2]['close']) / np.sum(data[c1]['close'] * data[c1]['close'])
-        if hedge_ratio < 0:
-            print(f"WARNING: Hedge ratio is negative for {c1}-{c2}")
-        return hedge_ratio
+    formation_start_str = '2022-01-01 00:00:00'
+    formation_end_str = '2022-12-31 23:59:59'
+    backtest_start_str = '2023-01-01 00:00:00'
+    backtest_end_str = '2023-12-31 23:59:59'
+    
+    coins = Config().coins
 
-    def run(self) -> Dict:
-        """
-        Run the backtest simulation.
-        
-        Returns:
-            Dict containing backtest results and performance metrics
-        """
-        current_date = self.start_date
-        hedge_ratio_negative_count = 0
-        while current_date <= self.end_date:
-            # Get trading signals
-            data = self.collector.get_multiple_symbols_data(self.coins, end_str = current_date.strftime('%Y-%m-%d %H:%M:%S'))
-            signals = self.strategy.run(data, self.pairs)
+    formation_data = collector.get_multiple_symbols_data(symbols=coins, start_str=formation_start_str, end_str=formation_end_str)
+    marginal_summary = MarginalFitter().fit_assets(formation_data, coins)
+    copula_fitter = CopulaFitter()
+    selected_pairs = select_pairs(coins, formation_data)
+    copula_summary = copula_fitter.fit_assets(selected_pairs, marginal_summary)
+    
+    backtest_data = collector.get_multiple_symbols_data(symbols=coins, start_str=backtest_start_str, end_str=backtest_end_str)
 
-            for symbol in self.coins:
-                if not data[symbol].empty:
-                    self.prices[symbol] = data[symbol]['close'].iloc[-1]
-
-            for signal in signals.values():
-                c1, c2 = signal['c1'], signal['c2']
-                mi = signal['mi']
-
-                current_pair_bool = False
-                for pair in self.pairs:
-                    if c1 in pair.keys() and c2 in pair.keys():
-                        current_pair_bool = True
-                        pnl = pair[c1]['size'] * (self.prices[c1] - pair[c1]['entry_price']) + pair[c2]['size'] * (self.prices[c2] - pair[c2]['entry_price'])
-                        # if (pair[c1]['size'] < 0 and mi < self.config.long_exit_threshold) or \
-                        #     (pair[c1]['size'] > 0 and mi > self.config.short_exit_threshold) or \
-                        if pnl > self.margin_balance * self.config.take_profit_pc or \
-                            pnl < -self.margin_balance * self.config.stop_loss_pc:
-                            # Exit the position
-                            commission = (abs(pair[c1]['size']) * self.prices[c1] + abs(pair[c2]['size']) * self.prices[c2]) * self.config.commission_pc
-                            self.pnls.append(pnl)
-                            self.commissions.append(commission)
-                            self.wallet_balance += pnl - commission
-
-                            self.trades.append({
-                                'c1': c1,
-                                'c2': c2,
-                                'size_1': pair[c1]['size'],
-                                'size_2': pair[c2]['size'],
-                                'hedge_ratio': np.nan,
-                                'price_1': self.prices[c1],
-                                'price_2': self.prices[c2],
-                                'commission': commission,
-                                'trade_date': current_date,
-                                'side': 'long' if pair[c1]['size'] < 0 else 'short',
-                                'entry_or_exit': 'exit',
-                                'pnl': pnl
-                            })
-
-                            self.pairs.remove(pair)
-
-                
-                if not current_pair_bool and len(self.pairs) < self.config.max_positions:
-                    if mi > self.config.long_threshold:
-                        hedge_ratio = self.get_hedge_ratio(c1, c2, data)
-                        if hedge_ratio < 0:
-                            hedge_ratio_negative_count += 1
-                        else:
-                            unit_1, unit_2 = self.calculate_position_size(c1, c2, self.prices[c1], self.prices[c2], hedge_ratio)
-                            self.pairs.append({
-                                c1: {'size': -unit_1, 'entry_price': self.prices[c1]},
-                                c2: {'size': unit_2, 'entry_price': self.prices[c2]}
-                            })
-                            commission = (abs(unit_1) * self.prices[c1] + abs(unit_2) * self.prices[c2]) * self.config.commission_pc
-                            self.commissions.append(commission)
-                            self.wallet_balance -= commission
-
-                            self.trades.append({
-                                'c1': c1,
-                                'c2': c2,
-                                'size_1': -unit_1,
-                                'size_2': unit_2,
-                                'hedge_ratio': hedge_ratio,
-                                'entry_price_1': self.prices[c1],
-                                'entry_price_2': self.prices[c2],
-                                'commission': commission,
-                                'trade_date': current_date,
-                                'side': 'long',
-                                'entry_or_exit': 'entry',
-                                'pnl': 0
-                            })
-                    elif mi < self.config.short_threshold:
-                        hedge_ratio = self.get_hedge_ratio(c1, c2, data)
-                        if hedge_ratio < 0:
-                            hedge_ratio_negative_count += 1
-                        else:                                                   
-                            unit_1, unit_2 = self.calculate_position_size(c1, c2, self.prices[c1], self.prices[c2], hedge_ratio)
-                            self.pairs.append({
-                                c1: {'size': unit_1, 'entry_price': self.prices[c1]},
-                                c2: {'size': -unit_2, 'entry_price': self.prices[c2]}
-                            })
-                            commission = (abs(unit_1) * self.prices[c1] + abs(unit_2) * self.prices[c2]) * self.config.commission_pc
-                            self.commissions.append(commission)
-                            self.wallet_balance -= commission
-
-                            self.trades.append({
-                                'c1': c1,
-                                'c2': c2,
-                                'size_1': unit_1,
-                                'size_2': -unit_2,
-                                'hedge_ratio': hedge_ratio,
-                                'entry_price_1': self.prices[c1],
-                                'entry_price_2': self.prices[c2],
-                                'commission': commission,
-                                'trade_date': current_date,
-                                'side': 'short',
-                                'entry_or_exit': 'entry',
-                                'pnl': 0
-                            })
-            
-            # Calculate unrealised PnL
-            unrealised_pnl = self.calculate_unrealised_pnl(self.prices)
-            self.margin_balance = self.wallet_balance + unrealised_pnl
-            self.equity_curve.append(self.margin_balance)
-            
-            print(f"Current date: {current_date}")
-            print(f"Margin balance: {self.margin_balance}")
-            print(f"Number of pairs: {len(self.pairs)}")
-
-            self.max_pairs = max(self.max_pairs, len(self.pairs))
-            current_date += timedelta(hours=1)
-        
-        # Calculate performance metrics
-        total_return = (self.margin_balance - self.initial_capital) / self.initial_capital
-        sharpe_ratio = pd.Series(self.pnls).mean() / pd.Series(self.pnls).std()
-        
-        return {
-            'total_return': total_return,
-            'ending_margin_balance': self.margin_balance,
-            'sharpe_ratio': sharpe_ratio,
-            'num_trades': len(self.pnls),
-            'pnls': sum(self.pnls),
-            'max_pairs': self.max_pairs,
-            'negative_hedge_ratio_count': hedge_ratio_negative_count,
-            'equity_curve': self.equity_curve,
-            'trades': self.trades,
-            'pnls': self.pnls,
-            'commissions': self.commissions,            
-        }
-
-if __name__ == '__main__':
-    # Record the start time
-    start_time = datetime.now()
-
-    backtest = Backtest(
-        initial_capital=100000,
-        start_date='2023-01-01 00:00:00',
-        end_date='2024-06-30 23:59:59'
+    backtest = Backtest()
+    backtest.backtest_config(
+        data=backtest_data,
+        selected_pairs=selected_pairs,
+        marginal_summary=marginal_summary,
+        copula_fitter=copula_fitter
     )
     results = backtest.run()
-    print(f"Total Return: {results['total_return']:.2%}")
-    print(f"Sharpe Ratio: {results['sharpe_ratio']:.2f}")
-    print(f"Number of Trades: {results['num_trades']}")
-    print(f"Total PnL: {sum(results['pnls']):.2f}")
-    print(f"Max Number of Pairs: {results['max_pairs']}")
-    print(f"Negative Hedge Ratio Count: {results['negative_hedge_ratio_count']}")
 
-    # Export the equity curve, trades, pnls, and commissions to csv
-    pd.DataFrame(results['equity_curve']).to_csv('equity_curve.csv', index=False)
-    pd.DataFrame(results['trades']).to_csv('trades.csv', index=False)
+def stock_backtest():
+    import yfinance as yf
+    
+    collector = BinanceDataCollector()
+    
+    formation_start_str = '2022-01-01'
+    formation_end_str = '2022-12-31'
+    backtest_start_str = '2023-01-01'
+    backtest_end_str = '2023-12-31'
+    
+    stocks = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'TSLA',
+              'NVDA', 'META', 'NFLX', 'CSCO', 'INTC',
+              'QCOM', 'ORCL', 'IBM', 'SAP', 'IBM']
+    data = yf.download(stocks, start='2022-01-01', end='2022-12-31')
+    
+    # Transform data into dictionary of DataFrames
+    data_dict = {}
+    for stock in stocks:
+        data_dict[stock] = pd.DataFrame({
+            'open': data['Open'][stock],
+            'high': data['High'][stock],
+            'low': data['Low'][stock],
+            'close': data['Close'][stock],
+            'volume': data['Volume'][stock]
+        })
+    
+    print("Data structure:", {k: v.shape for k, v in data_dict.items()})
+    print("\nSample data for first stock:", data_dict[stocks[0]].head())
+    
+    marginal_summary = MarginalFitter().fit_assets(data_dict, stocks)
+    copula_fitter = CopulaFitter()
+    selected_pairs = select_pairs(stocks, data_dict)
+    copula_summary = copula_fitter.fit_assets(selected_pairs, marginal_summary)
+    
+    backtest_data = yf.download(stocks, start=backtest_start_str, end=backtest_end_str)
 
-    # Calculate the total runtime
-    end_time = datetime.now()
-    runtime = end_time - start_time
-    print(f"Total runtime: {runtime}")
+    backtest = Backtest()
+    backtest.backtest_config(
+        data=backtest_data,
+        selected_pairs=selected_pairs,
+        marginal_summary=marginal_summary,
+        copula_fitter=copula_fitter
+    )
+    results = backtest.run()
+
+if __name__ == "__main__":
+    # stock_backtest()
+    crypto_backtest()
