@@ -52,11 +52,17 @@ class Backtest:
         denoised_data = pywt.waverec(coeffs, wavelet)
         return denoised_data[-1]
 
+    def get_qty(self, prices1: pd.Series, prices2: pd.Series, margin_balance: float) -> float:
+        hedge_ratio = np.polyfit(prices2, prices1, 1)[0]
+        qty1 = margin_balance * self.config.investable_budget_pc / (prices1.iloc[-1] + prices2.iloc[-1] * hedge_ratio)
+        qty2 = qty1 * hedge_ratio
+        return round(qty1, 3), round(qty2, 3)
+
     def run(self):
-        result = []
         ending_balances = []
         for pair in self.selected_pairs:
             self.__init__()
+            result = []
             c1, c2 = pair
             timestamps = sorted(list(set.intersection(*[set(self.data[asset].index) for asset in [c1, c2]])))
             entry_price1 = 0
@@ -95,8 +101,12 @@ class Backtest:
                 u2 = stats.t.cdf(return2, *self.marginal_summary[c2]['params'])
                 h1, _ = self.copula_fitter.copulae[f'{c1}-{c2}'].mispricing_index(u1, u2)
                 if h1 > self.config.long_threshold and side == None and stop_loss != 'stop loss from long':
-                    qty1 = round(margin_balance * self.config.investable_budget_pc * 0.5 / price1, 3)
-                    qty2 = -round(margin_balance * self.config.investable_budget_pc * 0.5 / price2, 3)
+                    # qty1 = round(margin_balance * self.config.investable_budget_pc * 0.5 / price1, 3)
+                    # qty2 = -round(margin_balance * self.config.investable_budget_pc * 0.5 / price2, 3)
+                    qty1, qty2 = self.get_qty(self.data[c1].loc[timestamps[t-self.config.ewm_window:t], 'close'],
+                                              self.data[c2].loc[timestamps[t-self.config.ewm_window:t], 'close'],
+                                              margin_balance)
+                    qty2 *= -1
                     entry_price1 = price1
                     entry_price2 = price2
                     commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
@@ -104,8 +114,12 @@ class Backtest:
                     side = 'long'
                     stop_loss = None
                 elif h1 < self.config.short_threshold and side == None and stop_loss != 'stop loss from short':
-                    qty1 = -round(margin_balance * self.config.investable_budget_pc * 0.5 / price1, 3)
-                    qty2 = round(margin_balance * self.config.investable_budget_pc * 0.5 / price2, 3)
+                    # qty1 = -round(margin_balance * self.config.investable_budget_pc * 0.5 / price1, 3)
+                    # qty2 = round(margin_balance * self.config.investable_budget_pc * 0.5 / price2, 3)
+                    qty1, qty2 = self.get_qty(self.data[c1].loc[timestamps[t-self.config.ewm_window:t], 'close'],
+                                              self.data[c2].loc[timestamps[t-self.config.ewm_window:t], 'close'],
+                                              margin_balance)
+                    qty1 *= -1
                     entry_price1 = price1
                     entry_price2 = price2
                     commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
@@ -113,7 +127,7 @@ class Backtest:
                     side = 'short'
                     stop_loss = None
                 # Exit
-                elif h1 < self.config.long_exit_threshold and side == 'long' and qty1 > 0:
+                elif h1 < self.config.long_exit_threshold and side == 'long':
                     commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
                     wallet_balance += pnl - commission
                     pnl = 0
@@ -122,8 +136,8 @@ class Backtest:
                     entry_price1 = 0
                     entry_price2 = 0
                     side = None
-                elif h1 > self.config.short_exit_threshold and self.side == 'short' and len(self.current_position) > 0:
-                    commission = self.config.commission_pc * (abs(self.current_position[c1]['size']) * price1 + abs(self.current_position[c2]['size']) * price2)
+                elif h1 > self.config.short_exit_threshold and side == 'short':
+                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
                     wallet_balance += pnl - commission
                     pnl = 0
                     qty1 = 0
@@ -149,7 +163,7 @@ class Backtest:
                     'wallet_balance': wallet_balance,
                 }
                 result.append(output)
-            ending_balances.append((f'{c1}-{c2}', margin_balance + pnl))
+            ending_balances.append((f'{c1}-{c2}', margin_balance))
             pd.DataFrame(result).to_csv(f'backtest_results/{c1}-{c2}.csv', index=False)
         pd.DataFrame(ending_balances, columns=['pair', 'ending_balance']).to_csv('backtest_results/ending_balances.csv', index=False)
         
@@ -158,32 +172,33 @@ def select_pairs(coins: list[str], data: dict):
     for i in range(len(coins)):
         for j in range(i+1, len(coins)):
             c1, c2 = coins[i], coins[j]
-            coint_t, _, _ = coint(data[c1]['close'], data[c2]['close'])
+            coint_t, p_value, _ = coint(data[c1]['close'], data[c2]['close'])
             if coint_t > Config().coint_threshold:
-                pairs_with_stats.append((c1, c2, coint_t))
+                pairs_with_stats.append((c1, c2, coint_t, p_value))
     
     pairs_with_stats.sort(key=lambda x: x[2], reverse=True)
-    selected_pairs = [(c1, c2) for c1, c2, _ in pairs_with_stats]
-    output = pd.DataFrame(pairs_with_stats, columns=['c1', 'c2', 't-stat'])
-    output.to_csv('pairs_with_stats.csv', index=False)
-    # selected_pairs = [(c1, c2) for c1, c2, _ in pairs_with_stats[:Config().num_pairs]]
+    # selected_pairs = [(c1, c2) for c1, c2, _, _ in pairs_with_stats]
+    output = pd.DataFrame(pairs_with_stats, columns=['c1', 'c2', 't-stat', 'p-value'])
+    output.to_csv('backtest_results/pairs_with_stats.csv', index=False)
+    selected_pairs = [(c1, c2) for c1, c2, _, _ in pairs_with_stats[:Config().num_pairs]]
     return selected_pairs
 
 def crypto_backtest():
     collector = BinanceDataCollector()
     
-    formation_start_str = '2022-01-01 00:00:00'
-    formation_end_str = '2022-12-31 23:59:59'
-    backtest_start_str = '2023-01-01 00:00:00'
-    backtest_end_str = '2023-12-31 23:59:59'
+    # formation_start_str = '2022-01-01 00:00:00'
+    # formation_end_str = '2023-12-31 23:59:59'
+    backtest_start_str = '2024-01-01 00:00:00'
+    backtest_end_str = '2024-12-31 23:59:59'
     
     coins = Config().coins
 
-    formation_data = collector.get_multiple_symbols_data(symbols=coins, start_str=formation_start_str, end_str=formation_end_str)
-    marginal_summary = MarginalFitter().fit_assets(formation_data, coins)
-    copula_fitter = CopulaFitter()
+    # formation_data = collector.get_multiple_symbols_data(symbols=coins, start_str=formation_start_str, end_str=formation_end_str)
+    # marginal_summary = MarginalFitter().fit_assets(formation_data, coins)
+    # copula_fitter = CopulaFitter()
+    
     selected_pairs = select_pairs(coins, formation_data)
-    copula_summary = copula_fitter.fit_assets(selected_pairs, marginal_summary)
+    # copula_summary = copula_fitter.fit_assets(selected_pairs, marginal_summary)
     
     backtest_data = collector.get_multiple_symbols_data(symbols=coins, start_str=backtest_start_str, end_str=backtest_end_str)
 

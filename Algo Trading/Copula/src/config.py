@@ -18,9 +18,9 @@ class Config:
         self.num_pairs = 10
 
         # Copula-based strategy
-        self.long_threshold = 0.95            # copula-based MI threshold for long positions
+        self.long_threshold = 0.7   # 0.95    # copula-based MI threshold for long positions
         self.long_exit_threshold = 0.3        # copula-based MI threshold for long exit
-        self.short_threshold = 0.05           # copula-based MI threshold for short positions
+        self.short_threshold = 0.3  # 0.05    # copula-based MI threshold for short positions
         self.short_exit_threshold = 0.7       # copula-based MI threshold for short exit
 
         # Risk management
@@ -28,6 +28,7 @@ class Config:
         self.max_positions = 100
         self.take_profit_pc = 0.03
         self.stop_loss_pc = -0.02
+        self.leverage = 10
 
         # Backtest parameters
         self.commission_pc = 0.00045 # 0.045%

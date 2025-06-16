@@ -4,6 +4,8 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy import stats
+
 from datetime import datetime
 from typing import Dict
 from scipy.optimize import minimize
@@ -126,17 +128,37 @@ class CopulaFitter:
 
         return results
 
-    def fit_assets(self, selected_pairs: list, marginal_summary: Dict[str, Dict]) -> Dict[str, Dict]:
+    def fit_assets(self, selected_pairs: list, formation_data: Dict[str, pd.DataFrame], marginal_params: pd.DataFrame) -> Dict[str, Dict]:
         summary = {}
-        for c1, c2 in selected_pairs:
-            pair = f'{c1}-{c2}'
-            u = marginal_summary[c1]['uniform']
-            v = marginal_summary[c2]['uniform']
+        for pair in selected_pairs:
+            c1, c2 = pair.split('-')
+            return1 = formation_data[c1]['close'].pct_change().dropna()
+            return2 = formation_data[c2]['close'].pct_change().dropna()
+            params1 = marginal_params[marginal_params['asset'] == c1]
+            params2 = marginal_params[marginal_params['asset'] == c2]
+            u = stats.t.cdf(return1,
+                            params1['df'],
+                            params1['loc'],
+                            params1['scale'])
+            v = stats.t.cdf(return2,
+                            params2['df'],
+                            params2['loc'],
+                            params2['scale'])
             self.copulae[pair] = TawnType1Copula()
             self.copulae[pair].fit(u, v)
             summary[pair] = self.evaluate(u, v, pair)
         return summary
-    
+
+    def save_copula_params(self):
+        copula_params = []
+        for pair in self.copulae:
+            copula_params.append({
+                'pair': pair,
+                'theta': self.copulae[pair].theta,
+                'psi': self.copulae[pair].psi
+            })
+        pd.DataFrame(copula_params).to_csv('model_params/copula_params.csv', index=False)
+            
 def exp_smoothed_return(data: pd.Series, window: int = 12, alpha: float = 0.1) -> float:
     returns = data[-window:].pct_change()
     returns = returns.dropna()
@@ -146,72 +168,16 @@ def exp_smoothed_return(data: pd.Series, window: int = 12, alpha: float = 0.1) -
 if __name__ == "__main__":
     from collector import BinanceDataCollector
     from config import Config
-    from marginal_fitter import MarginalFitter
-    from itertools import combinations
 
-    start_time = datetime.now()
-    coins = Config().coins
     collector = BinanceDataCollector()
-
-    # # Create combined DataFrame
-    combined_df = pd.DataFrame()
+    coins = Config().coins
     
-    formation_start_str = '2023-01-01 00:00:00'
-    formation_end_str = '2023-06-30 23:59:59'
-    backtest_start_str = '2023-07-01 00:00:00'
-    backtest_end_str = '2023-12-31 23:59:59'
-
+    formation_start_str = '2024-01-01 00:00:00'
+    formation_end_str = '2025-06-15 23:59:59'
     formation_data = collector.get_multiple_symbols_data(symbols=coins, start_str=formation_start_str, end_str=formation_end_str)
-    marginal_summary = MarginalFitter().fit_assets(formation_data, coins)
-    df = pd.DataFrame(marginal_summary).T
-    params_df = pd.DataFrame(df['params'].tolist(), index=df.index, columns=['shape', 'scale', 'location'])
-    marginal_df = pd.concat([params_df, df['p_value']], axis=1)
-
     copula_fitter = CopulaFitter()
-    selected_pairs = list(combinations(coins, 2))
-    summary = copula_fitter.fit_assets(selected_pairs, marginal_summary)
-    copula_df = pd.DataFrame(summary).T[['theta', 'psi', 'cvm_statistic']]
-
-    backtest_data = collector.get_multiple_symbols_data(symbols=coins, start_str=backtest_start_str, end_str=backtest_end_str)
-    
-    counter = 0
-    output = pd.DataFrame()
-    for pair, copula in copula_fitter.copulae.items():
-        counter += 1
-        print(f'progress: {counter}/{len(copula_fitter.copulae)}')
-        c1, c2 = pair.split('-')
-        timestamps = sorted(list(set.intersection(*[set(backtest_data[asset].index) for asset in [c1, c2]])))
-        return1_list = np.zeros(len(timestamps)-1)
-        return2_list = np.zeros(len(timestamps)-1)
-        u1_list = np.zeros(len(timestamps)-1)
-        u2_list = np.zeros(len(timestamps)-1)
-        h1_list = np.zeros(len(timestamps)-1)
-        h2_list = np.zeros(len(timestamps)-1)
-        for t in range(1, len(timestamps)):
-            window = 13   # 13 hours
-            if t < window:
-                continue
-            return1 = exp_smoothed_return(backtest_data[c1].loc[timestamps[t-window:t], 'close'])
-            return2 = exp_smoothed_return(backtest_data[c2].loc[timestamps[t-window:t], 'close'])
-            u1 = stats.t.cdf(return1, *marginal_summary[c1]['params'])
-            u2 = stats.t.cdf(return2, *marginal_summary[c2]['params'])
-            h1, h2 = copula.mispricing_index(u1, u2)
-            return1_list[t-1] = return1
-            return2_list[t-1] = return2
-            u1_list[t-1] = u1
-            u2_list[t-1] = u2
-            h1_list[t-1] = h1
-            h2_list[t-1] = h2
-
-        output = pd.concat([output, pd.DataFrame({
-            'pair': [pair] * (len(timestamps)-1),
-            'timestamp': timestamps[1:],
-            'return1': return1_list,
-            'return2': return2_list,
-            'u1': u1_list,
-            'u2': u2_list,
-            'h1': h1_list,
-            'h2': h2_list
-        })], ignore_index=True)
-    output.to_csv('copula_mispricing_index.csv', index=False)
-    print(f'Time taken: {datetime.now() - start_time}')
+    positions = pd.read_csv('trading_results/positions.csv')
+    selected_pairs = positions['pair'].unique().tolist()
+    marginal_params = pd.read_csv('model_params/marginal_params.csv')
+    copula_summary = copula_fitter.fit_assets(selected_pairs, formation_data, marginal_params)
+    copula_fitter.save_copula_params()

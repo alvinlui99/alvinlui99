@@ -17,6 +17,7 @@ class MarginalFitter:
 
     def fit_assets(self, data: Dict[str, pd.DataFrame], asset_names: list, returns_col: str = 'close') -> Dict[str, Dict]:
         summary = {}
+        marginal_params = []
         for asset in asset_names:
             df = data[asset]
             self.returns[asset] = df[returns_col].pct_change().dropna().values
@@ -29,6 +30,13 @@ class MarginalFitter:
                 'params': self.models[asset],
                 'p_value': p_value
             }
+            marginal_params.append({
+                'asset': asset,
+                'df': self.models[asset][0],
+                'loc': self.models[asset][1],
+                'scale': self.models[asset][2]
+            })
+        pd.DataFrame(marginal_params).to_csv('model_params/marginal_params.csv', index=False)
         return summary
     
     def qq_plot(self, asset: str):
@@ -41,8 +49,6 @@ if __name__ == "__main__":
     from config import Config
     coins = Config().coins
     collector = BinanceDataCollector()
-    data = collector.get_multiple_symbols_data(symbols=coins, start_str='2023-01-01 00:00:00', end_str='2023-01-31 23:59:59')
+    data = collector.get_multiple_symbols_data(symbols=coins, start_str='2024-01-01 00:00:00', end_str='2025-06-15 23:59:59')
     marginal_fitter = MarginalFitter()
     summary = marginal_fitter.fit_assets(data, coins)
-    for c in coins:
-        marginal_fitter.qq_plot(c)
