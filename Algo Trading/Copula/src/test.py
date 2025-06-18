@@ -214,24 +214,11 @@ def select_pairs(coins: list[str], data: dict):
     return selected_pairs
 
 if __name__ == '__main__':
-    client = UMFutures(key=os.getenv('BINANCE_API_KEY'), secret=os.getenv('BINANCE_API_SECRET'), base_url='https://testnet.binancefuture.com')
-    # btc_price = float(client.mark_price(symbol='BTCUSDT')['markPrice'])
-    # eth_price = float(client.mark_price(symbol='ETHUSDT')['markPrice'])
-
-    # btc_qty = round(95 * 10 * 0.5 / btc_price, 3)
-    # eth_qty = round(95 * 10 * 0.5 / eth_price, 3)
-
-    # client.new_order(symbol='BTCUSDT', side='BUY', quantity=btc_qty, type='MARKET')
-    # client.new_order(symbol='ETHUSDT', side='SELL', quantity=eth_qty, type='MARKET')
-
-    coins = Config().coins
-    info = client.exchange_info()
-
-    for d in info['symbols']:
-        if d['symbol'] == 'BTCUSDT':
-            print(d['quantityPrecision'])
-    # for d in info['symbols']:
-    #     if d['symbol'] in coins:
-    #         for k, v in d.items():
-    #             print(f'{k}: {v}')
-    #         print('--------------------------------')
+    from collector import BybitDataCollector
+    collector = BybitDataCollector()
+    start_str = '2025-06-01 00:00:00'
+    end_str = '2025-06-16 00:00:00'
+    start_ms = int(datetime.strptime(start_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000)
+    end_ms = int(datetime.strptime(end_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000)
+    data = collector.get_multiple_symbols_data(symbols=['BTCUSDT', 'ETHUSDT'], start_str=start_str, end_str=end_str)
+    print(data)

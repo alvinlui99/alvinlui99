@@ -7,9 +7,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from config import Config
-from collector import BinanceDataCollector
-from copula_fitter import CopulaFitter
-from marginal_fitter import MarginalFitter
+from collector import BybitDataCollector, BinanceDataCollector
+from copula_fitter import TawnType1Copula
 
 class Backtest:
     def __init__(self):
@@ -25,237 +24,221 @@ class Backtest:
     def backtest_config(self,
                data: dict,
                selected_pairs: list[tuple[str, str]],
-               marginal_summary: dict,
-               copula_fitter: CopulaFitter):
+               marginal_params: pd.DataFrame,
+               copula_params: pd.DataFrame,
+               backtest_start_str: str,
+               backtest_end_str: str,
+               file_extension: str,
+               portfolio: dict):
         self.config = Config()
         self.data = data
         self.selected_pairs = selected_pairs
-        self.marginal_summary = marginal_summary
-        self.copula_fitter = copula_fitter
-        self.current_position = {}
-        self.side = None
-        self.stop_loss = None
+        self.marginal_params = marginal_params
+        self.copula_params = copula_params
+        self.copulae = {}
+        for c1, c2 in selected_pairs:
+            params = self.copula_params[(self.copula_params['c1'] == c1) & (self.copula_params['c2'] == c2)].to_dict('records')[0]
+            self.copulae[f'{c1}-{c2}'] = TawnType1Copula(theta=params['theta'], psi=params['psi'])
+
+        self.backtest_start_str = backtest_start_str
+        self.backtest_end_str = backtest_end_str
+        self.file_extension = file_extension
+        self.portfolio = portfolio
+        # portfolio: {
+        #     'wallet_balance': float,                 # wallet balance does not include unrealised pnl
+        #     'margin_balance': float,                 # margin balance includes unrealised pnl
+        #     'asset': {
+        #         'symbol': float                      # symbol: qty
+        #     }
+        #     'pair': {
+        #         'pair_name': {
+        #             'qty1': float,
+        #             'qty2': float,
+        #             'entry_price1': float,
+        #             'entry_price2': float,
+        #             'side': int, # 1: long, -1: short
+        #             'stop_loss': int, # 1: stop loss, do not enter long, -1: stop loss, do not enter short, 0: no stop loss
+        #         }
+        #     }
+        # }
 
     def exp_smoothed_return(self, data: pd.Series, alpha: float = 0.3) -> float:
         returns = data.pct_change().dropna()
         returns = returns.ewm(alpha=alpha).mean()
         return returns.iloc[-1]
 
-    def mad(self, data) -> float:
-        return np.median(np.abs(data - np.median(data)))
-
-    def denoise_return(self, data: pd.Series, wavelet: str = 'db4', level: int = 5) -> float:
-        coeffs = pywt.wavedec(data, wavelet, level=level)
-        sigma = self.mad(coeffs[-level])
-        uthresh = sigma * np.sqrt(2*np.log(len(data)))
-        coeffs[1:] = (pywt.threshold(i, value=uthresh) for i in coeffs[1:])
-        denoised_data = pywt.waverec(coeffs, wavelet)
-        return denoised_data[-1]
-
     def get_qty(self, prices1: pd.Series, prices2: pd.Series, margin_balance: float) -> float:
-        hedge_ratio = np.polyfit(prices2, prices1, 1)[0]
+        hedge_ratio = np.sum(prices1 * prices2) / np.sum(prices2 ** 2)
+        # hedge_ratio = np.polyfit(prices2, prices1, 1)[0]
         qty1 = margin_balance * self.config.investable_budget_pc / (prices1.iloc[-1] + prices2.iloc[-1] * hedge_ratio)
         qty2 = qty1 * hedge_ratio
         return round(qty1, 3), round(qty2, 3)
 
+    def update_margin_balance(self, current_price_dict: dict) -> None:
+        self.portfolio['margin_balance'] = self.portfolio['wallet_balance']
+        for pair in self.portfolio['pair']:
+            c1, c2 = pair.split('-')
+            price1 = current_price_dict[c1]
+            price2 = current_price_dict[c2]
+            entry_price1 = self.portfolio['pair'][pair]['entry_price1']
+            entry_price2 = self.portfolio['pair'][pair]['entry_price2']
+            qty1 = self.portfolio['pair'][pair]['qty1']
+            qty2 = self.portfolio['pair'][pair]['qty2']
+            self.portfolio['margin_balance'] += (price1 - entry_price1) * qty1 + (price2 - entry_price2) * qty2
+
+    def execute_netting(self, netting: dict, current_price_dict: dict) -> None:
+        for asset, qty in netting.items():
+            current_price = current_price_dict[asset]
+            commission = self.config.commission_pc * (abs(qty) * current_price)
+            self.portfolio['asset'][asset] += qty
+            self.portfolio['wallet_balance'] -= commission
+
     def run(self):
-        ending_balances = []
-        for pair in self.selected_pairs:
-            self.__init__()
-            result = []
-            c1, c2 = pair
-            timestamps = sorted(list(set.intersection(*[set(self.data[asset].index) for asset in [c1, c2]])))
-            entry_price1 = 0
-            entry_price2 = 0
-            qty1 = 0
-            qty2 = 0
-            stop_loss = None
-            side = None
-            margin_balance = self.initial_balance
-            wallet_balance = self.initial_balance
-            for t in range(1, len(timestamps)):
-                if t < self.config.ewm_window:
-                    continue
-
-                price1 = self.data[c1].loc[timestamps[t], 'close']
-                price2 = self.data[c2].loc[timestamps[t], 'close']
-
-                # Stop loss
-                pnl = (price1 - entry_price1) * qty1 + (price2 - entry_price2) * qty2
-                commission = 0
-                if pnl < margin_balance * self.config.stop_loss_pc:
-                    stop_loss = 'stop loss from ' + side
-                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
-                    wallet_balance += pnl - commission
-                    pnl = 0
-                    side = None
-                    qty1 = 0
-                    qty2 = 0
-                    entry_price1 = 0
-                    entry_price2 = 0
-
-                # Entry
+        timestamps = sorted(list(set.intersection(*[set(self.data[asset].index) for pair in self.selected_pairs for asset in pair])))
+        for t in range(self.config.ewm_window, len(timestamps)):
+            current_price_dict = {asset: self.data[asset].loc[timestamps[t], 'close'] for asset in self.data.keys()}
+            self.update_margin_balance(current_price_dict)
+            netting = {
+                asset: 0 for asset in self.data.keys()
+            }
+            for pair in self.selected_pairs:
+                c1, c2 = pair
+                pair_name = f'{c1}-{c2}'
+                price1 = current_price_dict[c1]
+                price2 = current_price_dict[c2]
                 return1 = self.exp_smoothed_return(self.data[c1].loc[timestamps[t-self.config.ewm_window:t], 'close'])
                 return2 = self.exp_smoothed_return(self.data[c2].loc[timestamps[t-self.config.ewm_window:t], 'close'])
-                u1 = stats.t.cdf(return1, *self.marginal_summary[c1]['params'])
-                u2 = stats.t.cdf(return2, *self.marginal_summary[c2]['params'])
-                h1, _ = self.copula_fitter.copulae[f'{c1}-{c2}'].mispricing_index(u1, u2)
-                if h1 > self.config.long_threshold and side == None and stop_loss != 'stop loss from long':
-                    # qty1 = round(margin_balance * self.config.investable_budget_pc * 0.5 / price1, 3)
-                    # qty2 = -round(margin_balance * self.config.investable_budget_pc * 0.5 / price2, 3)
-                    qty1, qty2 = self.get_qty(self.data[c1].loc[timestamps[t-self.config.ewm_window:t], 'close'],
-                                              self.data[c2].loc[timestamps[t-self.config.ewm_window:t], 'close'],
-                                              margin_balance)
-                    qty2 *= -1
-                    entry_price1 = price1
-                    entry_price2 = price2
-                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
-                    wallet_balance -= commission
-                    side = 'long'
-                    stop_loss = None
-                elif h1 < self.config.short_threshold and side == None and stop_loss != 'stop loss from short':
-                    # qty1 = -round(margin_balance * self.config.investable_budget_pc * 0.5 / price1, 3)
-                    # qty2 = round(margin_balance * self.config.investable_budget_pc * 0.5 / price2, 3)
-                    qty1, qty2 = self.get_qty(self.data[c1].loc[timestamps[t-self.config.ewm_window:t], 'close'],
-                                              self.data[c2].loc[timestamps[t-self.config.ewm_window:t], 'close'],
-                                              margin_balance)
-                    qty1 *= -1
-                    entry_price1 = price1
-                    entry_price2 = price2
-                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
-                    wallet_balance -= commission
-                    side = 'short'
-                    stop_loss = None
-                # Exit
-                elif h1 < self.config.long_exit_threshold and side == 'long':
-                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
-                    wallet_balance += pnl - commission
-                    pnl = 0
-                    qty1 = 0
-                    qty2 = 0
-                    entry_price1 = 0
-                    entry_price2 = 0
-                    side = None
-                elif h1 > self.config.short_exit_threshold and side == 'short':
-                    commission = self.config.commission_pc * (abs(qty1) * price1 + abs(qty2) * price2)
-                    wallet_balance += pnl - commission
-                    pnl = 0
-                    qty1 = 0
-                    qty2 = 0
-                    entry_price1 = 0
-                    entry_price2 = 0
-                    side = None
-                margin_balance = wallet_balance + pnl
+                params1 = self.marginal_params[self.marginal_params['asset'] == c1].to_dict('records')[0]
+                params2 = self.marginal_params[self.marginal_params['asset'] == c2].to_dict('records')[0]
+                u1 = stats.t.cdf(return1, params1['df'], params1['loc'], params1['scale'])
+                u2 = stats.t.cdf(return2, params2['df'], params2['loc'], params2['scale'])
+                h1, _ = self.copulae[f'{c1}-{c2}'].mispricing_index(u1, u2)
+                if self.portfolio['pair'][pair_name]['side'] != 0:      # If there is existing position
+                    side = self.portfolio['pair'][pair_name]['side']
+                    qty1 = self.portfolio['pair'][pair_name]['qty1']
+                    qty2 = self.portfolio['pair'][pair_name]['qty2']
+                    entry_price1 = self.portfolio['pair'][pair_name]['entry_price1']
+                    entry_price2 = self.portfolio['pair'][pair_name]['entry_price2']
+                    pnl = (price1 - entry_price1) * qty1 + (price2 - entry_price2) * qty2
+                    # if False:
+                    #     pass
+                    if pnl < self.portfolio['margin_balance'] * self.config.stop_loss_pc:       # If stop loss, close position and set stop_loss
+                        self.portfolio['pair'][pair_name] = {
+                            'qty1': 0,
+                            'qty2': 0,
+                            'entry_price1': 0,
+                            'entry_price2': 0,
+                            'side': 0,
+                            'stop_loss': side,                                      # If stop loss from long, set stop_loss to 1, do not enter long again. If stop loss from short, set stop_loss to -1, do not enter short again
+                        }
+                        # realise pnl on wallet balance
+                        self.portfolio['wallet_balance'] += pnl
 
-                output = {
-                    'price1': price1,
-                    'price2': price2,
-                    'u1': u1,
-                    'u2': u2,
-                    'h1': h1,
-                    'qty1': qty1,
-                    'qty2': qty2,
-                    'entry_price1': entry_price1,
-                    'entry_price2': entry_price2,
-                    'pnl': pnl,
-                    'commission': commission,
-                    'margin_balance': margin_balance,
-                    'wallet_balance': wallet_balance,
-                }
-                result.append(output)
-            ending_balances.append((f'{c1}-{c2}', margin_balance))
-            pd.DataFrame(result).to_csv(f'backtest_results/{c1}-{c2}.csv', index=False)
-        pd.DataFrame(ending_balances, columns=['pair', 'ending_balance']).to_csv('backtest_results/ending_balances.csv', index=False)
-        
+                        # leave commission to netting
+                        netting[c1] -= qty1
+                        netting[c2] -= qty2
+                        # print(f'{pair_name} stop loss: {pnl:.2f}')
+                    else:                                                                       # If not stop loss, check for exit
+                        if side == 1 and h1 < self.config.long_exit_threshold:
+                            self.portfolio['pair'][pair_name] = {
+                                'qty1': 0,
+                                'qty2': 0,
+                                'entry_price1': 0,
+                                'entry_price2': 0,
+                                'side': 0,
+                                'stop_loss': 0,
+                            }
+                            # realise pnl on wallet balance
+                            self.portfolio['wallet_balance'] += pnl
+
+                            # leave commission to netting
+                            netting[c1] -= qty1
+                            netting[c2] -= qty2
+                            # print(f'{pair_name} long exit: {pnl:.2f}. Entry price 1: {entry_price1:.2f}. Entry price 2: {entry_price2:.2f}. Exit price 1: {price1:.2f}. Exit price 2: {price2:.2f}. Entry Size: {abs(qty1) * entry_price1 + abs(qty2) * entry_price2:.2f}.')
+                        elif side == -1 and h1 > self.config.short_exit_threshold:
+                            self.portfolio['pair'][pair_name] = {
+                                'qty1': 0,
+                                'qty2': 0,
+                                'entry_price1': 0,
+                                'entry_price2': 0,
+                                'side': 0,
+                                'stop_loss': 0,
+                            }
+                            # realise pnl on wallet balance
+                            self.portfolio['wallet_balance'] += pnl
+
+                            # leave commission to netting
+                            netting[c1] -= qty1
+                            netting[c2] -= qty2
+                            # print(f'{pair_name} short exit: {pnl:.2f}. Entry price 1: {entry_price1:.2f}. Entry price 2: {entry_price2:.2f}. Exit price 1: {price1:.2f}. Exit price 2: {price2:.2f}. Entry Size: {abs(qty1) * entry_price1 + abs(qty2) * entry_price2:.2f}.')
+                else:       # If no existing position, check for entry
+                    if h1 > self.config.long_threshold and self.portfolio['pair'][pair_name]['stop_loss'] != 1:
+                        qty1, qty2 = self.get_qty(self.data[c1].loc[timestamps[t-self.config.ewm_window:t], 'close'],
+                                                  self.data[c2].loc[timestamps[t-self.config.ewm_window:t], 'close'],
+                                                  self.portfolio['margin_balance'])
+                        qty2 *= -1
+                        self.portfolio['pair'][pair_name] = {
+                            'qty1': qty1,
+                            'qty2': qty2,
+                            'entry_price1': price1,
+                            'entry_price2': price2,
+                            'side': 1,
+                            'stop_loss': 0,
+                        }
+                        netting[c1] += qty1
+                        netting[c2] += qty2
+                    elif h1 < self.config.short_threshold and self.portfolio['pair'][pair_name]['stop_loss'] != -1:
+                        qty1, qty2 = self.get_qty(self.data[c1].loc[timestamps[t-self.config.ewm_window:t], 'close'],
+                                                  self.data[c2].loc[timestamps[t-self.config.ewm_window:t], 'close'],
+                                                  self.portfolio['margin_balance'])
+                        qty1 *= -1
+                        self.portfolio['pair'][pair_name] = {
+                            'qty1': qty1,
+                            'qty2': qty2,
+                            'entry_price1': price1,
+                            'entry_price2': price2,
+                            'side': -1,
+                            'stop_loss': 0,
+                        }
+                        netting[c1] += qty1
+                        netting[c2] += qty2
+            self.execute_netting(netting, current_price_dict)
+            self.update_margin_balance(current_price_dict)
+        return self.portfolio
+
+
 def select_pairs(coins: list[str], data: dict):
     pairs_with_stats = []
     for i in range(len(coins)):
         for j in range(i+1, len(coins)):
             c1, c2 = coins[i], coins[j]
-            coint_t, p_value, _ = coint(data[c1]['close'], data[c2]['close'])
-            if coint_t > Config().coint_threshold:
-                pairs_with_stats.append((c1, c2, coint_t, p_value))
+            coint_t, _, _ = coint(data[c1]['close'], data[c2]['close'])
+            pairs_with_stats.append((c1, c2, coint_t))
     
     pairs_with_stats.sort(key=lambda x: x[2], reverse=True)
-    # selected_pairs = [(c1, c2) for c1, c2, _, _ in pairs_with_stats]
-    output = pd.DataFrame(pairs_with_stats, columns=['c1', 'c2', 't-stat', 'p-value'])
-    output.to_csv('backtest_results/pairs_with_stats.csv', index=False)
-    selected_pairs = [(c1, c2) for c1, c2, _, _ in pairs_with_stats[:Config().num_pairs]]
+    output = pd.DataFrame(pairs_with_stats, columns=['c1', 'c2', 't-stat'])
+    output.to_csv('model_params/pairs_with_stats.csv', index=False)
+    selected_pairs = [(c1, c2) for c1, c2, _ in pairs_with_stats[:Config().num_pairs]]
     return selected_pairs
 
-def crypto_backtest():
+def crypto_backtest(date_start_str: str, date_end_str: str, file_extension: str = ''):
+    # collector = BybitDataCollector()
     collector = BinanceDataCollector()
-    
-    # formation_start_str = '2022-01-01 00:00:00'
-    # formation_end_str = '2023-12-31 23:59:59'
-    backtest_start_str = '2024-01-01 00:00:00'
-    backtest_end_str = '2024-12-31 23:59:59'
-    
-    coins = Config().coins
+    marginal_params = pd.read_csv(f'model_params/marginal_params{file_extension}.csv')
+    copula_params = pd.read_csv(f'model_params/copula_params{file_extension}.csv')
+    selected_pairs = list(zip(copula_params['c1'], copula_params['c2']))
+    coins = list(set([coin for pair in selected_pairs for coin in pair]))
 
-    # formation_data = collector.get_multiple_symbols_data(symbols=coins, start_str=formation_start_str, end_str=formation_end_str)
-    # marginal_summary = MarginalFitter().fit_assets(formation_data, coins)
-    # copula_fitter = CopulaFitter()
-    
-    selected_pairs = select_pairs(coins, formation_data)
-    # copula_summary = copula_fitter.fit_assets(selected_pairs, marginal_summary)
-    
-    backtest_data = collector.get_multiple_symbols_data(symbols=coins, start_str=backtest_start_str, end_str=backtest_end_str)
+    backtest_data = collector.get_multiple_symbols_data(symbols=coins, start_str=date_start_str, end_str=date_end_str)
 
     backtest = Backtest()
     backtest.backtest_config(
         data=backtest_data,
         selected_pairs=selected_pairs,
-        marginal_summary=marginal_summary,
-        copula_fitter=copula_fitter
+        marginal_params=marginal_params,
+        copula_params=copula_params
     )
-    results = backtest.run()
-
-def stock_backtest():
-    import yfinance as yf
-    
-    collector = BinanceDataCollector()
-    
-    formation_start_str = '2022-01-01'
-    formation_end_str = '2022-12-31'
-    backtest_start_str = '2023-01-01'
-    backtest_end_str = '2023-12-31'
-    
-    stocks = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'TSLA',
-              'NVDA', 'META', 'NFLX', 'CSCO', 'INTC',
-              'QCOM', 'ORCL', 'IBM', 'SAP', 'IBM']
-    data = yf.download(stocks, start='2022-01-01', end='2022-12-31')
-    
-    # Transform data into dictionary of DataFrames
-    data_dict = {}
-    for stock in stocks:
-        data_dict[stock] = pd.DataFrame({
-            'open': data['Open'][stock],
-            'high': data['High'][stock],
-            'low': data['Low'][stock],
-            'close': data['Close'][stock],
-            'volume': data['Volume'][stock]
-        })
-    
-    print("Data structure:", {k: v.shape for k, v in data_dict.items()})
-    print("\nSample data for first stock:", data_dict[stocks[0]].head())
-    
-    marginal_summary = MarginalFitter().fit_assets(data_dict, stocks)
-    copula_fitter = CopulaFitter()
-    selected_pairs = select_pairs(stocks, data_dict)
-    copula_summary = copula_fitter.fit_assets(selected_pairs, marginal_summary)
-    
-    backtest_data = yf.download(stocks, start=backtest_start_str, end=backtest_end_str)
-
-    backtest = Backtest()
-    backtest.backtest_config(
-        data=backtest_data,
-        selected_pairs=selected_pairs,
-        marginal_summary=marginal_summary,
-        copula_fitter=copula_fitter
-    )
-    results = backtest.run()
+    return backtest.run(file_extension=file_extension)
 
 if __name__ == "__main__":
-    # stock_backtest()
-    crypto_backtest()
+    crypto_backtest(date_start_str='2023-01-01 00:00:00', date_end_str='2023-06-30 23:59:59')

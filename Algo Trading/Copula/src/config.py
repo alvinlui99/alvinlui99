@@ -1,16 +1,17 @@
 class Config:
     def __init__(self):
         self.coins = [
-                "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","ADAUSDT",
-                "DOTUSDT","TRXUSDT","AVAXUSDT","ATOMUSDT",
-                "LTCUSDT","XRPUSDT","UNIUSDT","AAVEUSDT","DOGEUSDT"
+            # "BTCUSDT", "LTCUSDT"
+            "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","ADAUSDT",
+            "DOTUSDT","TRXUSDT","AVAXUSDT","ATOMUSDT",
+            "LTCUSDT","XRPUSDT","UNIUSDT","AAVEUSDT","DOGEUSDT"
         ]
-        self.coint_threshold = -2.0
+        self.coint_threshold = -10
         self.ewm_window = 7 * 24
 
         # Data collection parameters
         self.lookback_days = 10
-        self.interval = '1h'
+        self.interval = 60
 
         # Modelling parameters
         self.coint_pvalue_threshold = 0.05        
@@ -18,9 +19,9 @@ class Config:
         self.num_pairs = 10
 
         # Copula-based strategy
-        self.long_threshold = 0.7   # 0.95    # copula-based MI threshold for long positions
+        self.long_threshold = 0.95            # copula-based MI threshold for long positions
         self.long_exit_threshold = 0.3        # copula-based MI threshold for long exit
-        self.short_threshold = 0.3  # 0.05    # copula-based MI threshold for short positions
+        self.short_threshold = 0.05           # copula-based MI threshold for short positions
         self.short_exit_threshold = 0.7       # copula-based MI threshold for short exit
 
         # Risk management
@@ -31,4 +32,4 @@ class Config:
         self.leverage = 10
 
         # Backtest parameters
-        self.commission_pc = 0.00045 # 0.045%
+        self.commission_pc = 0.00055 # 0.055%

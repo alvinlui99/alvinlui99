@@ -100,6 +100,8 @@ class CopulaFitter:
     """
     def __init__(self):
         self.copulae = {}
+        self.copula_params = []
+        self.summary = []
 
     def _empirical_copula(self, u: np.ndarray, v: np.ndarray) -> np.ndarray:
         """Calculate the empirical copula for the data."""
@@ -113,14 +115,15 @@ class CopulaFitter:
         """Calculate the Cramer-von Mises statistic."""
         return np.sum((empirical - theoretical) ** 2)
 
-    def evaluate(self, u: np.ndarray, v: np.ndarray, pair: str) -> Dict:
+    def evaluate(self, u: np.ndarray, v: np.ndarray, pair: tuple[str, str]) -> Dict:
+        c1, c2 = pair
         empirical_copula = self._empirical_copula(u, v)
         theoretical_copula = self.copulae[pair].cdf(u, v)
         cvm_stat = self._cvm_statistic(empirical_copula, theoretical_copula)
 
         results = {
-            'copula_name': pair,
-            'copula': self.copulae[pair],
+            'c1': c1,
+            'c2': c2,
             'theta': self.copulae[pair].theta,
             'psi': self.copulae[pair].psi,
             'cvm_statistic': cvm_stat
@@ -129,9 +132,8 @@ class CopulaFitter:
         return results
 
     def fit_assets(self, selected_pairs: list, formation_data: Dict[str, pd.DataFrame], marginal_params: pd.DataFrame) -> Dict[str, Dict]:
-        summary = {}
         for pair in selected_pairs:
-            c1, c2 = pair.split('-')
+            c1, c2 = pair
             return1 = formation_data[c1]['close'].pct_change().dropna()
             return2 = formation_data[c2]['close'].pct_change().dropna()
             params1 = marginal_params[marginal_params['asset'] == c1]
@@ -146,18 +148,17 @@ class CopulaFitter:
                             params2['scale'])
             self.copulae[pair] = TawnType1Copula()
             self.copulae[pair].fit(u, v)
-            summary[pair] = self.evaluate(u, v, pair)
-        return summary
-
-    def save_copula_params(self):
-        copula_params = []
-        for pair in self.copulae:
-            copula_params.append({
-                'pair': pair,
+            self.copula_params.append({
+                'c1': c1,
+                'c2': c2,
                 'theta': self.copulae[pair].theta,
                 'psi': self.copulae[pair].psi
             })
-        pd.DataFrame(copula_params).to_csv('model_params/copula_params.csv', index=False)
+            self.summary.append(self.evaluate(u, v, pair))
+
+    def save_copula_params(self, file_extension: str = ''):
+        pd.DataFrame(self.copula_params).to_csv(f'model_params/copula_params{file_extension}.csv', index=False)
+        pd.DataFrame(self.summary).to_csv(f'model_params/copula_summary{file_extension}.csv', index=False)
             
 def exp_smoothed_return(data: pd.Series, window: int = 12, alpha: float = 0.1) -> float:
     returns = data[-window:].pct_change()
@@ -166,18 +167,21 @@ def exp_smoothed_return(data: pd.Series, window: int = 12, alpha: float = 0.1) -
     return returns.iloc[-1]
 
 if __name__ == "__main__":
-    from collector import BinanceDataCollector
+    from collector import BybitDataCollector, BinanceDataCollector
     from config import Config
 
+    # collector = BybitDataCollector()
     collector = BinanceDataCollector()
-    coins = Config().coins
+    marginal_p_values = pd.read_csv('model_params/marginal_p_values.csv')
+    marginal_params = pd.read_csv('model_params/marginal_params.csv')
+    coins = marginal_p_values[marginal_p_values['p_value'] > 0]['asset'].unique().tolist()
     
-    formation_start_str = '2024-01-01 00:00:00'
-    formation_end_str = '2025-06-15 23:59:59'
+    formation_start_str = '2022-06-01 00:00:00'
+    formation_end_str = '2022-12-31 23:59:59'
     formation_data = collector.get_multiple_symbols_data(symbols=coins, start_str=formation_start_str, end_str=formation_end_str)
     copula_fitter = CopulaFitter()
-    positions = pd.read_csv('trading_results/positions.csv')
-    selected_pairs = positions['pair'].unique().tolist()
-    marginal_params = pd.read_csv('model_params/marginal_params.csv')
-    copula_summary = copula_fitter.fit_assets(selected_pairs, formation_data, marginal_params)
+    
+    from backtest import select_pairs
+    selected_pairs = select_pairs(coins, formation_data)
+    copula_fitter.fit_assets(selected_pairs, formation_data, marginal_params)
     copula_fitter.save_copula_params()

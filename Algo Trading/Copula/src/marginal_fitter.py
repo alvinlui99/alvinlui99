@@ -10,45 +10,42 @@ class MarginalFitter:
     def __init__(self):
         self.models = {}
         self.returns = {}
+        self.p_values = []
+        self.marginal_params = []
 
     def evaluate(self, asset: str) -> float:
         result = stats.kstest(self.returns[asset], 't', args=self.models[asset])
         return result.pvalue
 
     def fit_assets(self, data: Dict[str, pd.DataFrame], asset_names: list, returns_col: str = 'close') -> Dict[str, Dict]:
-        summary = {}
-        marginal_params = []
         for asset in asset_names:
             df = data[asset]
             self.returns[asset] = df[returns_col].pct_change().dropna().values
             self.models[asset] = stats.t.fit(self.returns[asset])
-            p_value = self.evaluate(asset)
-            uniform = stats.t.cdf(self.returns[asset], *self.models[asset])
-            summary[asset] = {
-                'returns': self.returns[asset],
-                'uniform': uniform,
-                'params': self.models[asset],
-                'p_value': p_value
-            }
-            marginal_params.append({
+            self.p_values.append({
+                'asset': asset,
+                'p_value': self.evaluate(asset)
+            })
+            self.marginal_params.append({
                 'asset': asset,
                 'df': self.models[asset][0],
                 'loc': self.models[asset][1],
                 'scale': self.models[asset][2]
             })
-        pd.DataFrame(marginal_params).to_csv('model_params/marginal_params.csv', index=False)
-        return summary
-    
-    def qq_plot(self, asset: str):
-        qqplot(self.returns[asset], stats.t, fit=True, line='45')
-        plt.title(f'QQ Plot for {asset}')
-        plt.show()
+
+    def save_marginal_params(self, file_extension: str = ''):
+        pd.DataFrame(self.marginal_params).to_csv(f'model_params/marginal_params{file_extension}.csv', index=False)
+        pd.DataFrame(self.p_values).to_csv(f'model_params/marginal_p_values{file_extension}.csv', index=False)
 
 if __name__ == "__main__":
-    from collector import BinanceDataCollector
+    from collector import BybitDataCollector, BinanceDataCollector
     from config import Config
     coins = Config().coins
+    # coins = ['ETHUSDT']
+    # collector = BybitDataCollector()
     collector = BinanceDataCollector()
-    data = collector.get_multiple_symbols_data(symbols=coins, start_str='2024-01-01 00:00:00', end_str='2025-06-15 23:59:59')
+    formation_start_str = '2022-06-01 00:00:00'
+    formation_end_str = '2022-12-31 23:59:59'
+    data = collector.get_multiple_symbols_data(symbols=coins, start_str=formation_start_str, end_str=formation_end_str)
     marginal_fitter = MarginalFitter()
-    summary = marginal_fitter.fit_assets(data, coins)
+    marginal_fitter.fit_assets(data, coins)
