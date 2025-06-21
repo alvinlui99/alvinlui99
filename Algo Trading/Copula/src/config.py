@@ -1,10 +1,10 @@
 class Config:
     def __init__(self):
         self.coins = [
-            # "BTCUSDT", "LTCUSDT"
-            "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","ADAUSDT",
-            "DOTUSDT","TRXUSDT","AVAXUSDT","ATOMUSDT",
-            "LTCUSDT","XRPUSDT","UNIUSDT","AAVEUSDT","DOGEUSDT"
+            "BTCUSDT", "LTCUSDT"
+            # "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","ADAUSDT",
+            # "DOTUSDT","TRXUSDT","AVAXUSDT","ATOMUSDT",
+            # "LTCUSDT","XRPUSDT","UNIUSDT","AAVEUSDT","DOGEUSDT"
         ]
         self.coint_threshold = -10
         self.ewm_window = 7 * 24

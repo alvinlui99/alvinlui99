@@ -95,6 +95,12 @@ class Backtest:
 
     def run(self):
         timestamps = sorted(list(set.intersection(*[set(self.data[asset].index) for pair in self.selected_pairs for asset in pair])))
+        pair_history = {}
+        for pair in self.selected_pairs:
+            c1, c2 = pair
+            pair_name = f'{c1}-{c2}'
+            pair_history[pair_name] = pd.DataFrame(columns=['price1', 'price2', 'return1', 'return2', 'u1', 'u2', 'h1',
+                                                            'qty1', 'qty2', 'entry_price1', 'entry_price2', 'side'])
         for t in range(self.config.ewm_window, len(timestamps)):
             current_price_dict = {asset: self.data[asset].loc[timestamps[t], 'close'] for asset in self.data.keys()}
             self.update_margin_balance(current_price_dict)
@@ -106,6 +112,9 @@ class Backtest:
                 pair_name = f'{c1}-{c2}'
                 price1 = current_price_dict[c1]
                 price2 = current_price_dict[c2]
+                side = self.portfolio['pair'][pair_name]['side']
+                qty1 = self.portfolio['pair'][pair_name]['qty1']
+                qty2 = self.portfolio['pair'][pair_name]['qty2']
                 return1 = self.exp_smoothed_return(self.data[c1].loc[timestamps[t-self.config.ewm_window:t], 'close'])
                 return2 = self.exp_smoothed_return(self.data[c2].loc[timestamps[t-self.config.ewm_window:t], 'close'])
                 params1 = self.marginal_params[self.marginal_params['asset'] == c1].to_dict('records')[0]
@@ -114,14 +123,9 @@ class Backtest:
                 u2 = stats.t.cdf(return2, params2['df'], params2['loc'], params2['scale'])
                 h1, _ = self.copulae[f'{c1}-{c2}'].mispricing_index(u1, u2)
                 if self.portfolio['pair'][pair_name]['side'] != 0:      # If there is existing position
-                    side = self.portfolio['pair'][pair_name]['side']
-                    qty1 = self.portfolio['pair'][pair_name]['qty1']
-                    qty2 = self.portfolio['pair'][pair_name]['qty2']
                     entry_price1 = self.portfolio['pair'][pair_name]['entry_price1']
                     entry_price2 = self.portfolio['pair'][pair_name]['entry_price2']
                     pnl = (price1 - entry_price1) * qty1 + (price2 - entry_price2) * qty2
-                    # if False:
-                    #     pass
                     if pnl < self.portfolio['margin_balance'] * self.config.stop_loss_pc:       # If stop loss, close position and set stop_loss
                         self.portfolio['pair'][pair_name] = {
                             'qty1': 0,
@@ -202,8 +206,24 @@ class Backtest:
                         }
                         netting[c1] += qty1
                         netting[c2] += qty2
+                pair_history[pair_name].loc[timestamps[t]] = {
+                    'price1': price1,
+                    'price2': price2,
+                    'return1': return1,
+                    'return2': return2,
+                    'u1': u1,
+                    'u2': u2,
+                    'h1': h1,
+                    'qty1': qty1,
+                    'qty2': qty2,
+                    'entry_price1': price1,
+                    'entry_price2': price2,
+                    'side': side,
+                }
             self.execute_netting(netting, current_price_dict)
             self.update_margin_balance(current_price_dict)
+        for pair_name in pair_history.keys():
+            pair_history[pair_name].to_csv(f'backtest_results/pair_history_{pair_name}_{self.file_extension}.csv', index=False)
         return self.portfolio
 
 
